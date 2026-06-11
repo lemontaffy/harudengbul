@@ -83,6 +83,12 @@ export const settings = pgTable("settings", {
   proactiveEnabled: boolean("proactive_enabled").default(false),
   morningTime: time("morning_time").default("08:00"),
   eveningTime: time("evening_time").default("22:00"),
+  // proactive 선제 톡 일자별 중복 발송 방지(사용자 tz 기준 날짜)
+  lastMorningSent: date("last_morning_sent"),
+  lastEveningSent: date("last_evening_sent"),
+  // 생성형 "한마디" 하루 1회 캐시
+  dailyPhrase: text("daily_phrase"),
+  dailyPhraseDate: date("daily_phrase_date"),
   locationLat: numeric("location_lat"),
   locationLon: numeric("location_lon"),
   kmaNx: integer("kma_nx"),

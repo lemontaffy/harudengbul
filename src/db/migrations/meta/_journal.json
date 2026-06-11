@@ -29,6 +29,13 @@
       "when": 1781187847236,
       "tag": "0003_persona_last_read",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1781191985512,
+      "tag": "0004_proactive_phrase",
+      "breakpoints": true
     }
   ]
 }

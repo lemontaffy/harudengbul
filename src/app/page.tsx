@@ -10,6 +10,7 @@ import LogoutButton from "@/components/LogoutButton";
 import LiveClock from "@/components/LiveClock";
 import MoodChips from "@/components/MoodChips";
 import WeatherSlot from "@/components/WeatherSlot";
+import PhraseCard from "@/components/PhraseCard";
 
 export const dynamic = "force-dynamic";
 
@@ -138,10 +139,8 @@ export default async function DashboardPage() {
       {/* 기분 체크인 칩 */}
       <MoodChips today={today} initialMood={(todayDiary?.mood as Mood) ?? null} />
 
-      {/* 한마디 카드 */}
-      <section className="rounded-2xl bg-gradient-to-br from-accent/15 to-surface p-5 text-center">
-        <p className="text-sm leading-relaxed">{phrase}</p>
-      </section>
+      {/* 한마디 카드 (정적 즉시 → 생성형 교체) */}
+      <PhraseCard initial={phrase} />
     </main>
   );
 }
