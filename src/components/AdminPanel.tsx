@@ -2,6 +2,70 @@
 
 import { useEffect, useState, useCallback } from "react";
 
+/**
+ * 클립보드 복사 — HTTPS(보안 컨텍스트)에선 Clipboard API, 아니면(예: http/localhost)
+ * 숨은 textarea + execCommand 폴백. 둘 다 실패하면 false.
+ */
+async function copyText(text: string): Promise<boolean> {
+  try {
+    if (navigator.clipboard && window.isSecureContext) {
+      await navigator.clipboard.writeText(text);
+      return true;
+    }
+  } catch {
+    /* 폴백으로 진행 */
+  }
+  try {
+    const ta = document.createElement("textarea");
+    ta.value = text;
+    ta.setAttribute("readonly", "");
+    ta.style.position = "fixed";
+    ta.style.top = "0";
+    ta.style.opacity = "0";
+    document.body.appendChild(ta);
+    ta.focus();
+    ta.select();
+    const ok = document.execCommand("copy");
+    document.body.removeChild(ta);
+    return ok;
+  } catch {
+    return false;
+  }
+}
+
+function CopyButton({
+  text,
+  className = "",
+  label = "복사",
+}: {
+  text: string;
+  className?: string;
+  label?: string;
+}) {
+  const [done, setDone] = useState(false);
+  async function onClick() {
+    const ok = await copyText(text);
+    if (ok) {
+      setDone(true);
+      setTimeout(() => setDone(false), 1500);
+    } else {
+      // 복사 자체가 막힌 환경 — 수동 복사할 수 있게 노출
+      prompt("복사가 막혀 있어요. 아래 내용을 길게 눌러 복사하세요:", text);
+    }
+  }
+  return (
+    <button
+      onClick={onClick}
+      className={`shrink-0 rounded px-2 py-1 ${
+        done ? "text-green-400" : "text-accent hover:opacity-80"
+      } ${className}`}
+      title="복사"
+    >
+      {done ? "복사됨 ✓" : label}
+    </button>
+  );
+}
+
 interface Invite {
   code: string;
   url: string;
@@ -92,19 +156,23 @@ export default function AdminPanel() {
             {invites.map((i) => (
               <li key={i.code} className="rounded-lg bg-bg p-2 text-xs">
                 <div className="flex items-center justify-between gap-2">
-                  <button
-                    onClick={() => navigator.clipboard?.writeText(i.url)}
-                    className="truncate text-left opacity-80 hover:text-accent"
-                    title="클릭하면 가입 링크 복사"
-                  >
+                  <code className="select-all truncate opacity-80" title={i.url}>
                     {i.url}
-                  </button>
-                  <button
-                    onClick={() => cancelInvite(i.code)}
-                    className="shrink-0 opacity-60 hover:text-red-400"
-                  >
-                    취소
-                  </button>
+                  </code>
+                  <div className="flex shrink-0 items-center gap-1">
+                    <CopyButton text={i.url} label="링크 복사" />
+                    <CopyButton
+                      text={i.code}
+                      label="코드만"
+                      className="opacity-70"
+                    />
+                    <button
+                      onClick={() => cancelInvite(i.code)}
+                      className="rounded px-2 py-1 opacity-60 hover:text-red-400"
+                    >
+                      취소
+                    </button>
+                  </div>
                 </div>
                 <p className="mt-1 opacity-40">
                   만료: {new Date(i.expiresAt).toLocaleString("ko-KR")}
@@ -153,13 +221,13 @@ export default function AdminPanel() {
                 )}
               </div>
               {tempPw[u.id] && (
-                <button
-                  onClick={() => navigator.clipboard?.writeText(tempPw[u.id])}
-                  className="mt-1 w-full rounded bg-accent/10 px-2 py-1 text-left text-accent"
-                  title="클릭하면 복사"
-                >
-                  임시 비밀번호: {tempPw[u.id]} (1회 표시 · 클릭 복사)
-                </button>
+                <div className="mt-1 flex items-center gap-2 rounded bg-accent/10 px-2 py-1 text-accent">
+                  <code className="select-all flex-1 truncate">
+                    임시 비밀번호: {tempPw[u.id]}
+                  </code>
+                  <span className="shrink-0 opacity-50">1회 표시</span>
+                  <CopyButton text={tempPw[u.id]} />
+                </div>
               )}
             </li>
           ))}
