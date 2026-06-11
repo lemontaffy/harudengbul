@@ -39,7 +39,19 @@ curl -s localhost:3000/api/health     # {"ok":true,"service":"haru-app"}
 → 여기까지 되면 **M1 완료**.
 
 ## 배포 루프 (이후 공통)
-로컬에서 `docker compose up --build`로 스모크 → 서버에서 `git pull && docker compose up -d --build`.
+로컬에서 `docker compose up --build`로 스모크 → 서버에서 **`./scripts/deploy.sh`** 한 방.
+
+`deploy.sh` = `git pull` → `docker compose build` → `docker compose run --rm migrate`(마이그레이션+시드,
+**항상 실행**) → `docker compose up -d`. 마이그레이션을 명시적으로 항상 돌려 재배포 시 누락
+(`--build` 깜빡/일회용 서비스 미재실행)을 막고, 마이그레이션 실패 시 멈춰 깨진 코드가 안 뜨게 한다.
+수동으로 풀어 쓰면:
+```bash
+cd /opt/haru
+git pull --ff-only
+docker compose build
+docker compose run --rm migrate   # ← 핵심: 항상 마이그레이션
+docker compose up -d
+```
 
 ## M2 (멀티유저) — 로그인 + DB + 초대제 + 어드민
 

@@ -41,7 +41,8 @@
 ## 명령
 
 - 개발: `npm run dev`
-- 배포: 서버에서 `git pull && docker compose up -d --build`
+- **배포: 서버에서 `./scripts/deploy.sh`** (git pull→빌드→마이그레이션+시드(항상)→기동).
+  마이그레이션을 명시적으로 항상 적용해 재배포 누락을 막는다. 실패 시 멈춰서 깨진 코드 기동 방지.
 - 마이그레이션 생성(로컬, 스키마 변경 시): `npm run db:generate`
 
 ### 운영 스크립트는 `tools` 서비스로 (서버 표준 경로)
