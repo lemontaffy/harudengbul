@@ -1,24 +1,20 @@
 import Link from "next/link";
-import { eq } from "drizzle-orm";
-import { db } from "@/db/client";
-import { settings } from "@/db/schema";
-import { getOpenRouterConfig, maskApiKey } from "@/lib/config";
+import { requireUser } from "@/lib/currentUser";
+import * as settingsRepo from "@/db/repo/settings";
 import SettingsForm, { type SettingsInitial } from "@/components/SettingsForm";
 
 export const dynamic = "force-dynamic";
 
 export default async function SettingsPage() {
-  const cfg = await getOpenRouterConfig();
-  const row = await db.query.settings.findFirst({ where: eq(settings.id, 1) });
+  const user = await requireUser();
+  const s = await settingsRepo.getByUser(user.id);
 
   const initial: SettingsInitial = {
-    model: cfg.modelSource === "db" ? cfg.model : "",
-    modelSource: cfg.modelSource,
-    baseUrl: cfg.baseUrl,
-    hasApiKey: !!cfg.apiKey,
-    apiKeyMasked: maskApiKey(cfg.apiKey),
-    apiKeySource: cfg.apiKeySource,
-    activePersona: (row?.activePersona as "theo" | "nora") ?? "nora",
+    activePersona: (s?.activePersona as "theo" | "nora") ?? "nora",
+    proactiveEnabled: s?.proactiveEnabled ?? false,
+    morningTime: s?.morningTime ?? "08:00",
+    eveningTime: s?.eveningTime ?? "22:00",
+    timezone: s?.timezone ?? "Asia/Seoul",
   };
 
   return (

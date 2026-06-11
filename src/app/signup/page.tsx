@@ -1,10 +1,13 @@
 "use client";
 
-import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { Suspense, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 
-export default function LoginPage() {
+function SignupForm() {
   const router = useRouter();
+  const params = useSearchParams();
+  const code = params.get("code") ?? "";
+
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
@@ -15,17 +18,17 @@ export default function LoginPage() {
     setError("");
     setLoading(true);
     try {
-      const res = await fetch("/api/login", {
+      const res = await fetch("/api/signup", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ username, password }),
+        body: JSON.stringify({ code, username, password }),
       });
       if (res.ok) {
         router.replace("/");
         router.refresh();
       } else {
         const data = await res.json().catch(() => ({}));
-        setError(data.error ?? "로그인 실패");
+        setError(data.error ?? "가입 실패");
       }
     } catch {
       setError("네트워크 오류");
@@ -43,13 +46,19 @@ export default function LoginPage() {
         onSubmit={onSubmit}
         className="w-full max-w-xs rounded-2xl bg-surface p-6 shadow-lg"
       >
-        <h1 className="mb-1 text-xl font-semibold text-accent">하루등불</h1>
-        <p className="mb-5 text-xs opacity-60">로그인</p>
+        <h1 className="mb-1 text-xl font-semibold text-accent">하루등불 가입</h1>
+        <p className="mb-5 text-xs opacity-60">초대 코드로 계정을 만듭니다.</p>
+
+        {!code && (
+          <p className="mb-3 rounded-lg bg-red-500/10 p-2 text-xs text-red-400">
+            초대 코드가 없습니다. 받은 가입 링크로 접속하세요.
+          </p>
+        )}
 
         <input
           value={username}
           onChange={(e) => setUsername(e.target.value)}
-          placeholder="아이디"
+          placeholder="아이디 (영문/숫자)"
           autoFocus
           autoComplete="username"
           className={input}
@@ -58,8 +67,8 @@ export default function LoginPage() {
           type="password"
           value={password}
           onChange={(e) => setPassword(e.target.value)}
-          placeholder="비밀번호"
-          autoComplete="current-password"
+          placeholder="비밀번호 (8자 이상)"
+          autoComplete="new-password"
           className={input}
         />
 
@@ -67,15 +76,20 @@ export default function LoginPage() {
 
         <button
           type="submit"
-          disabled={loading || !username || !password}
+          disabled={loading || !code || !username || !password}
           className="w-full rounded-lg bg-accent py-2 text-sm font-medium text-black disabled:opacity-50"
         >
-          {loading ? "확인 중…" : "로그인"}
+          {loading ? "가입 중…" : "가입하기"}
         </button>
-        <p className="mt-4 text-center text-[11px] opacity-50">
-          초대 코드가 있다면 받은 가입 링크로 접속하세요.
-        </p>
       </form>
     </main>
+  );
+}
+
+export default function SignupPage() {
+  return (
+    <Suspense fallback={null}>
+      <SignupForm />
+    </Suspense>
   );
 }

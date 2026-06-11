@@ -16,6 +16,14 @@
 - Postgres: host에 포트 비공개. docker 내부망에서 `db:5432`로만 접근. 볼륨 `./data/pg`.
 - 80/443: 비어 있음(터널이 inbound 포트를 안 씀).
 
+## 운영 모드 (DELTA-multiuser)
+
+- **초대제 멀티유저** — `DELTA-multiuser.md`가 SPEC §2(단일 사용자)를 대체. 충돌 시 DELTA 우선.
+- 첫 관리자: 사용자 0명일 때 시드가 `ADMIN_USERNAME`(기본 admin) + `APP_PASSWORD_HASH`로 admin 1명 생성.
+- 가입: 공개 가입 없음. admin이 `/admin`에서 초대 코드 발급 → `/signup?code=...` (이메일/SMTP 없음).
+- **OpenRouter 연결은 전역(admin 관리)** — `app_config` 단일행. 멤버 공유, `daily_message_limit`로 크레딧 보호.
+- 데이터 접근은 `src/db/repo/*`의 userId-스코프 함수로만. 라우트에서 db 직접 호출 금지.
+
 ## 모델
 
 - 채팅 모델은 `OPENROUTER_MODEL` env로만 참조. **코드에 모델명 하드코딩 금지** (사용자가 언제든 교체).

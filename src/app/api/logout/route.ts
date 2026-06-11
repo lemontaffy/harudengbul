@@ -1,14 +1,9 @@
-import { cookies } from "next/headers";
-import { getIronSession } from "iron-session";
-import { sessionOptions, type SessionData } from "@/lib/session";
+import { getSession } from "@/lib/currentUser";
 
 export const runtime = "nodejs";
 
 export async function POST() {
-  const session = await getIronSession<SessionData>(
-    await cookies(),
-    sessionOptions,
-  );
+  const session = await getSession();
   session.destroy();
   return Response.json({ ok: true });
 }

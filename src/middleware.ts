@@ -2,8 +2,14 @@ import { NextResponse, type NextRequest } from "next/server";
 import { getIronSession } from "iron-session";
 import { sessionOptions, type SessionData } from "@/lib/session";
 
-// 인증 없이 접근 가능한 경로
-const PUBLIC_PATHS = ["/login", "/api/login", "/api/health"];
+// 인증 없이 접근 가능한 경로 (초대 가입 포함)
+const PUBLIC_PATHS = [
+  "/login",
+  "/signup",
+  "/api/login",
+  "/api/signup",
+  "/api/health",
+];
 
 function isPublic(pathname: string): boolean {
   return PUBLIC_PATHS.some(
@@ -11,13 +17,15 @@ function isPublic(pathname: string): boolean {
   );
 }
 
+// 미들웨어는 Edge라 DB 접근 불가 → 세션에 userId가 있는지(coarse)만 검사.
+// is_active 최종 확인은 데이터 계층(getCurrentUser)에서 한다.
 export async function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
   const res = NextResponse.next();
   const session = await getIronSession<SessionData>(req, res, sessionOptions);
+  const authed = !!session.userId;
 
-  // 미인증 + 비공개 경로 → 차단
-  if (!session.isLoggedIn && !isPublic(pathname)) {
+  if (!authed && !isPublic(pathname)) {
     if (pathname.startsWith("/api/")) {
       return NextResponse.json({ error: "unauthorized" }, { status: 401 });
     }
@@ -26,8 +34,8 @@ export async function middleware(req: NextRequest) {
     return NextResponse.redirect(url);
   }
 
-  // 이미 로그인했는데 /login 방문 → 홈으로
-  if (session.isLoggedIn && pathname === "/login") {
+  // 이미 로그인 상태로 로그인/가입 방문 → 홈
+  if (authed && (pathname === "/login" || pathname === "/signup")) {
     const url = req.nextUrl.clone();
     url.pathname = "/";
     return NextResponse.redirect(url);
@@ -37,7 +45,6 @@ export async function middleware(req: NextRequest) {
 }
 
 export const config = {
-  // 정적 자산/PWA 파일은 미들웨어 제외
   matcher: [
     "/((?!_next/static|_next/image|favicon.ico|manifest.webmanifest|sw.js|icons/).*)",
   ],

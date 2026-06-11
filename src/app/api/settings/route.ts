@@ -1,79 +1,45 @@
-import { eq } from "drizzle-orm";
 import { z } from "zod";
-import { db } from "@/db/client";
-import { settings } from "@/db/schema";
-import { getOpenRouterConfig, maskApiKey } from "@/lib/config";
+import { getCurrentUser } from "@/lib/currentUser";
+import * as settingsRepo from "@/db/repo/settings";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-// 미들웨어에서 이미 인증 검사됨.
+const timeRe = /^([01]\d|2[0-3]):[0-5]\d$/;
+
+const bodySchema = z.object({
+  activePersona: z.enum(["theo", "nora"]).optional(),
+  proactiveEnabled: z.boolean().optional(),
+  morningTime: z.string().regex(timeRe).optional(),
+  eveningTime: z.string().regex(timeRe).optional(),
+  timezone: z.string().min(1).optional(),
+});
+
 export async function GET() {
-  const cfg = await getOpenRouterConfig();
-  const row = await db.query.settings.findFirst({ where: eq(settings.id, 1) });
+  const user = await getCurrentUser();
+  if (!user) return Response.json({ error: "unauthorized" }, { status: 401 });
+  const s = await settingsRepo.getByUser(user.id);
   return Response.json({
-    model: cfg.model,
-    modelSource: cfg.modelSource,
-    baseUrl: cfg.baseUrl,
-    hasApiKey: !!cfg.apiKey,
-    apiKeyMasked: maskApiKey(cfg.apiKey),
-    apiKeySource: cfg.apiKeySource,
-    activePersona: row?.activePersona ?? "nora",
+    activePersona: s?.activePersona ?? "nora",
+    proactiveEnabled: s?.proactiveEnabled ?? false,
+    morningTime: s?.morningTime ?? "08:00",
+    eveningTime: s?.eveningTime ?? "22:00",
+    timezone: s?.timezone ?? "Asia/Seoul",
   });
 }
 
-const bodySchema = z.object({
-  // 빈 문자열이면 "변경 안 함"으로 취급(키를 지우려면 명시적으로 clearApiKey 사용)
-  openrouterApiKey: z.string().optional(),
-  clearApiKey: z.boolean().optional(),
-  openrouterModel: z.string().optional(),
-  openrouterBaseUrl: z
-    .string()
-    .url()
-    .optional()
-    .or(z.literal("")),
-  activePersona: z.enum(["theo", "nora"]).optional(),
-});
-
 export async function POST(req: Request) {
+  const user = await getCurrentUser();
+  if (!user) return Response.json({ error: "unauthorized" }, { status: 401 });
+
   const body = await req.json().catch(() => null);
   const parsed = bodySchema.safeParse(body);
   if (!parsed.success) {
-    return Response.json(
-      { error: "잘못된 입력", detail: parsed.error.flatten() },
-      { status: 400 },
-    );
-  }
-  const d = parsed.data;
-
-  const patch: Partial<typeof settings.$inferInsert> = {};
-  if (d.clearApiKey) {
-    patch.openrouterApiKey = null;
-  } else if (typeof d.openrouterApiKey === "string" && d.openrouterApiKey.trim() !== "") {
-    patch.openrouterApiKey = d.openrouterApiKey.trim();
-  }
-  if (typeof d.openrouterModel === "string") {
-    patch.openrouterModel = d.openrouterModel.trim() || null;
-  }
-  if (typeof d.openrouterBaseUrl === "string") {
-    patch.openrouterBaseUrl = d.openrouterBaseUrl.trim() || null;
-  }
-  if (d.activePersona) {
-    patch.activePersona = d.activePersona;
+    return Response.json({ error: "잘못된 입력" }, { status: 400 });
   }
 
-  if (Object.keys(patch).length > 0) {
-    await db.update(settings).set(patch).where(eq(settings.id, 1));
+  if (Object.keys(parsed.data).length > 0) {
+    await settingsRepo.updateByUser(user.id, parsed.data);
   }
-
-  const cfg = await getOpenRouterConfig();
-  return Response.json({
-    ok: true,
-    model: cfg.model,
-    modelSource: cfg.modelSource,
-    baseUrl: cfg.baseUrl,
-    hasApiKey: !!cfg.apiKey,
-    apiKeyMasked: maskApiKey(cfg.apiKey),
-    apiKeySource: cfg.apiKeySource,
-  });
+  return Response.json({ ok: true });
 }
