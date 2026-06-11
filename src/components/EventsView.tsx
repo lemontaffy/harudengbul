@@ -269,7 +269,7 @@ function EventForm({
           </option>
         ))}
       </select>
-      <p className="mt-1 text-[11px] opacity-40">알람 발송은 곧 지원돼요(Phase 2).</p>
+      <p className="mt-1 text-[11px] opacity-40">알람은 알림(웹푸시)을 켠 기기로 와요.</p>
 
       <div className="mt-3 flex gap-2">
         <button

@@ -4,6 +4,12 @@ import { transactions } from "../schema";
 
 export type TransactionRow = typeof transactions.$inferSelect;
 
+export async function remove(userId: number, id: number) {
+  await db
+    .delete(transactions)
+    .where(and(eq(transactions.id, id), eq(transactions.userId, userId)));
+}
+
 export async function create(
   userId: number,
   input: {

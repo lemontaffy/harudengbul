@@ -74,6 +74,7 @@ export default async function DashboardPage() {
           <span>{user.username}</span>
           <Link href="/diary" className="hover:opacity-100">일기</Link>
           <Link href="/events" className="hover:opacity-100">일정</Link>
+          <Link href="/ledger" className="hover:opacity-100">가계부</Link>
           <Link href="/settings" className="hover:opacity-100">설정</Link>
           {user.role === "admin" && (
             <Link href="/admin" className="hover:opacity-100">어드민</Link>

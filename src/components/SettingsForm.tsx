@@ -302,7 +302,7 @@ export default function SettingsForm({ initial }: { initial: SettingsInitial }) 
           </button>
         </div>
         <p className="mb-3 text-[11px] opacity-50">
-          아침/저녁 먼저 말 걸기 (실제 발송은 Phase 2).
+          아침/저녁 먼저 말 걸기. 알림을 켜면 푸시로도 와요.
         </p>
         <div className="flex gap-3">
           <label className="flex-1 text-xs opacity-60">
