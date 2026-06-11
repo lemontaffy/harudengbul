@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import AvatarCropper from "@/components/AvatarCropper";
 
 export interface ProfileInitial {
   nickname: string;
@@ -18,6 +19,7 @@ export default function ProfileSection({ initial }: { initial: ProfileInitial })
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [status, setStatus] = useState("");
+  const [cropFile, setCropFile] = useState<File | null>(null);
 
   async function save() {
     setSaving(true);
@@ -37,12 +39,12 @@ export default function ProfileSection({ initial }: { initial: ProfileInitial })
     }
   }
 
-  async function uploadAvatar(file: File) {
+  async function uploadAvatar(blob: Blob) {
     setUploading(true);
     setStatus("");
     try {
       const fd = new FormData();
-      fd.append("avatar", file);
+      fd.append("avatar", blob, "avatar.jpg");
       const res = await fetch("/api/profile/avatar", { method: "POST", body: fd });
       const data = await res.json();
       if (!res.ok) {
@@ -83,11 +85,23 @@ export default function ProfileSection({ initial }: { initial: ProfileInitial })
             className="hidden"
             onChange={(e) => {
               const f = e.target.files?.[0];
-              if (f) uploadAvatar(f);
+              if (f) setCropFile(f); // 크롭 UI 먼저
+              e.target.value = ""; // 같은 파일 재선택 허용
             }}
           />
         </label>
       </div>
+
+      {cropFile && (
+        <AvatarCropper
+          file={cropFile}
+          onCancel={() => setCropFile(null)}
+          onCropped={(blob) => {
+            setCropFile(null);
+            uploadAvatar(blob);
+          }}
+        />
+      )}
 
       <label className="mb-1 mt-4 block text-xs opacity-60">닉네임</label>
       <input

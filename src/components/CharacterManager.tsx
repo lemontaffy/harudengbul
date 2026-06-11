@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import AvatarCropper from "@/components/AvatarCropper";
 
 type Role = "counselor" | "secretary";
 
@@ -269,6 +270,7 @@ function CharacterForm({
   const [avatarPath, setAvatarPath] = useState(initial?.avatarPath ?? null);
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [cropFile, setCropFile] = useState<File | null>(null);
 
   async function save() {
     if (!name.trim()) {
@@ -298,12 +300,12 @@ function CharacterForm({
     }
   }
 
-  async function uploadAvatar(file: File) {
+  async function uploadAvatar(blob: Blob) {
     if (!initial) return; // 새 캐릭터는 먼저 저장 후 편집에서 업로드
     setUploading(true);
     try {
       const fd = new FormData();
-      fd.append("avatar", file);
+      fd.append("avatar", blob, "avatar.jpg");
       const res = await fetch(`/api/personas/${initial.id}/avatar`, {
         method: "POST",
         body: fd,
@@ -335,7 +337,8 @@ function CharacterForm({
                 className="hidden"
                 onChange={(e) => {
                   const f = e.target.files?.[0];
-                  if (f) uploadAvatar(f);
+                  if (f) setCropFile(f); // 크롭 UI 먼저
+                  e.target.value = "";
                 }}
               />
             </label>
@@ -346,6 +349,17 @@ function CharacterForm({
           )}
         </div>
       </div>
+
+      {cropFile && (
+        <AvatarCropper
+          file={cropFile}
+          onCancel={() => setCropFile(null)}
+          onCropped={(blob) => {
+            setCropFile(null);
+            uploadAvatar(blob);
+          }}
+        />
+      )}
 
       <label className="mb-1 mt-3 block text-xs opacity-60">이름</label>
       <input
