@@ -52,6 +52,7 @@
 docker compose run --rm tools npm run db:migrate       # 마이그레이션
 docker compose run --rm tools npm run db:seed          # 시드(멱등)
 docker compose run --rm tools npm run encrypt-keys     # 평문 키 일괄 암호화(멱등)
+docker compose run --rm tools npm run vapid-keys        # 웹푸시 VAPID 키 생성(→ .env)
 docker compose run --rm tools npm run hash-password -- '비밀번호'
 docker compose run --rm tools npm run reset-password -- <username>
 docker compose run --rm tools npm run test:isolation   # 교차 격리 회귀 테스트

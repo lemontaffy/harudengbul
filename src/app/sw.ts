@@ -23,3 +23,45 @@ const serwist = new Serwist({
 });
 
 serwist.addEventListeners();
+
+// ── 웹푸시 ──
+// 서버(lib/push.ts)가 보낸 JSON {title, body, url?, tag?} 으로 알림 표시.
+self.addEventListener("push", (event) => {
+  let data: { title?: string; body?: string; url?: string; tag?: string } = {};
+  try {
+    data = event.data?.json() ?? {};
+  } catch {
+    data = { body: event.data?.text() };
+  }
+  const title = data.title || "하루등불";
+  event.waitUntil(
+    self.registration.showNotification(title, {
+      body: data.body ?? "",
+      icon: "/icons/icon-192.png",
+      badge: "/icons/icon-192.png",
+      tag: data.tag,
+      data: { url: data.url || "/" },
+    }),
+  );
+});
+
+// 알림 클릭 → 열린 탭이 있으면 포커스(해당 URL로 이동), 없으면 새 창.
+self.addEventListener("notificationclick", (event) => {
+  event.notification.close();
+  const url = (event.notification.data as { url?: string })?.url || "/";
+  event.waitUntil(
+    (async () => {
+      const wins = await self.clients.matchAll({
+        type: "window",
+        includeUncontrolled: true,
+      });
+      for (const c of wins) {
+        if ("focus" in c) {
+          await c.navigate(url).catch(() => {});
+          return c.focus();
+        }
+      }
+      return self.clients.openWindow(url);
+    })(),
+  );
+});

@@ -10,6 +10,7 @@ import CharacterManager, {
   type TriggerAssignments,
 } from "@/components/CharacterManager";
 import ProfileSection, { type ProfileInitial } from "@/components/ProfileSection";
+import NotificationToggle from "@/components/NotificationToggle";
 import PasswordChange from "@/components/PasswordChange";
 
 export const dynamic = "force-dynamic";
@@ -73,6 +74,7 @@ export default async function SettingsPage() {
       <div className="flex flex-col gap-6">
         <SettingsForm initial={initial} />
         <ProfileSection initial={profile} />
+        <NotificationToggle />
         <CharacterManager
           initialCharacters={characters}
           initialTriggers={triggers}
