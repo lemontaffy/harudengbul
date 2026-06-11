@@ -50,6 +50,13 @@
       "when": 1781194797440,
       "tag": "0006_handoff",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1781197838892,
+      "tag": "0007_google_calendar",
+      "breakpoints": true
     }
   ]
 }

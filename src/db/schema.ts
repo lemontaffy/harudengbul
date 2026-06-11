@@ -199,10 +199,14 @@ export const events = pgTable(
     endsAt: timestamp("ends_at", { withTimezone: true }),
     alarmMinutesBefore: integer("alarm_minutes_before"),
     alarmSent: boolean("alarm_sent").default(false),
-    source: text("source").default("local"),
+    source: text("source").default("local"), // 'local' | 'google'
+    googleEventId: text("google_event_id"), // Google 캘린더 이벤트 연결(양방향 매핑)
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
   },
-  (t) => [index("events_user_starts_idx").on(t.userId, t.startsAt)],
+  (t) => [
+    index("events_user_starts_idx").on(t.userId, t.startsAt),
+    index("events_user_google_idx").on(t.userId, t.googleEventId),
+  ],
 );
 
 export const transactions = pgTable(
@@ -265,6 +269,21 @@ export const weatherCache = pgTable(
   },
   (t) => [primaryKey({ columns: [t.kmaNx, t.kmaNy] })],
 );
+
+// Google 캘린더 연동(사용자별 1계정). 토큰은 암호화 저장(lib/crypto).
+export const googleAccounts = pgTable("google_accounts", {
+  userId: bigint("user_id", { mode: "number" })
+    .primaryKey()
+    .references(() => users.id, { onDelete: "cascade" }),
+  refreshToken: text("refresh_token").notNull(), // enc:v1:
+  accessToken: text("access_token"), // enc:v1: (캐시)
+  tokenExpiry: timestamp("token_expiry", { withTimezone: true }),
+  email: text("email"),
+  calendarId: text("calendar_id").notNull().default("primary"),
+  syncToken: text("sync_token"), // 증분 pull 용
+  connectedAt: timestamp("connected_at", { withTimezone: true }).defaultNow(),
+  lastSyncAt: timestamp("last_sync_at", { withTimezone: true }),
+});
 
 // 상담→비서 핸드오프 제안(동의 기반). 할 일 한 줄만 저장 — 대화 맥락/사유는 절대 저장 안 함.
 export const handoffSuggestions = pgTable(

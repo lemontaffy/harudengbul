@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { getCurrentUser } from "@/lib/currentUser";
 import * as eventsRepo from "@/db/repo/events";
+import { pushUpdate, pushDelete } from "@/lib/googlesync";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -50,6 +51,17 @@ export async function PATCH(
   if (d.alarmMinutesBefore !== undefined) patch.alarmMinutesBefore = d.alarmMinutesBefore;
 
   await eventsRepo.update(user.id, ev.id, patch);
+  // Google에 미러링(연결+매핑돼 있을 때만). 갱신된 값으로.
+  const updated = await eventsRepo.getOne(user.id, ev.id);
+  if (updated) {
+    void pushUpdate(user.id, {
+      googleEventId: updated.googleEventId,
+      title: updated.title,
+      startsAt: updated.startsAt as Date,
+      endsAt: updated.endsAt as Date | null,
+      alarmMinutesBefore: updated.alarmMinutesBefore,
+    });
+  }
   return Response.json({ ok: true });
 }
 
@@ -64,6 +76,8 @@ export async function DELETE(
   const ev = await loadOwned(user.id, id);
   if (!ev) return Response.json({ error: "없는 일정" }, { status: 404 });
 
+  // Google 매핑돼 있으면 원격도 삭제(로컬 삭제 전에 id 확보).
+  void pushDelete(user.id, ev.googleEventId);
   await eventsRepo.remove(user.id, ev.id);
   return Response.json({ ok: true });
 }

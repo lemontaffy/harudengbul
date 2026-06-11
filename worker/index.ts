@@ -12,8 +12,11 @@ import * as messagesRepo from "../src/db/repo/messages";
 import * as diaryRepo from "../src/db/repo/diary";
 import * as memoriesRepo from "../src/db/repo/memories";
 import * as handoffsRepo from "../src/db/repo/handoffs";
+import * as googleRepo from "../src/db/repo/google";
 import * as usageRepo from "../src/db/repo/usage";
 import { runBackup } from "../src/lib/backup";
+import { googleConfigured } from "../src/lib/google";
+import { syncUser } from "../src/lib/googlesync";
 import { sendToUser, pushConfigured } from "../src/lib/push";
 import { getWeather, weatherSourceConfigured } from "../src/lib/weather";
 import { getLlmConfig } from "../src/lib/config";
@@ -222,6 +225,24 @@ async function memoryJob() {
   }
 }
 
+/** 매 15분 — Google 연결된 사용자마다 양방향 동기화. */
+async function googleSyncJob() {
+  if (!googleConfigured()) return;
+  try {
+    const accounts = await googleRepo.listAll();
+    for (const a of accounts) {
+      try {
+        const r = await syncUser(a.userId);
+        if (r && (r.pulled || r.pushed)) log(`googleSync: user#${a.userId} 받음 ${r.pulled}·보냄 ${r.pushed}`);
+      } catch (err) {
+        log(`googleSync user#${a.userId} 오류: ${(err as Error)?.message}`);
+      }
+    }
+  } catch (err) {
+    log(`googleSyncJob 오류: ${(err as Error)?.message}`);
+  }
+}
+
 /** 매일 04:00 — pg_dump → /data/backups (7일 로테이션). */
 async function backupJob() {
   try {
@@ -243,7 +264,7 @@ async function handoffExpiryJob() {
 }
 
 log(
-  "started — alarm(1분)+weather(매시)+proactive(5분)+memory(30분)+handoffExpiry(매일)+backup(매일 04:00) 등록",
+  "started — alarm(1분)+weather(매시)+proactive(5분)+memory(30분)+handoffExpiry(매일)+backup(04:00)+googleSync(15분) 등록",
 );
 if (!pushConfigured()) {
   log("⚠️ VAPID 미설정 — 알람은 청구되나 푸시는 0건. .env 의 VAPID_* 확인.");
@@ -258,6 +279,7 @@ cron.schedule("*/5 * * * *", proactiveJob);
 cron.schedule("*/30 * * * *", memoryJob);
 cron.schedule("0 4 * * *", handoffExpiryJob); // 매일 04시
 cron.schedule("0 4 * * *", backupJob); // 매일 04:00 pg_dump
+cron.schedule("*/15 * * * *", googleSyncJob); // 매 15분 Google 동기화
 // 부팅 직후 1회 — 캐시 초기화 + 밀린 만료 처리(백업은 매일 스케줄만, 재시작마다 X)
 void weatherJob();
 void handoffExpiryJob();

@@ -1,8 +1,77 @@
-import { and, asc, eq, gte, lt, sql, isNotNull } from "drizzle-orm";
+import { and, asc, eq, gte, lt, sql, isNotNull, isNull } from "drizzle-orm";
 import { db } from "../client";
 import { events } from "../schema";
 
 export type EventRow = typeof events.$inferSelect;
+
+// ── Google 캘린더 매핑 ──
+export async function getByGoogleId(userId: number, googleId: string) {
+  return db.query.events.findFirst({
+    where: and(eq(events.userId, userId), eq(events.googleEventId, googleId)),
+  });
+}
+
+/** Google 이벤트 → 로컬 upsert(있으면 갱신, 없으면 source=google 생성). pull 전용(push 안 함). */
+export async function upsertFromGoogle(
+  userId: number,
+  googleId: string,
+  patch: {
+    title: string;
+    startsAt: Date;
+    endsAt: Date | null;
+    alarmMinutesBefore: number | null;
+  },
+) {
+  const existing = await getByGoogleId(userId, googleId);
+  if (existing) {
+    await db
+      .update(events)
+      .set({
+        title: patch.title,
+        startsAt: patch.startsAt,
+        endsAt: patch.endsAt,
+        alarmMinutesBefore: patch.alarmMinutesBefore,
+      })
+      .where(and(eq(events.id, existing.id), eq(events.userId, userId)));
+    return existing.id;
+  }
+  const [row] = await db
+    .insert(events)
+    .values({
+      userId,
+      title: patch.title,
+      startsAt: patch.startsAt,
+      endsAt: patch.endsAt,
+      alarmMinutesBefore: patch.alarmMinutesBefore,
+      source: "google",
+      googleEventId: googleId,
+    })
+    .returning({ id: events.id });
+  return row.id;
+}
+
+export async function deleteByGoogleId(userId: number, googleId: string) {
+  await db
+    .delete(events)
+    .where(and(eq(events.userId, userId), eq(events.googleEventId, googleId)));
+}
+
+export async function setGoogleId(userId: number, id: number, googleId: string) {
+  await db
+    .update(events)
+    .set({ googleEventId: googleId, source: "google" })
+    .where(and(eq(events.id, id), eq(events.userId, userId)));
+}
+
+/** 아직 Google에 안 올라간 로컬 이벤트(push 보정용). */
+export async function listUnsynced(userId: number, limit = 100) {
+  return db
+    .select()
+    .from(events)
+    .where(and(eq(events.userId, userId), isNull(events.googleEventId)))
+    .orderBy(asc(events.id))
+    .limit(limit);
+}
 
 /**
  * alarmJob 용 — 알람 시각(starts_at - alarm_minutes_before)이 도달했고 아직 미발송인 일정을

@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { getCurrentUser } from "@/lib/currentUser";
 import * as eventsRepo from "@/db/repo/events";
+import { pushCreate } from "@/lib/googlesync";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -56,6 +57,14 @@ export async function POST(req: Request) {
     startsAt,
     endsAt,
     alarmMinutesBefore: d.alarmMinutesBefore ?? null,
+  });
+  // Google 연결돼 있으면 미러링(best-effort, 연결 안 됐으면 no-op).
+  void pushCreate(user.id, {
+    id: row.id,
+    title: row.title,
+    startsAt: row.startsAt as Date,
+    endsAt: row.endsAt as Date | null,
+    alarmMinutesBefore: row.alarmMinutesBefore,
   });
   return Response.json({ event: publicRow(row) });
 }
