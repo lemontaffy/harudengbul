@@ -21,6 +21,11 @@ services:
     env_file: .env
     environment:
       - NODE_ENV=production
+      - AVATARS_DIR=/data/avatars
+    volumes:
+      # 캐릭터 아바타 영속 저장(업로드/서빙). app 은 nextjs 비루트 유저로 실행되므로
+      # host의 ./data/avatars 가 쓰기 가능해야 한다(첫 업로드 시 자동 생성, 권한 확인 권장).
+      - ./data/avatars:/data/avatars
     ports:
       # 터널(cloudflared, host systemd)만 접근. 인터넷 직접 노출 없음.
       - "127.0.0.1:3000:3000"

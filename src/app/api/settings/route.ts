@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { getCurrentUser } from "@/lib/currentUser";
 import { getLlmConfig, maskApiKey } from "@/lib/config";
-import { isPersona } from "@/lib/persona";
+import type { Role } from "@/lib/persona";
 import * as settingsRepo from "@/db/repo/settings";
 import * as personasRepo from "@/db/repo/personas";
 import type { settings as settingsTable } from "@/db/schema";
@@ -14,7 +14,6 @@ export const dynamic = "force-dynamic";
 const timeRe = /^([01]\d|2[0-3]):[0-5]\d$/;
 
 const bodySchema = z.object({
-  activePersona: z.enum(["theo", "nora"]).optional(),
   proactiveEnabled: z.boolean().optional(),
   morningTime: z.string().regex(timeRe).optional(),
   eveningTime: z.string().regex(timeRe).optional(),
@@ -23,8 +22,11 @@ const bodySchema = z.object({
   clearLlmKey: z.boolean().optional(),
   llmBaseUrl: z.string().url().optional().or(z.literal("")),
   llmModel: z.string().optional(),
-  // 활성(또는 지정) 페르소나의 custom_traits — 본인 것만
-  customTraits: z.string().max(2000).optional(),
+  // 캐릭터 할당 (채팅 활성 + 트리거별 담당). 본인 소유 + 역할 적합성 검증.
+  activePersonaId: z.number().int().optional(),
+  diaryReplyPersonaId: z.number().int().optional(),
+  morningPersonaId: z.number().int().optional(),
+  eveningPersonaId: z.number().int().optional(),
 });
 
 async function snapshot(userId: number) {
@@ -33,7 +35,10 @@ async function snapshot(userId: number) {
     getLlmConfig(userId),
   ]);
   return {
-    activePersona: s?.activePersona ?? "nora",
+    activePersonaId: s?.activePersonaId ?? null,
+    diaryReplyPersonaId: s?.diaryReplyPersonaId ?? null,
+    morningPersonaId: s?.morningPersonaId ?? null,
+    eveningPersonaId: s?.eveningPersonaId ?? null,
     proactiveEnabled: s?.proactiveEnabled ?? false,
     morningTime: s?.morningTime ?? "08:00",
     eveningTime: s?.eveningTime ?? "22:00",
@@ -63,7 +68,6 @@ export async function POST(req: Request) {
   const d = parsed.data;
   const set: SettingsPatch = {};
 
-  if (d.activePersona) set.activePersona = d.activePersona;
   if (typeof d.proactiveEnabled === "boolean") set.proactiveEnabled = d.proactiveEnabled;
   if (typeof d.morningTime === "string") set.morningTime = d.morningTime;
   if (typeof d.eveningTime === "string") set.eveningTime = d.eveningTime;
@@ -76,20 +80,32 @@ export async function POST(req: Request) {
   if (typeof d.llmBaseUrl === "string") set.llmBaseUrl = d.llmBaseUrl.trim() || null;
   if (typeof d.llmModel === "string") set.llmModel = d.llmModel.trim() || null;
 
-  if (Object.keys(set).length > 0) {
-    await settingsRepo.updateByUser(user.id, set);
+  // 캐릭터 id 들: 본인 소유 + 활성 + (트리거면) 역할 적합성 검증.
+  //   active = 아무 역할, diary_reply·evening = counselor, morning = secretary.
+  const assign: [number | undefined, keyof SettingsPatch, Role | null, string][] = [
+    [d.activePersonaId, "activePersonaId", null, "활성"],
+    [d.diaryReplyPersonaId, "diaryReplyPersonaId", "counselor", "일기 답장"],
+    [d.morningPersonaId, "morningPersonaId", "secretary", "아침"],
+    [d.eveningPersonaId, "eveningPersonaId", "counselor", "저녁"],
+  ];
+  for (const [id, key, role, label] of assign) {
+    if (id === undefined) continue;
+    const p = await personasRepo.getOne(user.id, id);
+    if (!p || !p.isActive) {
+      return Response.json({ error: `${label} 담당 캐릭터가 올바르지 않아요.` }, { status: 400 });
+    }
+    if (role && p.role !== role) {
+      const need = role === "counselor" ? "상담가" : "비서";
+      return Response.json(
+        { error: `${label} 담당은 ${need} 역할이어야 해요.` },
+        { status: 400 },
+      );
+    }
+    (set[key] as number) = id;
   }
 
-  // custom_traits 는 대상 페르소나(지정 or 현재 활성)에 본인 것만 저장
-  if (typeof d.customTraits === "string") {
-    let target = d.activePersona;
-    if (!isPersona(target)) {
-      const cur = await settingsRepo.getByUser(user.id);
-      target = isPersona(cur?.activePersona) ? cur!.activePersona : "nora";
-    }
-    await personasRepo.updateForUser(user.id, target, {
-      customTraits: d.customTraits.trim() || null,
-    });
+  if (Object.keys(set).length > 0) {
+    await settingsRepo.updateByUser(user.id, set);
   }
 
   return Response.json({ ok: true, ...(await snapshot(user.id)) });

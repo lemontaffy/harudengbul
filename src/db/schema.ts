@@ -59,7 +59,23 @@ export const settings = pgTable("settings", {
   userId: bigint("user_id", { mode: "number" })
     .primaryKey()
     .references(() => users.id, { onDelete: "cascade" }),
-  activePersona: text("active_persona").notNull().default("nora"),
+  // 채팅 상단에서 현재 보고 있는 캐릭터(persona id). 캐릭터 보관(soft delete) 대비 set null.
+  activePersonaId: bigint("active_persona_id", { mode: "number" }).references(
+    () => personas.id,
+    { onDelete: "set null" },
+  ),
+  // 트리거별 담당 캐릭터 (기본값: 상담가/비서/상담가 중 해당 역할의 첫 캐릭터)
+  diaryReplyPersonaId: bigint("diary_reply_persona_id", {
+    mode: "number",
+  }).references(() => personas.id, { onDelete: "set null" }),
+  morningPersonaId: bigint("morning_persona_id", { mode: "number" }).references(
+    () => personas.id,
+    { onDelete: "set null" },
+  ),
+  eveningPersonaId: bigint("evening_persona_id", { mode: "number" }).references(
+    () => personas.id,
+    { onDelete: "set null" },
+  ),
   proactiveEnabled: boolean("proactive_enabled").default(false),
   morningTime: time("morning_time").default("08:00"),
   eveningTime: time("evening_time").default("22:00"),
@@ -75,19 +91,26 @@ export const settings = pgTable("settings", {
   llmModel: text("llm_model"),
 });
 
-// 페르소나: 사용자별 (pk = user_id, id)
+// 캐릭터(persona): 사용자 소유. 역할(role)과 캐릭터(이름·성격)를 분리.
+//  - role 은 고정 2종: 'counselor'(상담가) | 'secretary'(비서)
+//  - 한 역할에 여러 캐릭터 가능. 삭제 대신 is_active=false 로 보관(대화 기록 보존).
 export const personas = pgTable(
   "personas",
   {
+    id: bigint("id", { mode: "number" })
+      .primaryKey()
+      .generatedAlwaysAsIdentity(),
     userId: bigint("user_id", { mode: "number" })
       .notNull()
       .references(() => users.id, { onDelete: "cascade" }),
-    id: text("id").notNull(), // 'theo' | 'nora'
-    displayName: text("display_name"),
+    name: text("name"),
+    role: text("role").notNull(), // 'counselor' | 'secretary'
     avatarPath: text("avatar_path"),
-    customTraits: text("custom_traits"),
+    traits: text("traits"), // 자유 텍스트(구 custom_traits)
+    isActive: boolean("is_active").notNull().default(true),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
   },
-  (t) => [primaryKey({ columns: [t.userId, t.id] })],
+  (t) => [index("personas_user_active_idx").on(t.userId, t.isActive)],
 );
 
 export const messages = pgTable(
@@ -99,12 +122,20 @@ export const messages = pgTable(
     userId: bigint("user_id", { mode: "number" })
       .notNull()
       .references(() => users.id, { onDelete: "cascade" }),
-    persona: text("persona").notNull(),
+    personaId: bigint("persona_id", { mode: "number" })
+      .notNull()
+      .references(() => personas.id),
     role: text("role").notNull(), // 'user' | 'assistant' | 'proactive'
     content: text("content").notNull(),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
   },
-  (t) => [index("messages_user_persona_idx").on(t.userId, t.persona, t.createdAt)],
+  (t) => [
+    index("messages_user_persona_idx").on(
+      t.userId,
+      t.personaId,
+      t.createdAt,
+    ),
+  ],
 );
 
 export const diaryEntries = pgTable(

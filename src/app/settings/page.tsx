@@ -1,26 +1,42 @@
 import Link from "next/link";
 import { requireUser } from "@/lib/currentUser";
 import { getLlmConfig, maskApiKey } from "@/lib/config";
+import type { Role } from "@/lib/persona";
 import * as settingsRepo from "@/db/repo/settings";
 import * as personasRepo from "@/db/repo/personas";
 import SettingsForm, { type SettingsInitial } from "@/components/SettingsForm";
+import CharacterManager, {
+  type Character,
+  type TriggerAssignments,
+} from "@/components/CharacterManager";
 import PasswordChange from "@/components/PasswordChange";
 
 export const dynamic = "force-dynamic";
 
 export default async function SettingsPage() {
   const user = await requireUser();
-  const [s, llm, personas] = await Promise.all([
+  const [s, llm, personaRows] = await Promise.all([
     settingsRepo.getByUser(user.id),
     getLlmConfig(user.id),
-    personasRepo.listByUser(user.id),
+    personasRepo.listActiveByUser(user.id),
   ]);
 
-  const traitOf = (id: string) =>
-    personas.find((p) => p.id === id)?.customTraits ?? "";
+  const characters: Character[] = personaRows.map((p) => ({
+    id: p.id,
+    name: p.name,
+    role: p.role as Role,
+    avatarPath: p.avatarPath,
+    traits: p.traits,
+  }));
+
+  const triggers: TriggerAssignments = {
+    activePersonaId: s?.activePersonaId ?? null,
+    diaryReplyPersonaId: s?.diaryReplyPersonaId ?? null,
+    morningPersonaId: s?.morningPersonaId ?? null,
+    eveningPersonaId: s?.eveningPersonaId ?? null,
+  };
 
   const initial: SettingsInitial = {
-    activePersona: (s?.activePersona as "theo" | "nora") ?? "nora",
     proactiveEnabled: s?.proactiveEnabled ?? false,
     morningTime: s?.morningTime ?? "08:00",
     eveningTime: s?.eveningTime ?? "22:00",
@@ -29,7 +45,6 @@ export default async function SettingsPage() {
     hasLlmKey: !!llm.apiKey,
     llmKeyMasked: maskApiKey(llm.apiKey),
     llmConfigured: llm.configured,
-    customTraits: { nora: traitOf("nora"), theo: traitOf("theo") },
   };
 
   return (
@@ -48,7 +63,13 @@ export default async function SettingsPage() {
         </div>
       )}
 
-      <SettingsForm initial={initial} />
+      <div className="flex flex-col gap-6">
+        <SettingsForm initial={initial} />
+        <CharacterManager
+          initialCharacters={characters}
+          initialTriggers={triggers}
+        />
+      </div>
 
       {!user.mustChangePassword && (
         <div className="mt-6">

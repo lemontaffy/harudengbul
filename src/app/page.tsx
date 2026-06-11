@@ -1,19 +1,27 @@
 import Link from "next/link";
 import { requireUser } from "@/lib/currentUser";
 import { getLlmConfig } from "@/lib/config";
+import type { Role } from "@/lib/persona";
 import * as settingsRepo from "@/db/repo/settings";
+import * as personasRepo from "@/db/repo/personas";
 import LogoutButton from "@/components/LogoutButton";
-import ChatView from "@/components/ChatView";
+import ChatView, { type ChatPersona } from "@/components/ChatView";
 
 export const dynamic = "force-dynamic";
 
 export default async function Home() {
   const user = await requireUser();
-  const [llm, s] = await Promise.all([
+  const [llm, s, personaRows] = await Promise.all([
     getLlmConfig(user.id),
     settingsRepo.getByUser(user.id),
+    personasRepo.listActiveByUser(user.id),
   ]);
-  const persona = s?.activePersona === "theo" ? "theo" : "nora";
+  const personas: ChatPersona[] = personaRows.map((p) => ({
+    id: p.id,
+    name: p.name,
+    role: p.role as Role,
+    avatarPath: p.avatarPath,
+  }));
 
   return (
     <main className="mx-auto flex h-screen max-w-md flex-col p-4">
@@ -33,7 +41,11 @@ export default async function Home() {
         </div>
       </header>
 
-      <ChatView initialPersona={persona} configured={llm.configured} />
+      <ChatView
+        personas={personas}
+        initialPersonaId={s?.activePersonaId ?? null}
+        configured={llm.configured}
+      />
     </main>
   );
 }

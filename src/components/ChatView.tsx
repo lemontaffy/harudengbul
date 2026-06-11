@@ -2,26 +2,48 @@
 
 import { useEffect, useRef, useState, useCallback } from "react";
 
-type PersonaId = "theo" | "nora";
+type Role = "counselor" | "secretary";
+export interface ChatPersona {
+  id: number;
+  name: string | null;
+  role: Role;
+  avatarPath: string | null;
+}
 interface Msg {
   role: "user" | "assistant" | "proactive";
   content: string;
 }
 
-const NAMES: Record<PersonaId, string> = { nora: "노라", theo: "테오" };
+const ROLE_LABEL: Record<Role, string> = {
+  counselor: "상담가",
+  secretary: "비서",
+};
+
+function displayName(p: ChatPersona): string {
+  return p.name?.trim() || "이름 없는 캐릭터";
+}
 
 export default function ChatView({
-  initialPersona,
+  personas,
+  initialPersonaId,
   configured,
 }: {
-  initialPersona: PersonaId;
+  personas: ChatPersona[];
+  initialPersonaId: number | null;
   configured: boolean;
 }) {
-  const [persona, setPersona] = useState<PersonaId>(initialPersona);
+  const firstId = personas[0]?.id ?? null;
+  const [personaId, setPersonaId] = useState<number | null>(
+    initialPersonaId && personas.some((p) => p.id === initialPersonaId)
+      ? initialPersonaId
+      : firstId,
+  );
   const [messages, setMessages] = useState<Msg[]>([]);
   const [input, setInput] = useState("");
   const [streaming, setStreaming] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
+
+  const current = personas.find((p) => p.id === personaId) ?? null;
 
   const scrollToBottom = useCallback(() => {
     requestAnimationFrame(() => {
@@ -30,8 +52,8 @@ export default function ChatView({
   }, []);
 
   const loadHistory = useCallback(
-    async (p: PersonaId) => {
-      const res = await fetch(`/api/messages?persona=${p}`);
+    async (id: number) => {
+      const res = await fetch(`/api/messages?personaId=${id}`);
       if (res.ok) {
         setMessages((await res.json()).messages);
         scrollToBottom();
@@ -41,23 +63,23 @@ export default function ChatView({
   );
 
   useEffect(() => {
-    loadHistory(persona);
-  }, [persona, loadHistory]);
+    if (personaId != null) loadHistory(personaId);
+  }, [personaId, loadHistory]);
 
-  async function switchPersona(p: PersonaId) {
-    if (p === persona || streaming) return;
-    setPersona(p);
-    // 활성 페르소나 영속(홈/컨텍스트 일관성)
+  async function switchPersona(id: number) {
+    if (id === personaId || streaming) return;
+    setPersonaId(id);
+    // 활성 캐릭터 영속(홈/컨텍스트 일관성)
     fetch("/api/settings", {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ activePersona: p }),
+      body: JSON.stringify({ activePersonaId: id }),
     });
   }
 
   async function send() {
     const text = input.trim();
-    if (!text || streaming || !configured) return;
+    if (!text || streaming || !configured || personaId == null) return;
     setInput("");
     setMessages((m) => [...m, { role: "user", content: text }, { role: "assistant", content: "" }]);
     setStreaming(true);
@@ -67,7 +89,7 @@ export default function ChatView({
       const res = await fetch("/api/chat", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ persona, message: text }),
+        body: JSON.stringify({ personaId, message: text }),
       });
       if (!res.ok || !res.body) {
         const data = await res.json().catch(() => ({}));
@@ -108,28 +130,44 @@ export default function ChatView({
     }
   }
 
+  if (personas.length === 0) {
+    return (
+      <div className="flex h-[calc(100vh-7rem)] flex-col items-center justify-center text-center text-sm opacity-70">
+        <p>아직 대화할 캐릭터가 없어요.</p>
+        <a href="/settings" className="mt-2 text-accent">
+          설정에서 캐릭터 추가하기
+        </a>
+      </div>
+    );
+  }
+
   return (
     <div className="flex h-[calc(100vh-7rem)] flex-col">
-      {/* 페르소나 탭 */}
-      <div className="mb-2 flex gap-2">
-        {(["nora", "theo"] as const).map((p) => (
+      {/* 캐릭터 탭 — 활성 캐릭터 전체 */}
+      <div className="mb-2 flex gap-2 overflow-x-auto pb-1">
+        {personas.map((p) => (
           <button
-            key={p}
-            onClick={() => switchPersona(p)}
-            className={`rounded-lg px-3 py-1.5 text-sm ${
-              persona === p ? "bg-accent text-black" : "bg-surface ring-1 ring-white/10"
+            key={p.id}
+            onClick={() => switchPersona(p.id)}
+            className={`flex shrink-0 items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm ${
+              personaId === p.id ? "bg-accent text-black" : "bg-surface ring-1 ring-white/10"
             }`}
           >
-            {NAMES[p]}
+            {p.avatarPath && (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={p.avatarPath} alt="" className="h-5 w-5 rounded-full object-cover" />
+            )}
+            <span>{displayName(p)}</span>
+            <span className="opacity-50">· {ROLE_LABEL[p.role]}</span>
           </button>
         ))}
       </div>
 
       {/* 메시지 */}
       <div ref={scrollRef} className="flex-1 space-y-2 overflow-y-auto pb-2">
-        {messages.length === 0 && (
+        {messages.length === 0 && current && (
           <p className="mt-10 text-center text-xs opacity-40">
-            {NAMES[persona]}와 대화를 시작해 보세요.
+            {displayName(current)}와 대화를 시작해 보세요.
           </p>
         )}
         {messages.map((m, i) => {

@@ -36,19 +36,41 @@ async function main() {
         .insert(schema.settings)
         .values({
           userId: admin.id,
-          activePersona: "nora",
           llmApiKey: process.env.LLM_API_KEY?.trim() || null,
           llmBaseUrl: process.env.LLM_BASE_URL?.trim() || null,
           llmModel: process.env.LLM_MODEL?.trim() || null,
         })
         .onConflictDoNothing();
-      await db
+      // 기본 캐릭터 2인(노라=상담가, 테오=비서) + settings 트리거 기본값(상담가/비서/상담가).
+      const [nora] = await db
         .insert(schema.personas)
-        .values([
-          { userId: admin.id, id: "theo", displayName: "테오" },
-          { userId: admin.id, id: "nora", displayName: "노라" },
-        ])
-        .onConflictDoNothing();
+        .values({
+          userId: admin.id,
+          name: "노라",
+          role: "counselor",
+          traits:
+            "따뜻하지만 물러서지 않는다. 좋은 질문을 하나씩 던진다. 호들갑은 금지.",
+        })
+        .returning();
+      const [theo] = await db
+        .insert(schema.personas)
+        .values({
+          userId: admin.id,
+          name: "테오",
+          role: "secretary",
+          traits:
+            "차분하고 군더더기 없다. 가끔 건조한 농담. 걱정은 짧고 정확하게 표현한다.",
+        })
+        .returning();
+      await db
+        .update(schema.settings)
+        .set({
+          activePersonaId: nora.id,
+          diaryReplyPersonaId: nora.id,
+          morningPersonaId: theo.id,
+          eveningPersonaId: nora.id,
+        })
+        .where(eq(schema.settings.userId, admin.id));
       console.log(`[seed] admin 생성: ${username} (id=${admin.id})`);
     }
   }

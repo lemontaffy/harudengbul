@@ -6,12 +6,10 @@ export async function getByUser(userId: number) {
   return db.query.settings.findFirst({ where: eq(settings.userId, userId) });
 }
 
-/** 없으면 기본값으로 생성(멱등). 가입 시 호출. */
+/** 없으면 빈 행 생성(멱등). 가입 시 호출 — 캐릭터/트리거 기본값은
+ *  personasRepo.ensureDefaultsForUser 가 이 행을 채운다(personas 생성 후). */
 export async function ensureForUser(userId: number) {
-  await db
-    .insert(settings)
-    .values({ userId, activePersona: "nora" })
-    .onConflictDoNothing();
+  await db.insert(settings).values({ userId }).onConflictDoNothing();
 }
 
 export async function updateByUser(

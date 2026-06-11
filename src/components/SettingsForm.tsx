@@ -20,7 +20,6 @@ function priceLabel(p?: string): string {
 }
 
 export interface SettingsInitial {
-  activePersona: "theo" | "nora";
   proactiveEnabled: boolean;
   morningTime: string;
   eveningTime: string;
@@ -29,7 +28,6 @@ export interface SettingsInitial {
   hasLlmKey: boolean;
   llmKeyMasked: string;
   llmConfigured: boolean;
-  customTraits: { nora: string; theo: string };
 }
 
 // 공급사 프리셋 = Base URL 자동 채움 (전부 OpenAI 호환)
@@ -44,8 +42,6 @@ const input =
   "w-full rounded-lg bg-bg px-3 py-2 text-sm outline-none ring-1 ring-white/10 focus:ring-accent";
 
 export default function SettingsForm({ initial }: { initial: SettingsInitial }) {
-  const [persona, setPersona] = useState(initial.activePersona);
-  const [traits, setTraits] = useState(initial.customTraits);
   const [proactive, setProactive] = useState(initial.proactiveEnabled);
   const [morning, setMorning] = useState(initial.morningTime.slice(0, 5));
   const [evening, setEvening] = useState(initial.eveningTime.slice(0, 5));
@@ -111,14 +107,12 @@ export default function SettingsForm({ initial }: { initial: SettingsInitial }) 
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
-          activePersona: persona,
           proactiveEnabled: proactive,
           morningTime: morning,
           eveningTime: evening,
           llmBaseUrl: baseUrl,
           llmModel: model,
           llmApiKey: apiKey,
-          customTraits: traits[persona],
         }),
       });
       const data = await res.json();
@@ -284,38 +278,6 @@ export default function SettingsForm({ initial }: { initial: SettingsInitial }) 
             </ul>
           </div>
         )}
-      </section>
-
-      {/* 페르소나 */}
-      <section className="rounded-2xl bg-surface p-5">
-        <h2 className="mb-3 text-sm font-semibold">활성 페르소나</h2>
-        <div className="flex gap-2">
-          {(["nora", "theo"] as const).map((p) => (
-            <button
-              key={p}
-              type="button"
-              onClick={() => setPersona(p)}
-              className={`rounded-lg px-4 py-2 text-sm ${
-                persona === p ? "bg-accent text-black" : "bg-bg ring-1 ring-white/10"
-              }`}
-            >
-              {p === "nora" ? "노라" : "테오"}
-            </button>
-          ))}
-        </div>
-
-        <label className="mb-1 mt-4 block text-xs opacity-60">
-          {persona === "nora" ? "노라" : "테오"} 추가 설정 (성격 보강)
-        </label>
-        <textarea
-          value={traits[persona]}
-          onChange={(e) =>
-            setTraits((t) => ({ ...t, [persona]: e.target.value }))
-          }
-          rows={3}
-          placeholder="예: 가끔 시 한 구절을 인용한다 / 운동을 적극 권한다"
-          className={`${input} resize-none`}
-        />
       </section>
 
       {/* 선제 톡 */}

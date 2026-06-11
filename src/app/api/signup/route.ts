@@ -54,8 +54,9 @@ export async function POST(req: Request) {
   });
 
   await invitesRepo.markUsed(code, user.id);
+  // settings 행 먼저 만들고 → 기본 캐릭터 2인 생성이 트리거 기본값까지 채운다.
   await settingsRepo.ensureForUser(user.id);
-  await personasRepo.ensureForUser(user.id);
+  await personasRepo.ensureDefaultsForUser(user.id);
 
   const session = await getSession();
   session.userId = user.id;

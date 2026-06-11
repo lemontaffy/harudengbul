@@ -1,12 +1,7 @@
 import { z } from "zod";
 import { getCurrentUser } from "@/lib/currentUser";
 import { getLlmConfig } from "@/lib/config";
-import {
-  buildContext,
-  buildSystemPrompt,
-  isPersona,
-  type PersonaId,
-} from "@/lib/persona";
+import { buildContext, buildSystemPrompt, type Role } from "@/lib/persona";
 import { streamChatCompletion, type ChatMessage } from "@/lib/llm";
 import * as messagesRepo from "@/db/repo/messages";
 import * as settingsRepo from "@/db/repo/settings";
@@ -18,7 +13,7 @@ export const dynamic = "force-dynamic";
 
 const bodySchema = z.object({
   message: z.string().min(1).max(8000),
-  persona: z.enum(["theo", "nora"]).optional(),
+  personaId: z.number().int().optional(),
 });
 
 export async function POST(req: Request) {
@@ -39,28 +34,44 @@ export async function POST(req: Request) {
     );
   }
 
-  let persona: PersonaId = "nora";
-  if (parsed.data.persona && isPersona(parsed.data.persona)) {
-    persona = parsed.data.persona;
-  } else {
+  // 대상 캐릭터 결정: body.personaId → settings.active → 첫 활성 캐릭터.
+  // 본인 소유 + 활성 캐릭터만 허용(DELTA §5 격리).
+  let persona = parsed.data.personaId
+    ? await personasRepo.getOne(user.id, parsed.data.personaId)
+    : null;
+  if (!persona || !persona.isActive) {
     const s = await settingsRepo.getByUser(user.id);
-    if (isPersona(s?.activePersona)) persona = s!.activePersona as PersonaId;
+    persona = s?.activePersonaId
+      ? (await personasRepo.getOne(user.id, s.activePersonaId)) ?? null
+      : null;
+    if (!persona || !persona.isActive) {
+      const [first] = await personasRepo.listActiveByUser(user.id);
+      persona = first ?? null;
+    }
+  }
+  if (!persona) {
+    return Response.json(
+      { error: "대화할 캐릭터가 없어요. 설정에서 캐릭터를 추가하세요." },
+      { status: 400 },
+    );
   }
 
   // 사용자 메시지 먼저 저장
-  await messagesRepo.add(user.id, persona, "user", parsed.data.message);
+  await messagesRepo.add(user.id, persona.id, "user", parsed.data.message);
 
-  // 시스템 프롬프트 + 최근 히스토리(방금 저장한 user 포함)
-  // custom_traits 는 반드시 "본인" 페르소나 것만 주입(DELTA §5)
-  const [ctx, personaRow, history] = await Promise.all([
+  // 시스템 프롬프트(3층) + 최근 히스토리(방금 저장한 user 포함).
+  // 캐릭터(name/role/traits)는 반드시 "본인" 것만 주입(DELTA §5).
+  const [ctx, history] = await Promise.all([
     buildContext(user.id),
-    personasRepo.getOne(user.id, persona),
-    messagesRepo.listForPrompt(user.id, persona, 20),
+    messagesRepo.listForPrompt(user.id, persona.id, 20),
   ]);
   const llmMessages: ChatMessage[] = [
     {
       role: "system",
-      content: buildSystemPrompt(persona, ctx, personaRow?.customTraits),
+      content: buildSystemPrompt(
+        { name: persona.name, role: persona.role as Role, traits: persona.traits },
+        ctx,
+      ),
     },
     ...history.map((m) => ({
       role: m.role === "user" ? ("user" as const) : ("assistant" as const),
@@ -68,6 +79,7 @@ export async function POST(req: Request) {
     })),
   ];
 
+  const personaId = persona.id;
   const encoder = new TextEncoder();
   const stream = new ReadableStream<Uint8Array>({
     async start(controller) {
@@ -90,7 +102,7 @@ export async function POST(req: Request) {
         console.error("[chat] stream error:", err);
       } finally {
         if (full.trim()) {
-          await messagesRepo.add(user.id, persona, "assistant", full);
+          await messagesRepo.add(user.id, personaId, "assistant", full);
           await usageRepo.log(user.id, "chat");
         }
         controller.close();
