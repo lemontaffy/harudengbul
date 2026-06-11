@@ -1,6 +1,19 @@
 # 하루등불 — Hetzner 셀프호스트 (Caddy 미사용: Cloudflare Tunnel로 노출)
 # 공개: haru.daltavern.org → cloudflared(host) → http://localhost:3000
 services:
+  # 마이그레이션 + 시드 원샷. db가 healthy해진 뒤 1회 실행되고 종료.
+  # app/worker는 이 작업이 성공 완료된 뒤에 기동한다.
+  migrate:
+    build:
+      context: .
+      dockerfile: Dockerfile.worker
+    env_file: .env
+    command: ["sh", "-c", "npm run db:migrate && npm run db:seed"]
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: "no"
+
   app:
     build:
       context: .
@@ -14,6 +27,8 @@ services:
     depends_on:
       db:
         condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
     restart: unless-stopped
 
   worker:
@@ -26,6 +41,8 @@ services:
     depends_on:
       db:
         condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
     restart: unless-stopped
 
   db:
