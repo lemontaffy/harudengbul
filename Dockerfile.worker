@@ -1,0 +1,9 @@
+# worker 컨테이너 — node-cron 잡 엔트리포인트(Phase 1은 골격/heartbeat).
+# app과 같은 코드베이스(src/db, src/lib 공유), 다른 엔트리포인트.
+FROM node:22-alpine
+RUN apk add --no-cache libc6-compat
+WORKDIR /app
+COPY package.json package-lock.json* ./
+RUN npm install
+COPY . .
+CMD ["npx", "tsx", "worker/index.ts"]

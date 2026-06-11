@@ -1,0 +1,20 @@
+# deps
+/node_modules
+
+# next
+/.next
+/out
+next-env.d.ts
+
+# 런타임 데이터 / 시크릿
+/data
+.env
+.env.local
+.env*.local
+
+# 기타
+*.log
+.DS_Store
+
+# 머신-로컬 설정
+.claude/settings.local.json

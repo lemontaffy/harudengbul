@@ -1,0 +1,5 @@
+# 모든 텍스트 파일은 저장소에서 LF로 정규화 (Linux 서버 배포 안전)
+* text=auto eol=lf
+*.png binary
+*.jpg binary
+*.ico binary

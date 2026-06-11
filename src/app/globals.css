@@ -1,0 +1,14 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: dark;
+}
+
+html,
+body {
+  background: #191b25;
+  color: #e7e7ea;
+  -webkit-font-smoothing: antialiased;
+}
