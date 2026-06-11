@@ -89,6 +89,9 @@ export const settings = pgTable("settings", {
   // 생성형 "한마디" 하루 1회 캐시
   dailyPhrase: text("daily_phrase"),
   dailyPhraseDate: date("daily_phrase_date"),
+  // memoryJob 워터마크 — 여기까지 기억 추출 처리됨(이후 id만 새로 처리)
+  memoryLastMsgId: bigint("memory_last_msg_id", { mode: "number" }).default(0),
+  memoryLastDiaryId: bigint("memory_last_diary_id", { mode: "number" }).default(0),
   locationLat: numeric("location_lat"),
   locationLon: numeric("location_lon"),
   kmaNx: integer("kma_nx"),

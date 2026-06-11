@@ -9,11 +9,14 @@ import * as weatherRepo from "../src/db/repo/weather";
 import * as settingsRepo from "../src/db/repo/settings";
 import * as personasRepo from "../src/db/repo/personas";
 import * as messagesRepo from "../src/db/repo/messages";
+import * as diaryRepo from "../src/db/repo/diary";
+import * as memoriesRepo from "../src/db/repo/memories";
 import * as usageRepo from "../src/db/repo/usage";
 import { sendToUser, pushConfigured } from "../src/lib/push";
 import { getWeather, weatherSourceConfigured } from "../src/lib/weather";
 import { getLlmConfig } from "../src/lib/config";
 import { completeChat } from "../src/lib/llm";
+import { extractMemories } from "../src/lib/memory";
 import { buildContext, buildSystemPrompt, type Role } from "../src/lib/persona";
 import {
   isSlotDue,
@@ -156,7 +159,68 @@ async function proactiveJob() {
   }
 }
 
-log("started — alarmJob(매 1분) + weatherJob(매시) + proactiveJob(매 5분) 등록");
+const MEM_CHAT_THRESHOLD = 20; // 미처리 대화 20턴 이상이면 추출
+
+// 추출 후보를 중복 제거하며 저장 → 저장 건수 반환.
+async function saveMemories(
+  userId: number,
+  cands: { content: string; importance: number }[],
+  source: "chat" | "diary",
+): Promise<number> {
+  let added = 0;
+  for (const c of cands) {
+    if (await memoriesRepo.existsContent(userId, c.content)) continue;
+    await memoriesRepo.add(userId, c.content, source, c.importance);
+    added++;
+  }
+  return added;
+}
+
+/** 매 30분 — 사용자별 미처리 대화(20턴↑)·새 일기에서 장기기억 추출 → memories. */
+async function memoryJob() {
+  const rows = await settingsRepo.listAll();
+  for (const s of rows) {
+    try {
+      const conn = await getLlmConfig(s.userId);
+      if (!conn.configured) continue;
+
+      // 대화: 워터마크 이후 20턴 이상 쌓였으면 추출
+      const msgWm = s.memoryLastMsgId ?? 0;
+      const msgs = await messagesRepo.listSinceId(s.userId, msgWm);
+      if (msgs.length >= MEM_CHAT_THRESHOLD) {
+        const transcript = msgs
+          .map((m) => `${m.role === "user" ? "사용자" : "캐릭터"}: ${m.content}`)
+          .join("\n");
+        const cands = await extractMemories(conn, transcript); // 실패 시 throw → 워터마크 보류
+        const added = await saveMemories(s.userId, cands, "chat");
+        await settingsRepo.updateByUser(s.userId, { memoryLastMsgId: msgs[msgs.length - 1].id });
+        await usageRepo.log(s.userId, "memory");
+        log(`memoryJob: user#${s.userId} chat ${msgs.length}턴 → 기억 ${added}건`);
+      }
+
+      // 일기: 워터마크 이후 새 일기가 있으면 추출(본문 있는 것만)
+      const dWm = s.memoryLastDiaryId ?? 0;
+      const diaries = await diaryRepo.listSinceId(s.userId, dWm);
+      if (diaries.length > 0) {
+        const withBody = diaries.filter((d) => d.body && d.body.trim());
+        if (withBody.length > 0) {
+          const text = withBody.map((d) => `[${d.entryDate}] ${d.body}`).join("\n\n");
+          const cands = await extractMemories(conn, text);
+          const added = await saveMemories(s.userId, cands, "diary");
+          await usageRepo.log(s.userId, "memory");
+          log(`memoryJob: user#${s.userId} 일기 ${withBody.length}편 → 기억 ${added}건`);
+        }
+        await settingsRepo.updateByUser(s.userId, {
+          memoryLastDiaryId: diaries[diaries.length - 1].id,
+        });
+      }
+    } catch (err) {
+      log(`memoryJob user#${s.userId} 오류: ${(err as Error)?.message}`);
+    }
+  }
+}
+
+log("started — alarmJob(1분) + weatherJob(매시) + proactiveJob(5분) + memoryJob(30분) 등록");
 if (!pushConfigured()) {
   log("⚠️ VAPID 미설정 — 알람은 청구되나 푸시는 0건. .env 의 VAPID_* 확인.");
 }
@@ -167,5 +231,6 @@ if (!weatherSourceConfigured()) {
 cron.schedule("* * * * *", alarmJob);
 cron.schedule("0 * * * *", weatherJob);
 cron.schedule("*/5 * * * *", proactiveJob);
+cron.schedule("*/30 * * * *", memoryJob);
 // 부팅 직후 1회(캐시 초기화) — 비동기 fire-and-forget
 void weatherJob();

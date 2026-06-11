@@ -1,4 +1,4 @@
-import { and, desc, eq } from "drizzle-orm";
+import { and, asc, desc, eq, gt } from "drizzle-orm";
 import { db } from "../client";
 import { diaryEntries, diaryItems } from "../schema";
 
@@ -104,6 +104,21 @@ export async function setReply(
     .update(diaryEntries)
     .set({ aiReply: reply, aiPersona: personaName })
     .where(and(eq(diaryEntries.id, entryId), eq(diaryEntries.userId, userId)));
+}
+
+/** memoryJob 용 — sinceId 이후 일기(오래된→최신, body 있는 것만). */
+export async function listSinceId(userId: number, sinceId: number, limit = 50) {
+  return db
+    .select({
+      id: diaryEntries.id,
+      entryDate: diaryEntries.entryDate,
+      mood: diaryEntries.mood,
+      body: diaryEntries.body,
+    })
+    .from(diaryEntries)
+    .where(and(eq(diaryEntries.userId, userId), gt(diaryEntries.id, sinceId)))
+    .orderBy(asc(diaryEntries.id))
+    .limit(limit);
 }
 
 /** 최신순 일기 목록(엔트리만). items 는 필요 시 getItems 로 별도 조회. */

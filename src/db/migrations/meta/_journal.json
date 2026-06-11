@@ -36,6 +36,13 @@
       "when": 1781191985512,
       "tag": "0004_proactive_phrase",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1781192566735,
+      "tag": "0005_memory_watermark",
+      "breakpoints": true
     }
   ]
 }

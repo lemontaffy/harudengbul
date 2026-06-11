@@ -1,4 +1,4 @@
-import { desc, eq } from "drizzle-orm";
+import { and, desc, eq, sql } from "drizzle-orm";
 import { db } from "../client";
 import { memories } from "../schema";
 
@@ -26,4 +26,20 @@ export async function add(
     .values({ userId, content, source, importance })
     .returning();
   return row;
+}
+
+/** 중복 방지(라이트) — 같은 내용이 이미 있으면 true. 대소문자/공백 무시. */
+export async function existsContent(userId: number, content: string): Promise<boolean> {
+  const norm = content.trim().toLowerCase();
+  const [row] = await db
+    .select({ id: memories.id })
+    .from(memories)
+    .where(
+      and(
+        eq(memories.userId, userId),
+        sql`lower(trim(${memories.content})) = ${norm}`,
+      ),
+    )
+    .limit(1);
+  return !!row;
 }

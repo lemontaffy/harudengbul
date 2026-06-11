@@ -1,4 +1,4 @@
-import { and, count, desc, eq, gt, inArray } from "drizzle-orm";
+import { and, asc, count, desc, eq, gt, inArray } from "drizzle-orm";
 import { db } from "../client";
 import { messages } from "../schema";
 
@@ -64,6 +64,16 @@ export async function countUnread(
     .from(messages)
     .where(and(...conds));
   return row?.n ?? 0;
+}
+
+/** memoryJob 용 — sinceId 이후 메시지(오래된→최신). 토큰 한도 위해 limit. */
+export async function listSinceId(userId: number, sinceId: number, limit = 200) {
+  return db
+    .select({ id: messages.id, role: messages.role, content: messages.content })
+    .from(messages)
+    .where(and(eq(messages.userId, userId), gt(messages.id, sinceId)))
+    .orderBy(asc(messages.id))
+    .limit(limit);
 }
 
 /** 프롬프트용 — 최근 N턴(role/content만), 오래된→최신. */
