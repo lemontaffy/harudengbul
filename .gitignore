@@ -30,3 +30,7 @@ next-env.d.ts
 /haru-twa
 /twa
 /android
+android.keystore
+*.keystore
+*.jks
+keystore.properties
