@@ -2,6 +2,7 @@ import { z } from "zod";
 import { getCurrentUser } from "@/lib/currentUser";
 import { getLlmConfig, maskApiKey } from "@/lib/config";
 import { encryptSecret } from "@/lib/crypto";
+import { latLonToGrid } from "@/lib/weather";
 import type { Role } from "@/lib/persona";
 import * as settingsRepo from "@/db/repo/settings";
 import * as personasRepo from "@/db/repo/personas";
@@ -26,6 +27,9 @@ const bodySchema = z.object({
   // 내 프로필
   nickname: z.string().max(40).optional(),
   about: z.string().max(1000).optional(),
+  // 위치(날씨용) — 좌표를 받아 서버에서 기상청 격자 nx/ny 도출
+  locationLat: z.number().min(-90).max(90).optional(),
+  locationLon: z.number().min(-180).max(180).optional(),
   // 캐릭터 할당 (채팅 활성 + 트리거별 담당). 본인 소유 + 역할 적합성 검증.
   activePersonaId: z.number().int().optional(),
   diaryReplyPersonaId: z.number().int().optional(),
@@ -49,6 +53,9 @@ async function snapshot(userId: number) {
     proactiveEnabled: s?.proactiveEnabled ?? false,
     morningTime: s?.morningTime ?? "08:00",
     eveningTime: s?.eveningTime ?? "22:00",
+    locationLat: s?.locationLat != null ? Number(s.locationLat) : null,
+    locationLon: s?.locationLon != null ? Number(s.locationLon) : null,
+    hasLocation: s?.kmaNx != null && s?.kmaNy != null,
     llmBaseUrl: llm.baseUrl,
     llmModel: llm.model,
     hasLlmKey: !!llm.apiKey,
@@ -90,6 +97,15 @@ export async function POST(req: Request) {
 
   if (typeof d.nickname === "string") set.nickname = d.nickname.trim() || null;
   if (typeof d.about === "string") set.about = d.about.trim() || null;
+
+  // 위치: 좌표가 둘 다 오면 격자(nx/ny) 도출해 함께 저장(numeric 컬럼 → 문자열).
+  if (typeof d.locationLat === "number" && typeof d.locationLon === "number") {
+    const { nx, ny } = latLonToGrid(d.locationLat, d.locationLon);
+    set.locationLat = String(d.locationLat);
+    set.locationLon = String(d.locationLon);
+    set.kmaNx = nx;
+    set.kmaNy = ny;
+  }
 
   // 캐릭터 id 들: 본인 소유 + 활성 + (트리거면) 역할 적합성 검증.
   //   active = 아무 역할, diary_reply·evening = counselor, morning = secretary.

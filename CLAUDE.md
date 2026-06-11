@@ -30,6 +30,7 @@
 
 - 채팅 연결(키/BaseURL/모델)은 사용자별 `settings`에서만 읽는다(`lib/config.ts#getLlmConfig`). **코드에 모델명/공급사 하드코딩 금지.**
 - env `LLM_API_KEY/LLM_BASE_URL/LLM_MODEL`는 선택 — 첫 admin 본인 연결 시드용일 뿐 전역 폴백 아님.
+- 날씨원은 env로만 읽는다(`lib/weather.ts`): `KMA_API_KEY`(data.go.kr Decoding) 우선, `OWM_API_KEY` 폴백. 위치는 사용자별 `settings`(좌표→격자 nx/ny). 캐시는 격자 단위 `weather_cache`.
 
 ## 단계
 

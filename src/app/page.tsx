@@ -9,6 +9,7 @@ import { phraseForDate } from "@/lib/phrases";
 import LogoutButton from "@/components/LogoutButton";
 import LiveClock from "@/components/LiveClock";
 import MoodChips from "@/components/MoodChips";
+import WeatherSlot from "@/components/WeatherSlot";
 
 export const dynamic = "force-dynamic";
 
@@ -77,10 +78,7 @@ export default async function DashboardPage() {
         <div className="flex-1 rounded-2xl bg-surface p-4">
           <LiveClock />
         </div>
-        <div className="flex w-32 flex-col items-center justify-center rounded-2xl bg-surface p-4 text-center">
-          <span className="text-2xl opacity-30">⛅</span>
-          <span className="mt-1 text-[11px] opacity-40">날씨 준비 중</span>
-        </div>
+        <WeatherSlot />
       </div>
 
       {/* 채팅 입구 카드 */}

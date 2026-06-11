@@ -10,6 +10,7 @@ import CharacterManager, {
   type TriggerAssignments,
 } from "@/components/CharacterManager";
 import ProfileSection, { type ProfileInitial } from "@/components/ProfileSection";
+import LocationSetting, { type LocationInitial } from "@/components/LocationSetting";
 import NotificationToggle from "@/components/NotificationToggle";
 import PasswordChange from "@/components/PasswordChange";
 
@@ -35,6 +36,12 @@ export default async function SettingsPage() {
     nickname: s?.nickname ?? "",
     about: s?.about ?? "",
     userAvatarPath: s?.userAvatarPath ?? null,
+  };
+
+  const location: LocationInitial = {
+    locationLat: s?.locationLat != null ? Number(s.locationLat) : null,
+    locationLon: s?.locationLon != null ? Number(s.locationLon) : null,
+    hasLocation: s?.kmaNx != null && s?.kmaNy != null,
   };
 
   const triggers: TriggerAssignments = {
@@ -74,6 +81,7 @@ export default async function SettingsPage() {
       <div className="flex flex-col gap-6">
         <SettingsForm initial={initial} />
         <ProfileSection initial={profile} />
+        <LocationSetting initial={location} />
         <NotificationToggle />
         <CharacterManager
           initialCharacters={characters}

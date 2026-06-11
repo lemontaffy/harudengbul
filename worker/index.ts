@@ -1,10 +1,13 @@
 // 하루등불 worker 엔트리포인트 — node-cron 잡.
 //   alarmJob(매 1분): 알람 시각 도달한 일정에 웹푸시 → alarm_sent=true (청구 후 발송).
-//   proactive/weather/memory/backup 잡은 다음 단계.
+//   weatherJob(매시): 사용자 격자별 기상청/OWM 조회 → weather_cache 갱신.
+//   proactive/memory/backup 잡은 다음 단계.
 // app과 src/db, src/lib 코드를 공유하지만 프로세스를 분리해 중복 실행을 막는다.
 import cron from "node-cron";
 import * as eventsRepo from "../src/db/repo/events";
+import * as weatherRepo from "../src/db/repo/weather";
 import { sendToUser, pushConfigured } from "../src/lib/push";
+import { getWeather, weatherSourceConfigured } from "../src/lib/weather";
 
 function log(msg: string) {
   console.log(`[worker] ${new Date().toISOString()} ${msg}`);
@@ -38,9 +41,39 @@ async function alarmJob() {
   }
 }
 
-log("started — alarmJob(매 1분) 등록");
+/** 매시 — 사용자 격자별로 날씨 조회 후 캐시 갱신(격자 단위 dedup). */
+async function weatherJob() {
+  if (!weatherSourceConfigured()) return; // 키 없으면 스킵
+  try {
+    const grids = await weatherRepo.distinctGrids();
+    if (grids.length === 0) return;
+    log(`weatherJob: 격자 ${grids.length}곳 갱신`);
+    for (const g of grids) {
+      if (g.nx == null || g.ny == null) continue;
+      const lat = g.lat != null ? Number(g.lat) : null;
+      const lon = g.lon != null ? Number(g.lon) : null;
+      const w = await getWeather(g.nx, g.ny, lat, lon);
+      if (w) {
+        await weatherRepo.upsert(g.nx, g.ny, w, w.hasRain, w.hasSnow, new Date(w.fetchedAt));
+        log(`  (${g.nx},${g.ny}) ${w.source} ${w.tempC ?? "?"}° ${w.summary}`);
+      } else {
+        log(`  (${g.nx},${g.ny}) 조회 실패`);
+      }
+    }
+  } catch (err) {
+    log(`weatherJob 오류: ${(err as Error)?.message}`);
+  }
+}
+
+log("started — alarmJob(매 1분) + weatherJob(매시) 등록");
 if (!pushConfigured()) {
   log("⚠️ VAPID 미설정 — 알람은 청구되나 푸시는 0건. .env 의 VAPID_* 확인.");
 }
+if (!weatherSourceConfigured()) {
+  log("⚠️ 날씨원 미설정 — KMA_API_KEY/OWM_API_KEY 없으면 weatherJob 스킵.");
+}
 
 cron.schedule("* * * * *", alarmJob);
+cron.schedule("0 * * * *", weatherJob);
+// 부팅 직후 1회(캐시 초기화) — 비동기 fire-and-forget
+void weatherJob();
