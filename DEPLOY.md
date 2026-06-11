@@ -48,11 +48,16 @@ curl -s localhost:3000/api/health     # {"ok":true,"service":"haru-app"}
 ### 채울 .env (핵심)
 ```bash
 # 관리자 비밀번호 해시 → APP_PASSWORD_HASH 에 (반드시 작은따옴표로!)
-docker compose run --rm worker npm run hash-password -- '관리자비밀번호'
+docker compose run --rm tools npm run hash-password -- '관리자비밀번호'
 
-# 세션 시크릿
-openssl rand -base64 32
+# 세션 시크릿 / 키 암호화 키
+openssl rand -base64 32   # SESSION_SECRET
+openssl rand -base64 32   # APP_ENCRYPTION_KEY (llm_api_key 암호화; 없으면 SESSION_SECRET 파생)
 ```
+
+> 운영 스크립트는 일회용 `tools` 서비스로 실행한다(표준 경로):
+> `docker compose run --rm tools npm run <script>` (db:migrate / db:seed / encrypt-keys /
+> reset-password -- <id> / test:isolation). `profiles: ["tools"]`라 평소 `up`엔 안 뜬다.
 | 키 | 비고 |
 |---|---|
 | `POSTGRES_PASSWORD` | 영숫자만. `DB_URL` 비번과 **동일** |
@@ -75,7 +80,8 @@ docker compose logs migrate     # "[seed] admin 생성: admin (id=1)" 나오면 
 3. **설정** → AI 연결(공급사 프리셋·키·모델 불러오기) 입력 → "연결됨"
 4. 지인에게 링크 → `/signup?code=...` 가입 (멤버는 `/admin` 차단, 데이터 격리)
 
-> AI 연결은 **사용자별**. 격리 회귀 테스트: `npm run test:isolation` (DB_URL 필요).
+> AI 연결은 **사용자별**. 격리 회귀 테스트: `docker compose run --rm tools npm run test:isolation`.
+> 배포 후 1회 기존 평문 키 암호화: `docker compose run --rm tools npm run encrypt-keys`.
 
 ## 트러블슈팅
 - **`password authentication failed for user "haru"`** (migrate exit 1)

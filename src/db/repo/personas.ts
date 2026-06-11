@@ -68,6 +68,14 @@ export async function update(
     .where(and(eq(personas.id, id), eq(personas.userId, userId)));
 }
 
+/** 이 캐릭터 스레드를 지금 읽은 것으로 표시(안읽음 배지 0으로). */
+export async function markRead(userId: number, id: number) {
+  await db
+    .update(personas)
+    .set({ lastReadAt: new Date() })
+    .where(and(eq(personas.id, id), eq(personas.userId, userId)));
+}
+
 /** 삭제 대신 보관(is_active=false) — 대화 기록 보존. */
 export async function archive(userId: number, id: number) {
   await db

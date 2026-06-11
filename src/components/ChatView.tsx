@@ -59,6 +59,8 @@ export default function ChatView({
       if (res.ok) {
         setMessages((await res.json()).messages);
         scrollToBottom();
+        // 스레드를 봤으니 읽음 표시(안읽음 배지 0). 실패해도 무시.
+        fetch(`/api/personas/${id}/read`, { method: "POST" }).catch(() => {});
       }
     },
     [scrollToBottom],

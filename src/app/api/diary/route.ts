@@ -67,11 +67,11 @@ export async function POST(req: Request) {
   const tz = s?.timezone ?? "Asia/Seoul";
   const date = d.date ?? todayInTz(tz);
 
-  // 1) 일기 저장(upsert) + 오늘 항목
-  const entry = await diaryRepo.upsertEntry(user.id, date, {
-    mood: d.mood ?? null,
-    body: d.body?.trim() || null,
-  });
+  // 1) 일기 저장(upsert) — 제공된 필드만(mood-only 호출이 본문을 지우지 않게).
+  const patch: { mood?: string | null; body?: string | null } = {};
+  if (d.mood !== undefined) patch.mood = d.mood;
+  if (d.body !== undefined) patch.body = d.body.trim() || null;
+  const entry = await diaryRepo.upsertEntry(user.id, date, patch);
   if (d.items) await diaryRepo.setItems(user.id, entry.id, d.items);
 
   // 2) 담당 상담가가 답장(동기). 본문 없거나 LLM 미설정이면 답장 없이 저장만.

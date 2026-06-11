@@ -41,7 +41,21 @@
 
 - 개발: `npm run dev`
 - 배포: 서버에서 `git pull && docker compose up -d --build`
-- 비밀번호 해시 생성: `npm run hash-password -- '비밀번호'`
-- 비밀번호 복구(CLI): `npm run reset-password -- <username>` (임시 비번 발급)
-- 교차 격리 회귀 테스트: `npm run test:isolation` (DB_URL 필요)
-- 마이그레이션: `npm run db:generate` → `npm run db:migrate` (M2부터)
+- 마이그레이션 생성(로컬, 스키마 변경 시): `npm run db:generate`
+
+### 운영 스크립트는 `tools` 서비스로 (서버 표준 경로)
+
+서버에선 npm 스크립트를 호스트에서 직접 돌리지 말고 **일회용 `tools` 컨테이너**로 실행한다
+(dev 의존성·소스·compose 네트워크 포함, `profiles: ["tools"]`라 평소엔 안 뜸):
+
+```
+docker compose run --rm tools npm run db:migrate       # 마이그레이션
+docker compose run --rm tools npm run db:seed          # 시드(멱등)
+docker compose run --rm tools npm run encrypt-keys     # 평문 키 일괄 암호화(멱등)
+docker compose run --rm tools npm run hash-password -- '비밀번호'
+docker compose run --rm tools npm run reset-password -- <username>
+docker compose run --rm tools npm run test:isolation   # 교차 격리 회귀 테스트
+```
+
+- 마이그레이션+시드는 `docker compose up` 시 `migrate` 원샷 서비스가 자동 실행하므로 보통 수동 불필요.
+- 로컬에서 DB가 있으면 `DB_URL=... npm run <script>` 직접 실행도 가능(개발용).

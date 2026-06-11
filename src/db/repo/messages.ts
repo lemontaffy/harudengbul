@@ -1,4 +1,4 @@
-import { and, desc, eq } from "drizzle-orm";
+import { and, count, desc, eq, gt, inArray } from "drizzle-orm";
 import { db } from "../client";
 import { messages } from "../schema";
 
@@ -30,6 +30,40 @@ export async function listForView(
     .orderBy(desc(messages.createdAt))
     .limit(limit);
   return rows.reverse();
+}
+
+/** 대시보드 미리보기용 — 그 스레드 최신 1건. */
+export async function lastMessage(userId: number, personaId: number) {
+  const [row] = await db
+    .select({
+      role: messages.role,
+      content: messages.content,
+      createdAt: messages.createdAt,
+    })
+    .from(messages)
+    .where(and(eq(messages.userId, userId), eq(messages.personaId, personaId)))
+    .orderBy(desc(messages.createdAt))
+    .limit(1);
+  return row ?? null;
+}
+
+/** 안읽음 수 — lastReadAt 이후의 assistant/proactive 메시지. null이면 전체. */
+export async function countUnread(
+  userId: number,
+  personaId: number,
+  lastReadAt: Date | null,
+): Promise<number> {
+  const conds = [
+    eq(messages.userId, userId),
+    eq(messages.personaId, personaId),
+    inArray(messages.role, ["assistant", "proactive"]),
+  ];
+  if (lastReadAt) conds.push(gt(messages.createdAt, lastReadAt));
+  const [row] = await db
+    .select({ n: count() })
+    .from(messages)
+    .where(and(...conds));
+  return row?.n ?? 0;
 }
 
 /** 프롬프트용 — 최근 N턴(role/content만), 오래된→최신. */

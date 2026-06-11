@@ -8,12 +8,35 @@ export type DiaryItemInput = {
   weight?: number | null;
 };
 
-/** 하루 1편 — (user_id, entry_date) unique. 있으면 본문/기분 갱신, 없으면 생성. */
+/**
+ * 하루 1편 — (user_id, entry_date) unique.
+ * **부분 업데이트**: patch 에 제공된 키만 갱신한다(undefined 키는 건드리지 않음).
+ * → 대시보드 기분 칩이 mood만 보내도 기존 본문이 지워지지 않는다.
+ */
 export async function upsertEntry(
   userId: number,
   entryDate: string,
   patch: { mood?: string | null; body?: string | null },
 ) {
+  const set: Partial<typeof diaryEntries.$inferInsert> = {};
+  if (patch.mood !== undefined) set.mood = patch.mood;
+  if (patch.body !== undefined) set.body = patch.body;
+
+  // 제공된 키가 없으면 쓰기 없이 현재 행 반환(없으면 빈 행 생성).
+  if (Object.keys(set).length === 0) {
+    return (
+      (await getByDate(userId, entryDate)) ??
+      (
+        await db
+          .insert(diaryEntries)
+          .values({ userId, entryDate })
+          .onConflictDoNothing()
+          .returning()
+      )[0] ??
+      (await getByDate(userId, entryDate))!
+    );
+  }
+
   const [row] = await db
     .insert(diaryEntries)
     .values({
@@ -24,7 +47,7 @@ export async function upsertEntry(
     })
     .onConflictDoUpdate({
       target: [diaryEntries.userId, diaryEntries.entryDate],
-      set: { mood: patch.mood ?? null, body: patch.body ?? null },
+      set,
     })
     .returning();
   return row;

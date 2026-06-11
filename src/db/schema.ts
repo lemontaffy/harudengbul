@@ -112,6 +112,8 @@ export const personas = pgTable(
     avatarPath: text("avatar_path"),
     traits: text("traits"), // 자유 텍스트(구 custom_traits)
     isActive: boolean("is_active").notNull().default(true),
+    // 이 캐릭터 스레드를 마지막으로 본 시각(안읽음 배지 계산용)
+    lastReadAt: timestamp("last_read_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
   },
   (t) => [index("personas_user_active_idx").on(t.userId, t.isActive)],
