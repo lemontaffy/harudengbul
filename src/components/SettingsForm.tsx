@@ -21,6 +21,7 @@ function priceLabel(p?: string): string {
 
 export interface SettingsInitial {
   proactiveEnabled: boolean;
+  handoffEnabled: boolean;
   morningTime: string;
   eveningTime: string;
   llmBaseUrl: string;
@@ -43,6 +44,7 @@ const input =
 
 export default function SettingsForm({ initial }: { initial: SettingsInitial }) {
   const [proactive, setProactive] = useState(initial.proactiveEnabled);
+  const [handoff, setHandoff] = useState(initial.handoffEnabled);
   const [morning, setMorning] = useState(initial.morningTime.slice(0, 5));
   const [evening, setEvening] = useState(initial.eveningTime.slice(0, 5));
 
@@ -108,6 +110,7 @@ export default function SettingsForm({ initial }: { initial: SettingsInitial }) 
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
           proactiveEnabled: proactive,
+          handoffEnabled: handoff,
           morningTime: morning,
           eveningTime: evening,
           llmBaseUrl: baseUrl,
@@ -321,6 +324,30 @@ export default function SettingsForm({ initial }: { initial: SettingsInitial }) 
             />
           </label>
         </div>
+      </section>
+
+      {/* 상담→비서 핸드오프 */}
+      <section className="rounded-2xl bg-surface p-5">
+        <div className="mb-2 flex items-center justify-between">
+          <h2 className="text-sm font-semibold">상담→비서 전달</h2>
+          <button
+            type="button"
+            onClick={() => setHandoff((v) => !v)}
+            className={`h-6 w-11 rounded-full transition ${
+              handoff ? "bg-accent" : "bg-white/15"
+            }`}
+          >
+            <span
+              className={`block h-5 w-5 rounded-full bg-white transition ${
+                handoff ? "translate-x-5" : "translate-x-0.5"
+              }`}
+            />
+          </button>
+        </div>
+        <p className="text-[11px] opacity-50">
+          상담 중 할 일이 나오면 동의를 받아 비서에게 전달하고, 홈 카드에서 등록할 수 있어요.
+          끄면 상담가가 전달 제안을 하지 않습니다.
+        </p>
       </section>
 
       <div className="flex items-center gap-3">

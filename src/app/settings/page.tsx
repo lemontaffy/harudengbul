@@ -53,6 +53,7 @@ export default async function SettingsPage() {
 
   const initial: SettingsInitial = {
     proactiveEnabled: s?.proactiveEnabled ?? false,
+    handoffEnabled: s?.handoffEnabled ?? true,
     morningTime: s?.morningTime ?? "08:00",
     eveningTime: s?.eveningTime ?? "22:00",
     llmBaseUrl: llm.baseUrl,

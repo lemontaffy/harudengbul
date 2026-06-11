@@ -61,5 +61,6 @@ export async function buildContext(userId: number) {
     todayEvents,
     userNickname: s?.nickname ?? null,
     userAbout: s?.about ?? null,
+    handoffEnabled: s?.handoffEnabled ?? true,
   };
 }

@@ -3,7 +3,7 @@ import { getCurrentUser } from "@/lib/currentUser";
 import { getLlmConfig } from "@/lib/config";
 import { buildContext, buildSystemPrompt, type Role } from "@/lib/persona";
 import { streamCompletion, type LlmMessage } from "@/lib/llm";
-import { SECRETARY_TOOLS, executeTool } from "@/lib/tools";
+import { toolsForRole, executeTool } from "@/lib/tools";
 import * as messagesRepo from "@/db/repo/messages";
 import * as settingsRepo from "@/db/repo/settings";
 import * as personasRepo from "@/db/repo/personas";
@@ -80,8 +80,8 @@ export async function POST(req: Request) {
       content: m.content,
     })),
   ];
-  // 비서 역할만 도구 사용. 상담가는 도구 없음(SPEC §3).
-  const tools = role === "secretary" ? SECRETARY_TOOLS : undefined;
+  // 역할별 도구: 비서=등록 도구, 상담가=핸드오프(설정 켜졌을 때만, SPEC §3·6).
+  const tools = toolsForRole(role, ctx.handoffEnabled !== false);
 
   const personaId = persona.id;
   const userId = user.id;
@@ -125,7 +125,9 @@ export async function POST(req: Request) {
             })),
           });
           for (const c of normalized) {
-            const result = await executeTool(userId, c.name, c.arguments);
+            const result = await executeTool(userId, c.name, c.arguments, {
+              personaId,
+            });
             llmMessages.push({ role: "tool", tool_call_id: c.id, content: result });
           }
         }

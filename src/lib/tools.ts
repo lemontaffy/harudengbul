@@ -3,6 +3,8 @@ import * as eventsRepo from "@/db/repo/events";
 import * as transactionsRepo from "@/db/repo/transactions";
 import * as memoriesRepo from "@/db/repo/memories";
 import * as settingsRepo from "@/db/repo/settings";
+import * as handoffsRepo from "@/db/repo/handoffs";
+import type { Role } from "@/lib/persona";
 
 // SPEC §7 — 비서 도구. OpenAI 호환 tool-use 스펙.
 export interface ToolDef {
@@ -70,6 +72,34 @@ export const SECRETARY_TOOLS: ToolDef[] = [
   },
 ];
 
+// 상담가 전용 도구 — 직접 등록(add_event 등)은 안 되고, 동의받은 할 일만 비서에게 "전달".
+export const HANDOFF_TOOL: ToolDef = {
+  type: "function",
+  function: {
+    name: "suggest_handoff",
+    description:
+      "사용자가 동의한 '할 일'을 비서에게 전달(핸드오프)한다. 사용자가 명시적으로 동의했을 때만 호출한다. 대화 맥락/사유는 넘기지 말고 할 일 한 줄만.",
+    parameters: {
+      type: "object",
+      properties: {
+        items: {
+          type: "array",
+          items: { type: "string" },
+          description: '할 일 한 줄들(예: ["병원 예약", "엄마한테 전화"]). 사유·맥락 금지.',
+        },
+      },
+      required: ["items"],
+    },
+  },
+};
+
+/** 역할·설정에 따른 도구 목록. 비서=등록 도구, 상담가=핸드오프(켜졌을 때만). */
+export function toolsForRole(role: Role, handoffEnabled: boolean): ToolDef[] | undefined {
+  if (role === "secretary") return SECRETARY_TOOLS;
+  if (role === "counselor" && handoffEnabled) return [HANDOFF_TOOL];
+  return undefined;
+}
+
 const addEventArgs = z.object({
   title: z.string().min(1).max(120),
   starts_at: z.string().min(1),
@@ -85,6 +115,9 @@ const addTxArgs = z.object({
 const saveMemArgs = z.object({
   content: z.string().min(1).max(200),
   importance: z.number().int().min(1).max(5).nullish(),
+});
+const handoffArgs = z.object({
+  items: z.array(z.string().trim().min(1).max(200)).min(1).max(10),
 });
 
 function todayInTz(tz: string): string {
@@ -115,6 +148,7 @@ export async function executeTool(
   userId: number,
   name: string,
   argsJson: string,
+  opts?: { personaId?: number },
 ): Promise<string> {
   let args: unknown;
   try {
@@ -123,6 +157,17 @@ export async function executeTool(
     return "ERROR: 도구 인자 JSON 파싱 실패";
   }
   try {
+    if (name === "suggest_handoff") {
+      const a = handoffArgs.parse(args);
+      let created = 0;
+      for (const item of a.items) {
+        if (await handoffsRepo.createPending(userId, opts?.personaId ?? null, item)) {
+          created++;
+        }
+      }
+      const dup = a.items.length - created;
+      return `OK: ${created}건 비서에게 전달${dup > 0 ? ` (중복 ${dup}건 제외)` : ""}`;
+    }
     if (name === "add_event") {
       const a = addEventArgs.parse(args);
       const s = await settingsRepo.getByUser(userId);

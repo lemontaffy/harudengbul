@@ -92,6 +92,8 @@ export const settings = pgTable("settings", {
   // memoryJob 워터마크 — 여기까지 기억 추출 처리됨(이후 id만 새로 처리)
   memoryLastMsgId: bigint("memory_last_msg_id", { mode: "number" }).default(0),
   memoryLastDiaryId: bigint("memory_last_diary_id", { mode: "number" }).default(0),
+  // 상담→비서 핸드오프 제안 기능 on/off(기본 on). off면 도구·프롬프트 모두 미주입.
+  handoffEnabled: boolean("handoff_enabled").default(true),
   locationLat: numeric("location_lat"),
   locationLon: numeric("location_lon"),
   kmaNx: integer("kma_nx"),
@@ -262,4 +264,29 @@ export const weatherCache = pgTable(
     hasSnow: boolean("has_snow").default(false),
   },
   (t) => [primaryKey({ columns: [t.kmaNx, t.kmaNy] })],
+);
+
+// 상담→비서 핸드오프 제안(동의 기반). 할 일 한 줄만 저장 — 대화 맥락/사유는 절대 저장 안 함.
+export const handoffSuggestions = pgTable(
+  "handoff_suggestions",
+  {
+    id: bigint("id", { mode: "number" })
+      .primaryKey()
+      .generatedAlwaysAsIdentity(),
+    userId: bigint("user_id", { mode: "number" })
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    sourcePersonaId: bigint("source_persona_id", { mode: "number" }).references(
+      () => personas.id,
+    ),
+    suggestedText: text("suggested_text").notNull(), // "병원 예약" 같은 한 줄
+    status: text("status").notNull().default("pending"), // pending|accepted|dismissed|expired
+    createdEventId: bigint("created_event_id", { mode: "number" }).references(
+      () => events.id,
+      { onDelete: "set null" },
+    ),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
+    resolvedAt: timestamp("resolved_at", { withTimezone: true }),
+  },
+  (t) => [index("handoff_user_status_idx").on(t.userId, t.status)],
 );

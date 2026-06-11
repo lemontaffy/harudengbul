@@ -17,6 +17,7 @@ const timeRe = /^([01]\d|2[0-3]):[0-5]\d$/;
 
 const bodySchema = z.object({
   proactiveEnabled: z.boolean().optional(),
+  handoffEnabled: z.boolean().optional(),
   morningTime: z.string().regex(timeRe).optional(),
   eveningTime: z.string().regex(timeRe).optional(),
   // AI 연결 (OAI 호환)
@@ -51,6 +52,7 @@ async function snapshot(userId: number) {
     morningPersonaId: s?.morningPersonaId ?? null,
     eveningPersonaId: s?.eveningPersonaId ?? null,
     proactiveEnabled: s?.proactiveEnabled ?? false,
+    handoffEnabled: s?.handoffEnabled ?? true,
     morningTime: s?.morningTime ?? "08:00",
     eveningTime: s?.eveningTime ?? "22:00",
     locationLat: s?.locationLat != null ? Number(s.locationLat) : null,
@@ -83,6 +85,7 @@ export async function POST(req: Request) {
   const set: SettingsPatch = {};
 
   if (typeof d.proactiveEnabled === "boolean") set.proactiveEnabled = d.proactiveEnabled;
+  if (typeof d.handoffEnabled === "boolean") set.handoffEnabled = d.handoffEnabled;
   if (typeof d.morningTime === "string") set.morningTime = d.morningTime;
   if (typeof d.eveningTime === "string") set.eveningTime = d.eveningTime;
 

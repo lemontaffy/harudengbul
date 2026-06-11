@@ -11,6 +11,7 @@ import * as personasRepo from "../src/db/repo/personas";
 import * as messagesRepo from "../src/db/repo/messages";
 import * as diaryRepo from "../src/db/repo/diary";
 import * as memoriesRepo from "../src/db/repo/memories";
+import * as handoffsRepo from "../src/db/repo/handoffs";
 import * as usageRepo from "../src/db/repo/usage";
 import { sendToUser, pushConfigured } from "../src/lib/push";
 import { getWeather, weatherSourceConfigured } from "../src/lib/weather";
@@ -220,7 +221,19 @@ async function memoryJob() {
   }
 }
 
-log("started — alarmJob(1분) + weatherJob(매시) + proactiveJob(5분) + memoryJob(30분) 등록");
+/** 매일 — 14일 경과한 pending 핸드오프를 조용히 expired 로(알림·표시 없음). */
+async function handoffExpiryJob() {
+  try {
+    const n = await handoffsRepo.expireOld();
+    if (n > 0) log(`handoffExpiryJob: ${n}건 만료(조용히)`);
+  } catch (err) {
+    log(`handoffExpiryJob 오류: ${(err as Error)?.message}`);
+  }
+}
+
+log(
+  "started — alarmJob(1분) + weatherJob(매시) + proactiveJob(5분) + memoryJob(30분) + handoffExpiry(매일) 등록",
+);
 if (!pushConfigured()) {
   log("⚠️ VAPID 미설정 — 알람은 청구되나 푸시는 0건. .env 의 VAPID_* 확인.");
 }
@@ -232,5 +245,7 @@ cron.schedule("* * * * *", alarmJob);
 cron.schedule("0 * * * *", weatherJob);
 cron.schedule("*/5 * * * *", proactiveJob);
 cron.schedule("*/30 * * * *", memoryJob);
-// 부팅 직후 1회(캐시 초기화) — 비동기 fire-and-forget
+cron.schedule("0 4 * * *", handoffExpiryJob); // 매일 04시
+// 부팅 직후 1회 — 캐시 초기화 + 밀린 만료 처리
 void weatherJob();
+void handoffExpiryJob();

@@ -5,12 +5,14 @@ import * as personasRepo from "@/db/repo/personas";
 import * as eventsRepo from "@/db/repo/events";
 import * as diaryRepo from "@/db/repo/diary";
 import * as messagesRepo from "@/db/repo/messages";
+import * as handoffsRepo from "@/db/repo/handoffs";
 import { phraseForDate } from "@/lib/phrases";
 import LogoutButton from "@/components/LogoutButton";
 import LiveClock from "@/components/LiveClock";
 import MoodChips from "@/components/MoodChips";
 import WeatherSlot from "@/components/WeatherSlot";
 import PhraseCard from "@/components/PhraseCard";
+import HandoffCard, { type HandoffItem } from "@/components/HandoffCard";
 
 export const dynamic = "force-dynamic";
 
@@ -39,11 +41,17 @@ export default async function DashboardPage() {
   const end = new Date(start);
   end.setDate(end.getDate() + 1);
 
-  const [personaRows, todayEvents, todayDiary] = await Promise.all([
+  const [personaRows, todayEvents, todayDiary, handoffRows] = await Promise.all([
     personasRepo.listActiveByUser(user.id),
     eventsRepo.getBetween(user.id, start, end),
     diaryRepo.getByDate(user.id, today),
+    handoffsRepo.listPending(user.id),
   ]);
+  const handoffs: HandoffItem[] = handoffRows.map((h) => ({
+    id: h.id,
+    suggestedText: h.suggestedText,
+    personaName: h.personaName,
+  }));
 
   const active =
     personaRows.find((p) => p.id === s?.activePersonaId) ?? personaRows[0] ?? null;
@@ -110,6 +118,9 @@ export default async function DashboardPage() {
         </div>
         <span className="text-lg opacity-30">›</span>
       </Link>
+
+      {/* 핸드오프(상담가가 전달한 항목) — pending 있을 때만 */}
+      <HandoffCard initial={handoffs} />
 
       {/* 오늘 일정 미니 */}
       <section className="rounded-2xl bg-surface p-4">

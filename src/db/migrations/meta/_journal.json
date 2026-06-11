@@ -43,6 +43,13 @@
       "when": 1781192566735,
       "tag": "0005_memory_watermark",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1781194797440,
+      "tag": "0006_handoff",
+      "breakpoints": true
     }
   ]
 }
