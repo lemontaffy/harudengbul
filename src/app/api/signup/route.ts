@@ -61,6 +61,7 @@ export async function POST(req: Request) {
   session.userId = user.id;
   session.role = "member";
   session.username = user.username;
+  session.mustChangePassword = false;
   await session.save();
 
   return Response.json({ ok: true });

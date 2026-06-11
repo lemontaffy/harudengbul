@@ -1,6 +1,7 @@
-import * as memoriesRepo from "@/db/repo/memories";
-import * as eventsRepo from "@/db/repo/events";
-import * as settingsRepo from "@/db/repo/settings";
+// 상대경로 import — 이 모듈은 tsx 테스트(scripts/test-isolation)에서도 직접 import 된다.
+import * as memoriesRepo from "../db/repo/memories";
+import * as eventsRepo from "../db/repo/events";
+import * as settingsRepo from "../db/repo/settings";
 
 export type PersonaId = "theo" | "nora";
 
@@ -74,8 +75,12 @@ export async function buildContext(userId: number) {
 export function buildSystemPrompt(
   personaId: PersonaId,
   ctx: { now: string; memories: string; todayEvents: string },
+  customTraits?: string | null,
 ): string {
   const p = PERSONAS[personaId];
+  const custom = customTraits?.trim()
+    ? `\n[사용자가 추가한 설정]\n${customTraits.trim()}`
+    : "";
   return `너는 ${p.displayName}(${p.nameEn}), 사용자의 비서 겸 상담 동반자다.
 
 [말투 규칙 — 절대 위반 금지]
@@ -86,7 +91,7 @@ export function buildSystemPrompt(
 - 존댓말/반말은 사용자의 마지막 말투를 따라간다.
 
 [성격]
-${p.traits}
+${p.traits}${custom}
 
 [비서 역할]
 - 오늘 일정과 날씨를 자연스럽게 챙긴다.

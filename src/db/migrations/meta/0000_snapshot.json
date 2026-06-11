@@ -1,5 +1,5 @@
 {
-  "id": "607ae240-0011-4fbf-a6e1-6cd7aac32a7b",
+  "id": "66baa948-b2bb-4b24-8031-3030b33fdea1",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "version": "7",
   "dialect": "postgresql",
@@ -1088,6 +1088,13 @@
           "primaryKey": false,
           "notNull": true,
           "default": true
+        },
+        "must_change_password": {
+          "name": "must_change_password",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
         },
         "created_at": {
           "name": "created_at",

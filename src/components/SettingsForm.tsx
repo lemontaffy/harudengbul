@@ -29,6 +29,7 @@ export interface SettingsInitial {
   hasLlmKey: boolean;
   llmKeyMasked: string;
   llmConfigured: boolean;
+  customTraits: { nora: string; theo: string };
 }
 
 // 공급사 프리셋 = Base URL 자동 채움 (전부 OpenAI 호환)
@@ -44,6 +45,7 @@ const input =
 
 export default function SettingsForm({ initial }: { initial: SettingsInitial }) {
   const [persona, setPersona] = useState(initial.activePersona);
+  const [traits, setTraits] = useState(initial.customTraits);
   const [proactive, setProactive] = useState(initial.proactiveEnabled);
   const [morning, setMorning] = useState(initial.morningTime.slice(0, 5));
   const [evening, setEvening] = useState(initial.eveningTime.slice(0, 5));
@@ -116,6 +118,7 @@ export default function SettingsForm({ initial }: { initial: SettingsInitial }) 
           llmBaseUrl: baseUrl,
           llmModel: model,
           llmApiKey: apiKey,
+          customTraits: traits[persona],
         }),
       });
       const data = await res.json();
@@ -300,6 +303,19 @@ export default function SettingsForm({ initial }: { initial: SettingsInitial }) 
             </button>
           ))}
         </div>
+
+        <label className="mb-1 mt-4 block text-xs opacity-60">
+          {persona === "nora" ? "노라" : "테오"} 추가 설정 (성격 보강)
+        </label>
+        <textarea
+          value={traits[persona]}
+          onChange={(e) =>
+            setTraits((t) => ({ ...t, [persona]: e.target.value }))
+          }
+          rows={3}
+          placeholder="예: 가끔 시 한 구절을 인용한다 / 운동을 적극 권한다"
+          className={`${input} resize-none`}
+        />
       </section>
 
       {/* 선제 톡 */}

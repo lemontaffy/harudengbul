@@ -12,6 +12,7 @@
     "db:migrate": "tsx src/db/migrate.ts",
     "db:seed": "tsx src/db/seed.ts",
     "hash-password": "tsx scripts/hash-password.ts",
+    "reset-password": "tsx scripts/reset-password.ts",
     "test:isolation": "tsx scripts/test-isolation.ts"
   },
   "dependencies": {

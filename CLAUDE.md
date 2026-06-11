@@ -21,6 +21,8 @@
 - **초대제 멀티유저** — `DELTA-multiuser.md`가 SPEC §2(단일 사용자)를 대체. 충돌 시 DELTA 우선.
 - 첫 관리자: 사용자 0명일 때 시드가 `ADMIN_USERNAME`(기본 admin) + `APP_PASSWORD_HASH`로 admin 1명 생성.
 - 가입: 공개 가입 없음. admin이 `/admin`에서 초대 코드 발급 → `/signup?code=...` (이메일/SMTP 없음).
+- 비밀번호: 설정에서 본인 변경. admin은 `/admin`에서 멤버 초기화(일회용 임시 비번 발급 → `must_change_password`로 다음 로그인 시 변경 강제). CLI 복구 `npm run reset-password -- <username>`.
+- 시드 멱등: `ADMIN_USERNAME` 계정 부재 시에만 env `APP_PASSWORD_HASH`를 재해싱 없이 복사해 생성. 존재하면 무수정 → 재시작/ env 제거에도 안전.
 - **AI 연결은 사용자별** — `settings.llm_api_key/llm_base_url/llm_model` (OpenAI 호환). 공급사는 Base URL로 구분(OpenRouter/DeepSeek/OpenAI/Custom). 전역 공유·env 요청폴백 없음. 각자 자기 키.
 - 데이터 접근은 `src/db/repo/*`의 userId-스코프 함수로만. 라우트에서 db 직접 호출 금지.
 
@@ -40,4 +42,6 @@
 - 개발: `npm run dev`
 - 배포: 서버에서 `git pull && docker compose up -d --build`
 - 비밀번호 해시 생성: `npm run hash-password -- '비밀번호'`
+- 비밀번호 복구(CLI): `npm run reset-password -- <username>` (임시 비번 발급)
+- 교차 격리 회귀 테스트: `npm run test:isolation` (DB_URL 필요)
 - 마이그레이션: `npm run db:generate` → `npm run db:migrate` (M2부터)

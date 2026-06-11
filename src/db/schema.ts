@@ -23,6 +23,8 @@ export const users = pgTable("users", {
   passwordHash: text("password_hash").notNull(), // argon2
   role: text("role").notNull().default("member"), // 'admin' | 'member'
   isActive: boolean("is_active").notNull().default(true),
+  // 임시 비밀번호(관리자 초기화/CLI) = 일회용 → 다음 로그인 시 변경 강제
+  mustChangePassword: boolean("must_change_password").notNull().default(false),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
 });
 

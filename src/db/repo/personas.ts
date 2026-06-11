@@ -17,10 +17,20 @@ export async function listByUser(userId: number) {
   return db.query.personas.findMany({ where: eq(personas.userId, userId) });
 }
 
+export async function getOne(userId: number, personaId: string) {
+  return db.query.personas.findFirst({
+    where: and(eq(personas.userId, userId), eq(personas.id, personaId)),
+  });
+}
+
 export async function updateForUser(
   userId: number,
   personaId: string,
-  patch: { displayName?: string; avatarPath?: string; customTraits?: string },
+  patch: {
+    displayName?: string;
+    avatarPath?: string;
+    customTraits?: string | null;
+  },
 ) {
   await db
     .update(personas)

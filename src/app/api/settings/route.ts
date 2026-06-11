@@ -1,7 +1,9 @@
 import { z } from "zod";
 import { getCurrentUser } from "@/lib/currentUser";
 import { getLlmConfig, maskApiKey } from "@/lib/config";
+import { isPersona } from "@/lib/persona";
 import * as settingsRepo from "@/db/repo/settings";
+import * as personasRepo from "@/db/repo/personas";
 import type { settings as settingsTable } from "@/db/schema";
 
 type SettingsPatch = Partial<typeof settingsTable.$inferInsert>;
@@ -21,6 +23,8 @@ const bodySchema = z.object({
   clearLlmKey: z.boolean().optional(),
   llmBaseUrl: z.string().url().optional().or(z.literal("")),
   llmModel: z.string().optional(),
+  // 활성(또는 지정) 페르소나의 custom_traits — 본인 것만
+  customTraits: z.string().max(2000).optional(),
 });
 
 async function snapshot(userId: number) {
@@ -75,5 +79,18 @@ export async function POST(req: Request) {
   if (Object.keys(set).length > 0) {
     await settingsRepo.updateByUser(user.id, set);
   }
+
+  // custom_traits 는 대상 페르소나(지정 or 현재 활성)에 본인 것만 저장
+  if (typeof d.customTraits === "string") {
+    let target = d.activePersona;
+    if (!isPersona(target)) {
+      const cur = await settingsRepo.getByUser(user.id);
+      target = isPersona(cur?.activePersona) ? cur!.activePersona : "nora";
+    }
+    await personasRepo.updateForUser(user.id, target, {
+      customTraits: d.customTraits.trim() || null,
+    });
+  }
+
   return Response.json({ ok: true, ...(await snapshot(user.id)) });
 }

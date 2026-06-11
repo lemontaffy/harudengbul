@@ -10,6 +10,7 @@ import {
 import { streamChatCompletion, type ChatMessage } from "@/lib/llm";
 import * as messagesRepo from "@/db/repo/messages";
 import * as settingsRepo from "@/db/repo/settings";
+import * as personasRepo from "@/db/repo/personas";
 import * as usageRepo from "@/db/repo/usage";
 
 export const runtime = "nodejs";
@@ -50,10 +51,17 @@ export async function POST(req: Request) {
   await messagesRepo.add(user.id, persona, "user", parsed.data.message);
 
   // 시스템 프롬프트 + 최근 히스토리(방금 저장한 user 포함)
-  const ctx = await buildContext(user.id);
-  const history = await messagesRepo.listForPrompt(user.id, persona, 20);
+  // custom_traits 는 반드시 "본인" 페르소나 것만 주입(DELTA §5)
+  const [ctx, personaRow, history] = await Promise.all([
+    buildContext(user.id),
+    personasRepo.getOne(user.id, persona),
+    messagesRepo.listForPrompt(user.id, persona, 20),
+  ]);
   const llmMessages: ChatMessage[] = [
-    { role: "system", content: buildSystemPrompt(persona, ctx) },
+    {
+      role: "system",
+      content: buildSystemPrompt(persona, ctx, personaRow?.customTraits),
+    },
     ...history.map((m) => ({
       role: m.role === "user" ? ("user" as const) : ("assistant" as const),
       content: m.content,

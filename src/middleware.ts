@@ -41,6 +41,25 @@ export async function middleware(req: NextRequest) {
     return NextResponse.redirect(url);
   }
 
+  // 임시 비밀번호(강제 변경) — 비번 변경 전까지 다른 경로 차단
+  if (authed && session.mustChangePassword) {
+    const allowed =
+      pathname === "/settings" ||
+      pathname === "/api/account/password" ||
+      pathname === "/api/logout";
+    if (!allowed && !isPublic(pathname)) {
+      if (pathname.startsWith("/api/")) {
+        return NextResponse.json(
+          { error: "비밀번호 변경이 필요합니다." },
+          { status: 403 },
+        );
+      }
+      const url = req.nextUrl.clone();
+      url.pathname = "/settings";
+      return NextResponse.redirect(url);
+    }
+  }
+
   return res;
 }
 

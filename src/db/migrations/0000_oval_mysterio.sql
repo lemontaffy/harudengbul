@@ -116,6 +116,7 @@ CREATE TABLE "users" (
 	"password_hash" text NOT NULL,
 	"role" text DEFAULT 'member' NOT NULL,
 	"is_active" boolean DEFAULT true NOT NULL,
+	"must_change_password" boolean DEFAULT false NOT NULL,
 	"created_at" timestamp with time zone DEFAULT now(),
 	CONSTRAINT "users_username_unique" UNIQUE("username")
 );

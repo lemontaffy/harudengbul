@@ -2,16 +2,22 @@ import Link from "next/link";
 import { requireUser } from "@/lib/currentUser";
 import { getLlmConfig, maskApiKey } from "@/lib/config";
 import * as settingsRepo from "@/db/repo/settings";
+import * as personasRepo from "@/db/repo/personas";
 import SettingsForm, { type SettingsInitial } from "@/components/SettingsForm";
+import PasswordChange from "@/components/PasswordChange";
 
 export const dynamic = "force-dynamic";
 
 export default async function SettingsPage() {
   const user = await requireUser();
-  const [s, llm] = await Promise.all([
+  const [s, llm, personas] = await Promise.all([
     settingsRepo.getByUser(user.id),
     getLlmConfig(user.id),
+    personasRepo.listByUser(user.id),
   ]);
+
+  const traitOf = (id: string) =>
+    personas.find((p) => p.id === id)?.customTraits ?? "";
 
   const initial: SettingsInitial = {
     activePersona: (s?.activePersona as "theo" | "nora") ?? "nora",
@@ -23,6 +29,7 @@ export default async function SettingsPage() {
     hasLlmKey: !!llm.apiKey,
     llmKeyMasked: maskApiKey(llm.apiKey),
     llmConfigured: llm.configured,
+    customTraits: { nora: traitOf("nora"), theo: traitOf("theo") },
   };
 
   return (
@@ -34,7 +41,20 @@ export default async function SettingsPage() {
         <h1 className="text-lg font-semibold">설정</h1>
         <span className="w-8" />
       </div>
+
+      {user.mustChangePassword && (
+        <div className="mb-5">
+          <PasswordChange forced />
+        </div>
+      )}
+
       <SettingsForm initial={initial} />
+
+      {!user.mustChangePassword && (
+        <div className="mt-6">
+          <PasswordChange forced={false} />
+        </div>
+      )}
     </main>
   );
 }

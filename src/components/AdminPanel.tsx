@@ -34,6 +34,7 @@ export default function AdminPanel() {
   }
 
   const [users, setUsers] = useState<UserRow[]>([]);
+  const [tempPw, setTempPw] = useState<Record<number, string>>({});
   const loadUsers = useCallback(async () => {
     const res = await fetch("/api/admin/users");
     if (res.ok) setUsers((await res.json()).users);
@@ -45,6 +46,17 @@ export default function AdminPanel() {
       body: JSON.stringify({ userId: u.id, isActive: !u.isActive }),
     });
     await loadUsers();
+  }
+  async function resetPassword(u: UserRow) {
+    if (!confirm(`${u.username}의 비밀번호를 초기화할까요?`)) return;
+    const res = await fetch("/api/admin/users/reset-password", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ userId: u.id }),
+    });
+    const data = await res.json();
+    if (res.ok) setTempPw((m) => ({ ...m, [u.id]: data.tempPassword }));
+    else alert(data.error ?? "초기화 실패");
   }
 
   useEffect(() => {
@@ -108,29 +120,45 @@ export default function AdminPanel() {
         <h2 className="mb-3 text-sm font-semibold">사용자</h2>
         <ul className="flex flex-col gap-2">
           {users.map((u) => (
-            <li
-              key={u.id}
-              className="flex items-center justify-between rounded-lg bg-bg p-2 text-xs"
-            >
-              <div>
-                <span className="font-medium">{u.username}</span>
-                {u.role === "admin" && (
-                  <span className="ml-2 text-accent">admin</span>
+            <li key={u.id} className="rounded-lg bg-bg p-2 text-xs">
+              <div className="flex items-center justify-between">
+                <div>
+                  <span className="font-medium">{u.username}</span>
+                  {u.role === "admin" && (
+                    <span className="ml-2 text-accent">admin</span>
+                  )}
+                  <span className="ml-2 opacity-40">오늘 {u.todayUsage}회</span>
+                </div>
+                {u.role === "admin" ? (
+                  <span className="opacity-40">—</span>
+                ) : (
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => resetPassword(u)}
+                      className="opacity-60 hover:text-accent"
+                    >
+                      비번 초기화
+                    </button>
+                    <button
+                      onClick={() => toggleUser(u)}
+                      className={`rounded px-2 py-1 ${
+                        u.isActive
+                          ? "text-accent hover:text-red-400"
+                          : "text-red-400 hover:text-accent"
+                      }`}
+                    >
+                      {u.isActive ? "활성" : "비활성"}
+                    </button>
+                  </div>
                 )}
-                <span className="ml-2 opacity-40">오늘 {u.todayUsage}회</span>
               </div>
-              {u.role === "admin" ? (
-                <span className="opacity-40">—</span>
-              ) : (
+              {tempPw[u.id] && (
                 <button
-                  onClick={() => toggleUser(u)}
-                  className={`rounded px-2 py-1 ${
-                    u.isActive
-                      ? "text-accent hover:text-red-400"
-                      : "text-red-400 hover:text-accent"
-                  }`}
+                  onClick={() => navigator.clipboard?.writeText(tempPw[u.id])}
+                  className="mt-1 w-full rounded bg-accent/10 px-2 py-1 text-left text-accent"
+                  title="클릭하면 복사"
                 >
-                  {u.isActive ? "활성" : "비활성"}
+                  임시 비밀번호: {tempPw[u.id]} (1회 표시 · 클릭 복사)
                 </button>
               )}
             </li>

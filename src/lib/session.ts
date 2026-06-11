@@ -4,6 +4,7 @@ export interface SessionData {
   userId?: number;
   role?: "admin" | "member";
   username?: string;
+  mustChangePassword?: boolean;
 }
 
 // iron-session 설정. password는 SESSION_SECRET(32자 이상).

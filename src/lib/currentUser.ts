@@ -12,6 +12,7 @@ export interface CurrentUser {
   id: number;
   username: string;
   role: "admin" | "member";
+  mustChangePassword: boolean;
 }
 
 /**
@@ -23,7 +24,12 @@ export async function getCurrentUser(): Promise<CurrentUser | null> {
   if (!session.userId) return null;
   const user = await usersRepo.findActiveById(session.userId);
   if (!user) return null;
-  return { id: user.id, username: user.username, role: user.role as "admin" | "member" };
+  return {
+    id: user.id,
+    username: user.username,
+    role: user.role as "admin" | "member",
+    mustChangePassword: user.mustChangePassword,
+  };
 }
 
 /** 서버 컴포넌트(페이지)용 — 미인증/비활성이면 /login 으로 리다이렉트. */
