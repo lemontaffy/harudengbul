@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { requireUser } from "@/lib/currentUser";
-import { getOpenRouterConfig } from "@/lib/config";
+import { getLlmConfig } from "@/lib/config";
 import * as settingsRepo from "@/db/repo/settings";
 import LogoutButton from "@/components/LogoutButton";
 
@@ -8,12 +8,11 @@ export const dynamic = "force-dynamic";
 
 export default async function Home() {
   const user = await requireUser();
-  const [cfg, s] = await Promise.all([
-    getOpenRouterConfig(),
+  const [llm, s] = await Promise.all([
+    getLlmConfig(user.id),
     settingsRepo.getByUser(user.id),
   ]);
   const persona = s?.activePersona === "theo" ? "테오" : "노라";
-  const ready = cfg.apiKeySource !== "none" && cfg.modelSource !== "none";
 
   return (
     <main className="mx-auto max-w-md p-5">
@@ -30,15 +29,12 @@ export default async function Home() {
           활성 페르소나: <span className="font-medium">{persona}</span>
         </p>
         <p className="mt-2 text-xs opacity-60">
-          OpenRouter 연결:{" "}
-          {ready ? (
-            <span className="text-accent">준비됨</span>
+          AI 연결:{" "}
+          {llm.configured ? (
+            <span className="text-accent">연결됨 · {llm.model}</span>
           ) : (
-            <span className="text-red-400">
-              {user.role === "admin" ? "설정 필요" : "운영자 설정 대기"}
-            </span>
+            <span className="text-red-400">설정 필요 (내 키 입력)</span>
           )}
-          {ready && cfg.model && ` · ${cfg.model}`}
         </p>
 
         <div className="mt-4 flex gap-2">

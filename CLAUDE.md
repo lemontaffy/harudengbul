@@ -21,12 +21,13 @@
 - **초대제 멀티유저** — `DELTA-multiuser.md`가 SPEC §2(단일 사용자)를 대체. 충돌 시 DELTA 우선.
 - 첫 관리자: 사용자 0명일 때 시드가 `ADMIN_USERNAME`(기본 admin) + `APP_PASSWORD_HASH`로 admin 1명 생성.
 - 가입: 공개 가입 없음. admin이 `/admin`에서 초대 코드 발급 → `/signup?code=...` (이메일/SMTP 없음).
-- **OpenRouter 연결은 전역(admin 관리)** — `app_config` 단일행. 멤버 공유, `daily_message_limit`로 크레딧 보호.
+- **AI 연결은 사용자별** — `settings.llm_api_key/llm_base_url/llm_model` (OpenAI 호환). 공급사는 Base URL로 구분(OpenRouter/DeepSeek/OpenAI/Custom). 전역 공유·env 요청폴백 없음. 각자 자기 키.
 - 데이터 접근은 `src/db/repo/*`의 userId-스코프 함수로만. 라우트에서 db 직접 호출 금지.
 
 ## 모델
 
-- 채팅 모델은 `OPENROUTER_MODEL` env로만 참조. **코드에 모델명 하드코딩 금지** (사용자가 언제든 교체).
+- 채팅 연결(키/BaseURL/모델)은 사용자별 `settings`에서만 읽는다(`lib/config.ts#getLlmConfig`). **코드에 모델명/공급사 하드코딩 금지.**
+- env `LLM_API_KEY/LLM_BASE_URL/LLM_MODEL`는 선택 — 첫 admin 본인 연결 시드용일 뿐 전역 폴백 아님.
 
 ## 단계
 

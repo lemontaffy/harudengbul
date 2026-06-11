@@ -51,15 +51,8 @@ export const usageLog = pgTable(
   (t) => [index("usage_log_user_created_idx").on(t.userId, t.createdAt)],
 );
 
-// 전역 OpenRouter 연결(운영자 관리). 멤버는 공유해서 쓴다(크레딧 보호: daily_message_limit).
-export const appConfig = pgTable("app_config", {
-  id: integer("id").primaryKey().default(1),
-  openrouterApiKey: text("openrouter_api_key"),
-  openrouterModel: text("openrouter_model"),
-  openrouterBaseUrl: text("openrouter_base_url"),
-});
-
 // 사용자별 설정 (id=1 단일행 → user_id PK)
+// AI 연결은 사용자별(OAI 호환): 공급사 = base_url. 전역 공유 없음.
 export const settings = pgTable("settings", {
   userId: bigint("user_id", { mode: "number" })
     .primaryKey()
@@ -73,7 +66,11 @@ export const settings = pgTable("settings", {
   kmaNx: integer("kma_nx"),
   kmaNy: integer("kma_ny"),
   timezone: text("timezone").default("Asia/Seoul"),
-  dailyMessageLimit: integer("daily_message_limit").default(200),
+  // OpenAI 호환 LLM 연결(사용자별). 공급사는 base_url로 구분
+  // (OpenRouter https://openrouter.ai/api/v1, DeepSeek https://api.deepseek.com 등)
+  llmApiKey: text("llm_api_key"),
+  llmBaseUrl: text("llm_base_url"),
+  llmModel: text("llm_model"),
 });
 
 // 페르소나: 사용자별 (pk = user_id, id)

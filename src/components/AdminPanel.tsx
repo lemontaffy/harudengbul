@@ -2,17 +2,6 @@
 
 import { useEffect, useState, useCallback } from "react";
 
-type Source = "db" | "env" | "none";
-
-export interface OpenRouterInitial {
-  model: string;
-  modelSource: Source;
-  baseUrl: string;
-  hasApiKey: boolean;
-  apiKeyMasked: string;
-  apiKeySource: Source;
-}
-
 interface Invite {
   code: string;
   url: string;
@@ -27,60 +16,7 @@ interface UserRow {
   todayUsage: number;
 }
 
-function badge(s: Source) {
-  if (s === "db") return <span className="text-accent">DB</span>;
-  if (s === "env") return <span className="opacity-60">env</span>;
-  return <span className="text-red-400">미설정</span>;
-}
-
-const input =
-  "w-full rounded-lg bg-bg px-3 py-2 text-sm outline-none ring-1 ring-white/10 focus:ring-accent";
-
-export default function AdminPanel({ orInitial }: { orInitial: OpenRouterInitial }) {
-  // ── OpenRouter ──
-  const [model, setModel] = useState(orInitial.model);
-  const [baseUrl, setBaseUrl] = useState(
-    orInitial.baseUrl === "https://openrouter.ai/api/v1" ? "" : orInitial.baseUrl,
-  );
-  const [apiKey, setApiKey] = useState("");
-  const [orView, setOrView] = useState(orInitial);
-  const [orStatus, setOrStatus] = useState("");
-  const [orSaving, setOrSaving] = useState(false);
-
-  async function saveOr() {
-    setOrSaving(true);
-    setOrStatus("");
-    const res = await fetch("/api/admin/config", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({
-        openrouterModel: model,
-        openrouterBaseUrl: baseUrl,
-        openrouterApiKey: apiKey,
-      }),
-    });
-    const data = await res.json();
-    if (res.ok) {
-      setApiKey("");
-      setOrView(data);
-      setOrStatus("저장됨 ✓");
-    } else setOrStatus(data.error ?? "저장 실패");
-    setOrSaving(false);
-  }
-  async function clearKey() {
-    const res = await fetch("/api/admin/config", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ clearApiKey: true }),
-    });
-    const data = await res.json();
-    if (res.ok) {
-      setOrView(data);
-      setOrStatus("DB 키 삭제됨 (env 폴백)");
-    }
-  }
-
-  // ── Invites ──
+export default function AdminPanel() {
   const [invites, setInvites] = useState<Invite[]>([]);
   const loadInvites = useCallback(async () => {
     const res = await fetch("/api/admin/invites");
@@ -97,7 +33,6 @@ export default function AdminPanel({ orInitial }: { orInitial: OpenRouterInitial
     await loadInvites();
   }
 
-  // ── Users ──
   const [users, setUsers] = useState<UserRow[]>([]);
   const loadUsers = useCallback(async () => {
     const res = await fetch("/api/admin/users");
@@ -119,63 +54,13 @@ export default function AdminPanel({ orInitial }: { orInitial: OpenRouterInitial
 
   return (
     <div className="flex flex-col gap-6">
-      {/* OpenRouter (전역) */}
-      <section className="rounded-2xl bg-surface p-5">
-        <h2 className="mb-1 text-sm font-semibold">OpenRouter 연결 (전역)</h2>
-        <p className="mb-4 text-[11px] opacity-50">
-          모든 사용자가 공유합니다. 멤버는 변경할 수 없습니다.
-        </p>
-
-        <label className="mb-1 block text-xs opacity-60">API 키</label>
-        <input
-          type="password"
-          value={apiKey}
-          onChange={(e) => setApiKey(e.target.value)}
-          autoComplete="off"
-          placeholder={
-            orView.apiKeySource !== "none"
-              ? `현재: ${orView.apiKeyMasked} — 바꾸려면 새 키 입력`
-              : "sk-or-... 입력"
-          }
-          className={input}
-        />
-        <div className="mb-4 mt-1 flex items-center justify-between text-[11px]">
-          <span>출처: {badge(orView.apiKeySource)}</span>
-          {orView.apiKeySource === "db" && (
-            <button onClick={clearKey} className="opacity-60 hover:text-red-400">
-              DB 키 삭제
-            </button>
-          )}
-        </div>
-
-        <label className="mb-1 block text-xs opacity-60">모델</label>
-        <input
-          value={model}
-          onChange={(e) => setModel(e.target.value)}
-          placeholder="anthropic/claude-sonnet-4.6"
-          className={input}
-        />
-        <p className="mb-4 mt-1 text-[11px]">출처: {badge(orView.modelSource)}</p>
-
-        <label className="mb-1 block text-xs opacity-60">Base URL (선택)</label>
-        <input
-          value={baseUrl}
-          onChange={(e) => setBaseUrl(e.target.value)}
-          placeholder="https://openrouter.ai/api/v1 (기본값)"
-          className={input}
-        />
-
-        <div className="mt-4 flex items-center gap-3">
-          <button
-            onClick={saveOr}
-            disabled={orSaving}
-            className="rounded-lg bg-accent px-5 py-2 text-sm font-medium text-black disabled:opacity-50"
-          >
-            {orSaving ? "저장 중…" : "저장"}
-          </button>
-          {orStatus && <span className="text-xs opacity-70">{orStatus}</span>}
-        </div>
-      </section>
+      <p className="rounded-lg bg-surface/60 p-3 text-[11px] opacity-60">
+        AI 연결은 사용자별입니다. 본인 키는{" "}
+        <a href="/settings" className="text-accent">
+          설정
+        </a>{" "}
+        에서 넣으세요.
+      </p>
 
       {/* 초대 */}
       <section className="rounded-2xl bg-surface p-5">

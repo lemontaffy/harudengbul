@@ -3,16 +3,14 @@ import { drizzle } from "drizzle-orm/node-postgres";
 import * as schema from "./schema";
 import { sql } from "drizzle-orm";
 
-// 멱등 시드:
-//  1) app_config(id=1) 전역 OpenRouter 설정 행
-//  2) 사용자가 0명이면 admin 부트스트랩 — env ADMIN_USERNAME + APP_PASSWORD_HASH
-//     (DELTA의 backfill 1단계를 fresh-start 버전으로 대체)
+// 멱등 시드: 사용자가 0명이면 admin 부트스트랩.
+//  - env ADMIN_USERNAME + APP_PASSWORD_HASH 로 관리자 1명 생성
+//  - env LLM_API_KEY / LLM_BASE_URL / LLM_MODEL 있으면 "관리자 본인" 연결만 시드(전역 아님).
+//    멤버는 각자 /settings 에서 자기 연결을 넣는다.
 async function main() {
   const pool = new Pool({ connectionString: process.env.DB_URL });
   const db = drizzle(pool, { schema });
   console.log("[seed] 시작");
-
-  await db.insert(schema.appConfig).values({ id: 1 }).onConflictDoNothing();
 
   const [{ n }] = await db
     .select({ n: sql<number>`count(*)::int` })
@@ -24,7 +22,7 @@ async function main() {
     if (!passwordHash) {
       console.warn(
         "[seed] APP_PASSWORD_HASH 미설정 → admin 부트스트랩 건너뜀. " +
-          "hash 생성 후 다시 실행하세요: npm run hash-password -- '비밀번호'",
+          "hash 생성 후 다시 실행: npm run hash-password -- '비밀번호'",
       );
     } else {
       const [admin] = await db
@@ -33,7 +31,13 @@ async function main() {
         .returning();
       await db
         .insert(schema.settings)
-        .values({ userId: admin.id, activePersona: "nora" })
+        .values({
+          userId: admin.id,
+          activePersona: "nora",
+          llmApiKey: process.env.LLM_API_KEY?.trim() || null,
+          llmBaseUrl: process.env.LLM_BASE_URL?.trim() || null,
+          llmModel: process.env.LLM_MODEL?.trim() || null,
+        })
         .onConflictDoNothing();
       await db
         .insert(schema.personas)

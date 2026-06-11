@@ -1,10 +1,3 @@
-CREATE TABLE "app_config" (
-	"id" integer PRIMARY KEY DEFAULT 1 NOT NULL,
-	"openrouter_api_key" text,
-	"openrouter_model" text,
-	"openrouter_base_url" text
-);
---> statement-breakpoint
 CREATE TABLE "diary_entries" (
 	"id" bigint PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "diary_entries_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 9223372036854775807 START WITH 1 CACHE 1),
 	"user_id" bigint NOT NULL,
@@ -92,7 +85,9 @@ CREATE TABLE "settings" (
 	"kma_nx" integer,
 	"kma_ny" integer,
 	"timezone" text DEFAULT 'Asia/Seoul',
-	"daily_message_limit" integer DEFAULT 200
+	"llm_api_key" text,
+	"llm_base_url" text,
+	"llm_model" text
 );
 --> statement-breakpoint
 CREATE TABLE "transactions" (

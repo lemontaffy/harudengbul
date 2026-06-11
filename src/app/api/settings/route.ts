@@ -1,6 +1,10 @@
 import { z } from "zod";
 import { getCurrentUser } from "@/lib/currentUser";
+import { getLlmConfig, maskApiKey } from "@/lib/config";
 import * as settingsRepo from "@/db/repo/settings";
+import type { settings as settingsTable } from "@/db/schema";
+
+type SettingsPatch = Partial<typeof settingsTable.$inferInsert>;
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -12,20 +16,35 @@ const bodySchema = z.object({
   proactiveEnabled: z.boolean().optional(),
   morningTime: z.string().regex(timeRe).optional(),
   eveningTime: z.string().regex(timeRe).optional(),
-  timezone: z.string().min(1).optional(),
+  // AI 연결 (OAI 호환)
+  llmApiKey: z.string().optional(),
+  clearLlmKey: z.boolean().optional(),
+  llmBaseUrl: z.string().url().optional().or(z.literal("")),
+  llmModel: z.string().optional(),
 });
 
-export async function GET() {
-  const user = await getCurrentUser();
-  if (!user) return Response.json({ error: "unauthorized" }, { status: 401 });
-  const s = await settingsRepo.getByUser(user.id);
-  return Response.json({
+async function snapshot(userId: number) {
+  const [s, llm] = await Promise.all([
+    settingsRepo.getByUser(userId),
+    getLlmConfig(userId),
+  ]);
+  return {
     activePersona: s?.activePersona ?? "nora",
     proactiveEnabled: s?.proactiveEnabled ?? false,
     morningTime: s?.morningTime ?? "08:00",
     eveningTime: s?.eveningTime ?? "22:00",
-    timezone: s?.timezone ?? "Asia/Seoul",
-  });
+    llmBaseUrl: llm.baseUrl,
+    llmModel: llm.model,
+    hasLlmKey: !!llm.apiKey,
+    llmKeyMasked: maskApiKey(llm.apiKey),
+    llmConfigured: llm.configured,
+  };
+}
+
+export async function GET() {
+  const user = await getCurrentUser();
+  if (!user) return Response.json({ error: "unauthorized" }, { status: 401 });
+  return Response.json(await snapshot(user.id));
 }
 
 export async function POST(req: Request) {
@@ -37,9 +56,24 @@ export async function POST(req: Request) {
   if (!parsed.success) {
     return Response.json({ error: "잘못된 입력" }, { status: 400 });
   }
+  const d = parsed.data;
+  const set: SettingsPatch = {};
 
-  if (Object.keys(parsed.data).length > 0) {
-    await settingsRepo.updateByUser(user.id, parsed.data);
+  if (d.activePersona) set.activePersona = d.activePersona;
+  if (typeof d.proactiveEnabled === "boolean") set.proactiveEnabled = d.proactiveEnabled;
+  if (typeof d.morningTime === "string") set.morningTime = d.morningTime;
+  if (typeof d.eveningTime === "string") set.eveningTime = d.eveningTime;
+
+  if (d.clearLlmKey) {
+    set.llmApiKey = null;
+  } else if (typeof d.llmApiKey === "string" && d.llmApiKey.trim() !== "") {
+    set.llmApiKey = d.llmApiKey.trim();
   }
-  return Response.json({ ok: true });
+  if (typeof d.llmBaseUrl === "string") set.llmBaseUrl = d.llmBaseUrl.trim() || null;
+  if (typeof d.llmModel === "string") set.llmModel = d.llmModel.trim() || null;
+
+  if (Object.keys(set).length > 0) {
+    await settingsRepo.updateByUser(user.id, set);
+  }
+  return Response.json({ ok: true, ...(await snapshot(user.id)) });
 }

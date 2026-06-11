@@ -1,47 +1,9 @@
 {
-  "id": "3e64ee4a-f073-466a-bd42-ac2f25989ddf",
+  "id": "607ae240-0011-4fbf-a6e1-6cd7aac32a7b",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
-    "public.app_config": {
-      "name": "app_config",
-      "schema": "",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "integer",
-          "primaryKey": true,
-          "notNull": true,
-          "default": 1
-        },
-        "openrouter_api_key": {
-          "name": "openrouter_api_key",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "openrouter_model": {
-          "name": "openrouter_model",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "openrouter_base_url": {
-          "name": "openrouter_base_url",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        }
-      },
-      "indexes": {},
-      "foreignKeys": {},
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {},
-      "isRLSEnabled": false
-    },
     "public.diary_entries": {
       "name": "diary_entries",
       "schema": "",
@@ -831,12 +793,23 @@
           "notNull": false,
           "default": "'Asia/Seoul'"
         },
-        "daily_message_limit": {
-          "name": "daily_message_limit",
-          "type": "integer",
+        "llm_api_key": {
+          "name": "llm_api_key",
+          "type": "text",
           "primaryKey": false,
-          "notNull": false,
-          "default": 200
+          "notNull": false
+        },
+        "llm_base_url": {
+          "name": "llm_base_url",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "llm_model": {
+          "name": "llm_model",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
         }
       },
       "indexes": {},

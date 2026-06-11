@@ -1,32 +1,24 @@
-import * as appConfigRepo from "@/db/repo/appConfig";
+import * as settingsRepo from "@/db/repo/settings";
 
-export interface OpenRouterConfig {
+export interface LlmConfig {
   apiKey: string;
-  model: string;
   baseUrl: string;
-  apiKeySource: "db" | "env" | "none";
-  modelSource: "db" | "env" | "none";
+  model: string;
+  configured: boolean; // 키+baseUrl+모델 모두 있어야 채팅 가능
 }
 
-const DEFAULT_BASE_URL = "https://openrouter.ai/api/v1";
-
-// 전역(운영자 관리) OpenRouter 연결. 우선순위: app_config(DB) > env.
-// 멤버는 이 전역 설정을 공유한다(크레딧 보호는 daily_message_limit + usage_log).
-// 코드에 모델명 하드코딩 금지 — 항상 이 함수로만 읽는다.
-export async function getOpenRouterConfig(): Promise<OpenRouterConfig> {
-  const row = await appConfigRepo.get();
-
-  const dbKey = row?.openrouterApiKey?.trim() || "";
-  const dbModel = row?.openrouterModel?.trim() || "";
-  const envKey = process.env.OPENROUTER_API_KEY?.trim() || "";
-  const envModel = process.env.OPENROUTER_MODEL?.trim() || "";
-
+// 사용자별 OpenAI 호환 LLM 연결. 전역/env 폴백 없음 — 각자 자기 키.
+// 코드에 모델명/공급사 하드코딩 금지 — 항상 이 함수로만 읽는다.
+export async function getLlmConfig(userId: number): Promise<LlmConfig> {
+  const s = await settingsRepo.getByUser(userId);
+  const apiKey = s?.llmApiKey?.trim() || "";
+  const baseUrl = s?.llmBaseUrl?.trim() || "";
+  const model = s?.llmModel?.trim() || "";
   return {
-    apiKey: dbKey || envKey,
-    model: dbModel || envModel,
-    baseUrl: row?.openrouterBaseUrl?.trim() || DEFAULT_BASE_URL,
-    apiKeySource: dbKey ? "db" : envKey ? "env" : "none",
-    modelSource: dbModel ? "db" : envModel ? "env" : "none",
+    apiKey,
+    baseUrl,
+    model,
+    configured: !!apiKey && !!baseUrl && !!model,
   };
 }
 
