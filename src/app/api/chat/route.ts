@@ -2,7 +2,8 @@ import { z } from "zod";
 import { getCurrentUser } from "@/lib/currentUser";
 import { getLlmConfig } from "@/lib/config";
 import { buildContext, buildSystemPrompt, type Role } from "@/lib/persona";
-import { streamChatCompletion, type ChatMessage } from "@/lib/llm";
+import { streamCompletion, type LlmMessage } from "@/lib/llm";
+import { SECRETARY_TOOLS, executeTool } from "@/lib/tools";
 import * as messagesRepo from "@/db/repo/messages";
 import * as settingsRepo from "@/db/repo/settings";
 import * as personasRepo from "@/db/repo/personas";
@@ -65,11 +66,12 @@ export async function POST(req: Request) {
     buildContext(user.id),
     messagesRepo.listForPrompt(user.id, persona.id, 20),
   ]);
-  const llmMessages: ChatMessage[] = [
+  const role = persona.role as Role;
+  const llmMessages: LlmMessage[] = [
     {
       role: "system",
       content: buildSystemPrompt(
-        { name: persona.name, role: persona.role as Role, traits: persona.traits },
+        { name: persona.name, role, traits: persona.traits },
         ctx,
       ),
     },
@@ -78,32 +80,66 @@ export async function POST(req: Request) {
       content: m.content,
     })),
   ];
+  // 비서 역할만 도구 사용. 상담가는 도구 없음(SPEC §3).
+  const tools = role === "secretary" ? SECRETARY_TOOLS : undefined;
 
   const personaId = persona.id;
+  const userId = user.id;
   const encoder = new TextEncoder();
   const stream = new ReadableStream<Uint8Array>({
     async start(controller) {
-      let full = "";
+      let visible = ""; // 사용자에게 보인(=저장할) 전체 텍스트
       try {
-        for await (const delta of streamChatCompletion(
-          conn,
-          llmMessages,
-          req.signal,
-        )) {
-          full += delta;
-          controller.enqueue(encoder.encode(delta));
+        // 도구 루프: tool_calls 가 나오면 실행 → 결과 추가 → 다시 스트림. 최대 5회.
+        for (let guard = 0; guard < 5; guard++) {
+          let roundText = "";
+          let toolCalls: { id: string; name: string; arguments: string }[] | null = null;
+          for await (const ev of streamCompletion(
+            conn,
+            llmMessages,
+            tools ? { tools } : undefined,
+            req.signal,
+          )) {
+            if (ev.type === "text") {
+              roundText += ev.value;
+              visible += ev.value;
+              controller.enqueue(encoder.encode(ev.value));
+            } else {
+              toolCalls = ev.calls;
+            }
+          }
+          if (!toolCalls || toolCalls.length === 0) break;
+
+          // id 정규화(스트리밍에서 빈 id 대비) — assistant/tool 메시지 매칭에 사용
+          const normalized = toolCalls.map((c, i) => ({
+            ...c,
+            id: c.id || `call_${guard}_${i}`,
+          }));
+          llmMessages.push({
+            role: "assistant",
+            content: roundText || null,
+            tool_calls: normalized.map((c) => ({
+              id: c.id,
+              type: "function",
+              function: { name: c.name, arguments: c.arguments },
+            })),
+          });
+          for (const c of normalized) {
+            const result = await executeTool(userId, c.name, c.arguments);
+            llmMessages.push({ role: "tool", tool_call_id: c.id, content: result });
+          }
         }
       } catch (err) {
-        if (!full) {
+        if (!visible) {
           controller.enqueue(
             encoder.encode("⚠️ 응답 생성에 실패했어요. 연결 설정을 확인해 주세요."),
           );
         }
         console.error("[chat] stream error:", err);
       } finally {
-        if (full.trim()) {
-          await messagesRepo.add(user.id, personaId, "assistant", full);
-          await usageRepo.log(user.id, "chat");
+        if (visible.trim()) {
+          await messagesRepo.add(userId, personaId, "assistant", visible);
+          await usageRepo.log(userId, "chat");
         }
         controller.close();
       }

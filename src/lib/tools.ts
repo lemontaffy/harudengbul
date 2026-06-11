@@ -1,0 +1,163 @@
+import { z } from "zod";
+import * as eventsRepo from "@/db/repo/events";
+import * as transactionsRepo from "@/db/repo/transactions";
+import * as memoriesRepo from "@/db/repo/memories";
+import * as settingsRepo from "@/db/repo/settings";
+
+// SPEC §7 — 비서 도구. OpenAI 호환 tool-use 스펙.
+export interface ToolDef {
+  type: "function";
+  function: { name: string; description: string; parameters: object };
+}
+
+export const SECRETARY_TOOLS: ToolDef[] = [
+  {
+    type: "function",
+    function: {
+      name: "add_event",
+      description:
+        "사용자의 일정을 캘린더에 추가한다. '내일 3시 회의' 같은 요청을 인식하면 호출한다.",
+      parameters: {
+        type: "object",
+        properties: {
+          title: { type: "string", description: "일정 제목" },
+          starts_at: {
+            type: "string",
+            description:
+              "시작 일시(ISO 8601). [현재 컨텍스트]의 현재 시각을 기준으로 계산하고, 가능하면 +09:00 같은 시간대 오프셋을 포함한다.",
+          },
+          alarm_minutes_before: {
+            type: "integer",
+            description: "몇 분 전에 알림을 보낼지(선택). 예: 30",
+          },
+        },
+        required: ["title", "starts_at"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "add_transaction",
+      description: "가계부에 지출/수입을 기록한다. '점심 9천원 썼어' 같은 요청에 사용.",
+      parameters: {
+        type: "object",
+        properties: {
+          kind: { type: "string", enum: ["expense", "income"], description: "지출 또는 수입" },
+          category: { type: "string", description: "카테고리(예: 식비, 교통, 월급)" },
+          amount: { type: "integer", description: "금액(원, KRW 정수)" },
+          memo: { type: "string", description: "메모(선택)" },
+          tx_date: { type: "string", description: "YYYY-MM-DD(선택, 생략 시 오늘)" },
+        },
+        required: ["kind", "category", "amount"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "save_memory",
+      description: "앞으로 기억해 두면 좋을 사용자 정보를 장기기억에 저장한다.",
+      parameters: {
+        type: "object",
+        properties: {
+          content: { type: "string", description: "기억할 내용(한 문장)" },
+          importance: { type: "integer", description: "1(사소)~5(매우 중요)" },
+        },
+        required: ["content"],
+      },
+    },
+  },
+];
+
+const addEventArgs = z.object({
+  title: z.string().min(1).max(120),
+  starts_at: z.string().min(1),
+  alarm_minutes_before: z.number().int().min(0).max(10080).nullish(),
+});
+const addTxArgs = z.object({
+  kind: z.enum(["expense", "income"]),
+  category: z.string().min(1).max(40),
+  amount: z.number().int(),
+  memo: z.string().max(200).nullish(),
+  tx_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullish(),
+});
+const saveMemArgs = z.object({
+  content: z.string().min(1).max(200),
+  importance: z.number().int().min(1).max(5).nullish(),
+});
+
+function todayInTz(tz: string): string {
+  return new Intl.DateTimeFormat("en-CA", { timeZone: tz }).format(new Date());
+}
+
+/** ISO 문자열 → 절대 시각. 오프셋 없으면 사용자 tz의 벽시계로 해석. */
+export function parseToInstant(s: string, tz: string): Date | null {
+  const hasTz = /([zZ]|[+-]\d{2}:?\d{2})$/.test(s.trim());
+  if (hasTz) {
+    const d = new Date(s);
+    return isNaN(d.getTime()) ? null : d;
+  }
+  // naive("YYYY-MM-DDTHH:mm") → tz 벽시계로 보고 UTC 보정(오프셋 트릭)
+  const base = new Date(s + "Z"); // 일단 UTC로
+  if (isNaN(base.getTime())) return null;
+  const asUtc = new Date(base.toLocaleString("en-US", { timeZone: "UTC" }));
+  const asTz = new Date(base.toLocaleString("en-US", { timeZone: tz }));
+  const offset = asUtc.getTime() - asTz.getTime();
+  return new Date(base.getTime() + offset);
+}
+
+/**
+ * 도구 1건 실행 — 전부 userId 스코프(DELTA 격리). 결과/오류를 짧은 문자열로 반환
+ * (모델에 tool 메시지로 전달돼 자연스러운 확인에 쓰인다). 절대 throw 하지 않는다.
+ */
+export async function executeTool(
+  userId: number,
+  name: string,
+  argsJson: string,
+): Promise<string> {
+  let args: unknown;
+  try {
+    args = JSON.parse(argsJson || "{}");
+  } catch {
+    return "ERROR: 도구 인자 JSON 파싱 실패";
+  }
+  try {
+    if (name === "add_event") {
+      const a = addEventArgs.parse(args);
+      const s = await settingsRepo.getByUser(userId);
+      const tz = s?.timezone ?? "Asia/Seoul";
+      const when = parseToInstant(a.starts_at, tz);
+      if (!when) return "ERROR: 시작 일시를 이해하지 못했어요.";
+      const row = await eventsRepo.create(userId, {
+        title: a.title,
+        startsAt: when,
+        alarmMinutesBefore: a.alarm_minutes_before ?? null,
+      });
+      const label = when.toLocaleString("ko-KR", { timeZone: tz, dateStyle: "medium", timeStyle: "short" });
+      return `OK: 일정 "${a.title}" ${label} 등록(id=${row.id})${a.alarm_minutes_before ? `, ${a.alarm_minutes_before}분 전 알람` : ""}`;
+    }
+    if (name === "add_transaction") {
+      const a = addTxArgs.parse(args);
+      const s = await settingsRepo.getByUser(userId);
+      const tz = s?.timezone ?? "Asia/Seoul";
+      const txDate = a.tx_date ?? todayInTz(tz);
+      const row = await transactionsRepo.create(userId, {
+        txDate,
+        kind: a.kind,
+        category: a.category,
+        amount: a.amount,
+        memo: a.memo ?? null,
+      });
+      return `OK: ${a.kind === "expense" ? "지출" : "수입"} ${a.amount.toLocaleString("ko-KR")}원 (${a.category}) ${txDate} 기록(id=${row.id})`;
+    }
+    if (name === "save_memory") {
+      const a = saveMemArgs.parse(args);
+      const row = await memoriesRepo.add(userId, a.content, "chat", a.importance ?? 3);
+      return `OK: 기억 저장(id=${row.id})`;
+    }
+    return `ERROR: 알 수 없는 도구 ${name}`;
+  } catch (err) {
+    return `ERROR: 도구 실행 실패 — ${(err as Error)?.message ?? "오류"}`;
+  }
+}
