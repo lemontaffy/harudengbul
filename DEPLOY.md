@@ -45,33 +45,48 @@ curl -s localhost:3000/api/health     # {"ok":true,"service":"haru-app"}
 
 > DELTA-multiuser 적용: 초대제 멀티유저. 첫 admin은 env로 부트스트랩.
 
-### 추가로 채울 .env
+### 채울 .env (핵심)
 ```bash
-# 첫 관리자 비밀번호 해시 → APP_PASSWORD_HASH 에
-npm run hash-password -- '관리자비밀번호'
-#   (로컬 node 없으면: docker compose run --rm worker npm run hash-password -- '...')
-ADMIN_USERNAME=admin                       # 첫 관리자 아이디
-SESSION_SECRET=$(openssl rand -base64 32)  # .env 에 기입
-APP_ORIGIN=https://haru.daltavern.org      # 초대 가입 링크 생성에 사용
-OPENROUTER_API_KEY / OPENROUTER_MODEL      # 비워도 됨. 로그인 후 /admin 에서 입력 가능(전역).
+# 관리자 비밀번호 해시 → APP_PASSWORD_HASH 에 (반드시 작은따옴표로!)
+docker compose run --rm worker npm run hash-password -- '관리자비밀번호'
+
+# 세션 시크릿
+openssl rand -base64 32
 ```
+| 키 | 비고 |
+|---|---|
+| `POSTGRES_PASSWORD` | 영숫자만. `DB_URL` 비번과 **동일** |
+| `DB_URL` | `postgres://haru:<위와 동일>@db:5432/haru` |
+| `ADMIN_USERNAME` | 첫 관리자 아이디 (예: admin) |
+| `APP_PASSWORD_HASH` | 해시 출력값. **`'$argon2id$...'` 작은따옴표 필수** |
+| `SESSION_SECRET` | openssl 출력 |
+| `APP_ORIGIN` | `https://haru.daltavern.org` (초대 링크용) |
+| `LLM_*` | 비워도 됨. 로그인 후 각자 `/settings`에서 입력 |
 
 ### 기동 (마이그레이션 자동)
 ```bash
 docker compose up -d --build
+docker compose logs migrate     # "[seed] admin 생성: admin (id=1)" 나오면 OK
 ```
-- `migrate` 원샷이 db healthy 후 **마이그레이션 + 시드**(app_config + admin 부트스트랩) 실행 → 끝나면 app/worker 기동.
-- 확인: `docker compose logs migrate` → `[seed] admin 생성: admin (id=1)`.
 
 ### 검증
-1. `https://haru.daltavern.org` → **/login**
-2. `admin` / 설정한 비밀번호로 로그인 → 홈에 **어드민** 버튼
-3. **어드민** → OpenRouter 전역 설정(키/모델) 저장, **초대 발급(7일)** → 가입 링크 복사
-4. 지인에게 링크 전달 → `/signup?code=...` 로 멤버 가입 (이메일 없음)
-5. 멤버는 `/admin` 접근 불가(홈 리다이렉트), 데이터는 사용자별 격리
+1. `https://haru.daltavern.org` → **/login** → `admin`/비번 로그인
+2. **어드민** → 초대 발급(7일) → 가입 링크 복사
+3. **설정** → AI 연결(공급사 프리셋·키·모델 불러오기) 입력 → "연결됨"
+4. 지인에게 링크 → `/signup?code=...` 가입 (멤버는 `/admin` 차단, 데이터 격리)
 
-> OpenRouter 연결은 **전역(admin 관리)**, 우선순위 **app_config(DB) > env**. 멤버는 공유해서 사용.
-> 격리 회귀 테스트: `npm run test:isolation` (DB_URL 필요).
+> AI 연결은 **사용자별**. 격리 회귀 테스트: `npm run test:isolation` (DB_URL 필요).
+
+## 트러블슈팅
+- **`password authentication failed for user "haru"`** (migrate exit 1)
+  → 비번 불일치 또는 **스테일 볼륨**. 비번은 `./data/pg` 최초 생성 때만 적용됨.
+  ```bash
+  docker compose down && sudo rm -rf ./data/pg && docker compose up -d --build
+  ```
+  + `POSTGRES_PASSWORD` == `DB_URL` 비번 확인(특수문자 없는 영숫자 권장).
+- **`The "argon2id"/"v"/"m"... variable is not set` 경고**
+  → `APP_PASSWORD_HASH` 의 `$` 를 compose가 변수로 해석. **값을 작은따옴표로 감쌀 것**:
+  `APP_PASSWORD_HASH='$argon2id$v=19$...'`
 
 ## 다음 단계
-- **M3**: 채팅(SSE 스트리밍, 페르소나 전환) — 전역 OpenRouter 설정 + 사용자별 기억/컨텍스트(userId 스코프) 사용. `daily_message_limit` 적용.
+- **M3**: 채팅(SSE 스트리밍, 페르소나 전환) — 사용자별 AI 연결 + 사용자별 기억/컨텍스트(userId 스코프).
