@@ -50,7 +50,7 @@ async function main() {
 
   // A에게만 데이터 주입
   await memoriesRepo.add(A.id, A_MEM, "chat", 5);
-  await diaryRepo.add(A.id, "2026-06-11", A_DIARY);
+  await diaryRepo.upsertEntry(A.id, "2026-06-11", { body: A_DIARY });
   await personasRepo.update(A.id, aSecretary.id, { traits: A_TRAITS });
   await settingsRepo.updateByUser(A.id, {
     llmApiKey: A_KEY,

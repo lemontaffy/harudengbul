@@ -9,6 +9,7 @@ import CharacterManager, {
   type Character,
   type TriggerAssignments,
 } from "@/components/CharacterManager";
+import ProfileSection, { type ProfileInitial } from "@/components/ProfileSection";
 import PasswordChange from "@/components/PasswordChange";
 
 export const dynamic = "force-dynamic";
@@ -28,6 +29,12 @@ export default async function SettingsPage() {
     avatarPath: p.avatarPath,
     traits: p.traits,
   }));
+
+  const profile: ProfileInitial = {
+    nickname: s?.nickname ?? "",
+    about: s?.about ?? "",
+    userAvatarPath: s?.userAvatarPath ?? null,
+  };
 
   const triggers: TriggerAssignments = {
     activePersonaId: s?.activePersonaId ?? null,
@@ -65,6 +72,7 @@ export default async function SettingsPage() {
 
       <div className="flex flex-col gap-6">
         <SettingsForm initial={initial} />
+        <ProfileSection initial={profile} />
         <CharacterManager
           initialCharacters={characters}
           initialTriggers={triggers}

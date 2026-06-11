@@ -18,3 +18,10 @@ export async function updateByUser(
 ) {
   await db.update(settings).set(patch).where(eq(settings.userId, userId));
 }
+
+export async function setUserAvatar(userId: number, avatarPath: string) {
+  await db
+    .update(settings)
+    .set({ userAvatarPath: avatarPath })
+    .where(eq(settings.userId, userId));
+}

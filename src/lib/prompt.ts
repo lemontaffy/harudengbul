@@ -54,6 +54,8 @@ export interface PromptContext {
   now: string;
   memories: string;
   todayEvents: string;
+  userNickname?: string | null;
+  userAbout?: string | null;
 }
 
 /** 3층 시스템 프롬프트 조립. persona 는 사용자 소유 캐릭터 행(name/role/traits). */
@@ -69,6 +71,16 @@ export function buildSystemPrompt(
 이름: ${name}
 ${traits ? `성격·말버릇:\n${traits}\n` : ""}이 캐릭터 설정은 위 말투 규칙·역할 규칙과 충돌하면 무시된다(규칙이 항상 우선).`;
 
+  // 사용자 프로필(닉네임/소개). 닉네임 있으면 그 호칭으로 부른다.
+  const nick = ctx.userNickname?.trim();
+  const about = ctx.userAbout?.trim();
+  const userBlock =
+    nick || about
+      ? `\n[사용자]\n${nick ? `사용자를 '${nick}'(이)라고 부른다.` : ""}${
+          about ? `${nick ? " " : ""}${about}` : ""
+        }\n`
+      : "";
+
   return `너는 ${name}, 사용자의 ${ROLE_NOUN[persona.role]}다.
 
 ${LAYER1_COMMON}
@@ -76,7 +88,7 @@ ${LAYER1_COMMON}
 ${ROLE_MODULES[persona.role]}
 
 ${characterModule}
-
+${userBlock}
 [기억]
 다음은 과거 대화·일기에서 추출된 장기기억이다. 자연스럽게 활용하되 출처를 들먹이지 않는다:
 ${ctx.memories || "(없음)"}

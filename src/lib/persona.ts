@@ -55,5 +55,11 @@ export async function buildContext(userId: number) {
     })
     .join("\n");
 
-  return { now: nowLabel, memories, todayEvents };
+  return {
+    now: nowLabel,
+    memories,
+    todayEvents,
+    userNickname: s?.nickname ?? null,
+    userAbout: s?.about ?? null,
+  };
 }

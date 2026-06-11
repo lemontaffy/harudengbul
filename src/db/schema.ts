@@ -76,6 +76,10 @@ export const settings = pgTable("settings", {
     () => personas.id,
     { onDelete: "set null" },
   ),
+  // 내 프로필 — AI가 나를 부르는 호칭 + 소개(프롬프트 컨텍스트) + 내 아바타
+  nickname: text("nickname"),
+  about: text("about"),
+  userAvatarPath: text("user_avatar_path"),
   proactiveEnabled: boolean("proactive_enabled").default(false),
   morningTime: time("morning_time").default("08:00"),
   eveningTime: time("evening_time").default("22:00"),

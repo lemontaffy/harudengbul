@@ -29,6 +29,9 @@ export default async function Home() {
         <h1 className="text-base font-semibold text-accent">하루등불</h1>
         <div className="flex items-center gap-3 text-xs opacity-70">
           <span>{user.username}</span>
+          <Link href="/diary" className="hover:opacity-100">
+            일기
+          </Link>
           <Link href="/settings" className="hover:opacity-100">
             설정
           </Link>
@@ -44,6 +47,7 @@ export default async function Home() {
       <ChatView
         personas={personas}
         initialPersonaId={s?.activePersonaId ?? null}
+        userAvatarPath={s?.userAvatarPath ?? null}
         configured={llm.configured}
       />
     </main>

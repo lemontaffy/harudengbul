@@ -26,10 +26,12 @@ function displayName(p: ChatPersona): string {
 export default function ChatView({
   personas,
   initialPersonaId,
+  userAvatarPath,
   configured,
 }: {
   personas: ChatPersona[];
   initialPersonaId: number | null;
+  userAvatarPath: string | null;
   configured: boolean;
 }) {
   const firstId = personas[0]?.id ?? null;
@@ -172,10 +174,21 @@ export default function ChatView({
         )}
         {messages.map((m, i) => {
           const mine = m.role === "user";
+          const avatar = mine ? userAvatarPath : current?.avatarPath;
           return (
-            <div key={i} className={`flex ${mine ? "justify-end" : "justify-start"}`}>
+            <div
+              key={i}
+              className={`flex items-end gap-1.5 ${mine ? "justify-end" : "justify-start"}`}
+            >
+              {!mine &&
+                (avatar ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={avatar} alt="" className="h-6 w-6 shrink-0 rounded-full object-cover" />
+                ) : (
+                  <div className="h-6 w-6 shrink-0 rounded-full bg-white/10" />
+                ))}
               <div
-                className={`max-w-[80%] whitespace-pre-wrap rounded-2xl px-3 py-2 text-sm ${
+                className={`max-w-[78%] whitespace-pre-wrap rounded-2xl px-3 py-2 text-sm ${
                   mine
                     ? "bg-accent text-black"
                     : "bg-surface ring-1 ring-white/10"
@@ -183,6 +196,10 @@ export default function ChatView({
               >
                 {m.content || (streaming && !mine ? "…" : "")}
               </div>
+              {mine && avatar && (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={avatar} alt="" className="h-6 w-6 shrink-0 rounded-full object-cover" />
+              )}
             </div>
           );
         })}

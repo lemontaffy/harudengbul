@@ -2,6 +2,7 @@ import { Pool } from "pg";
 import { drizzle } from "drizzle-orm/node-postgres";
 import * as schema from "./schema";
 import { eq } from "drizzle-orm";
+import { encryptSecret } from "../lib/crypto";
 
 // 멱등 시드: ADMIN_USERNAME 계정이 "없을 때만" admin 부트스트랩.
 //  - env APP_PASSWORD_HASH 값을 재해싱 없이 그대로 복사해 생성.
@@ -36,7 +37,7 @@ async function main() {
         .insert(schema.settings)
         .values({
           userId: admin.id,
-          llmApiKey: process.env.LLM_API_KEY?.trim() || null,
+          llmApiKey: encryptSecret(process.env.LLM_API_KEY?.trim() || null),
           llmBaseUrl: process.env.LLM_BASE_URL?.trim() || null,
           llmModel: process.env.LLM_MODEL?.trim() || null,
         })

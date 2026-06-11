@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { getCurrentUser } from "@/lib/currentUser";
 import { getLlmConfig, maskApiKey } from "@/lib/config";
+import { encryptSecret } from "@/lib/crypto";
 import type { Role } from "@/lib/persona";
 import * as settingsRepo from "@/db/repo/settings";
 import * as personasRepo from "@/db/repo/personas";
@@ -22,6 +23,9 @@ const bodySchema = z.object({
   clearLlmKey: z.boolean().optional(),
   llmBaseUrl: z.string().url().optional().or(z.literal("")),
   llmModel: z.string().optional(),
+  // 내 프로필
+  nickname: z.string().max(40).optional(),
+  about: z.string().max(1000).optional(),
   // 캐릭터 할당 (채팅 활성 + 트리거별 담당). 본인 소유 + 역할 적합성 검증.
   activePersonaId: z.number().int().optional(),
   diaryReplyPersonaId: z.number().int().optional(),
@@ -35,6 +39,9 @@ async function snapshot(userId: number) {
     getLlmConfig(userId),
   ]);
   return {
+    nickname: s?.nickname ?? "",
+    about: s?.about ?? "",
+    userAvatarPath: s?.userAvatarPath ?? null,
     activePersonaId: s?.activePersonaId ?? null,
     diaryReplyPersonaId: s?.diaryReplyPersonaId ?? null,
     morningPersonaId: s?.morningPersonaId ?? null,
@@ -75,10 +82,14 @@ export async function POST(req: Request) {
   if (d.clearLlmKey) {
     set.llmApiKey = null;
   } else if (typeof d.llmApiKey === "string" && d.llmApiKey.trim() !== "") {
-    set.llmApiKey = d.llmApiKey.trim();
+    // 키는 평문으로 DB에 두지 않는다 — 저장 직전 암호화.
+    set.llmApiKey = encryptSecret(d.llmApiKey.trim());
   }
   if (typeof d.llmBaseUrl === "string") set.llmBaseUrl = d.llmBaseUrl.trim() || null;
   if (typeof d.llmModel === "string") set.llmModel = d.llmModel.trim() || null;
+
+  if (typeof d.nickname === "string") set.nickname = d.nickname.trim() || null;
+  if (typeof d.about === "string") set.about = d.about.trim() || null;
 
   // 캐릭터 id 들: 본인 소유 + 활성 + (트리거면) 역할 적합성 검증.
   //   active = 아무 역할, diary_reply·evening = counselor, morning = secretary.
