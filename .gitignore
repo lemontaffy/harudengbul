@@ -6,6 +6,11 @@
 /out
 next-env.d.ts
 
+# Serwist(PWA) 빌드 산출물 — 빌드 때 생성, 커밋하지 않음
+/public/sw.js
+/public/sw.js.map
+/public/swe-worker-*.js
+
 # 런타임 데이터 / 시크릿
 /data
 .env
