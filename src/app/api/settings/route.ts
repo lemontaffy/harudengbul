@@ -25,6 +25,7 @@ const bodySchema = z.object({
   clearLlmKey: z.boolean().optional(),
   llmBaseUrl: z.string().url().optional().or(z.literal("")),
   llmModel: z.string().optional(),
+  llmEmbeddingModel: z.string().optional(),
   // 내 프로필
   nickname: z.string().max(40).optional(),
   about: z.string().max(1000).optional(),
@@ -60,6 +61,7 @@ async function snapshot(userId: number) {
     hasLocation: s?.kmaNx != null && s?.kmaNy != null,
     llmBaseUrl: llm.baseUrl,
     llmModel: llm.model,
+    llmEmbeddingModel: s?.llmEmbeddingModel ?? "",
     hasLlmKey: !!llm.apiKey,
     llmKeyMasked: maskApiKey(llm.apiKey),
     llmConfigured: llm.configured,
@@ -97,6 +99,8 @@ export async function POST(req: Request) {
   }
   if (typeof d.llmBaseUrl === "string") set.llmBaseUrl = d.llmBaseUrl.trim() || null;
   if (typeof d.llmModel === "string") set.llmModel = d.llmModel.trim() || null;
+  if (typeof d.llmEmbeddingModel === "string")
+    set.llmEmbeddingModel = d.llmEmbeddingModel.trim() || null;
 
   if (typeof d.nickname === "string") set.nickname = d.nickname.trim() || null;
   if (typeof d.about === "string") set.about = d.about.trim() || null;

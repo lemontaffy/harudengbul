@@ -63,7 +63,7 @@ export async function POST(req: Request) {
   // 시스템 프롬프트(3층) + 최근 히스토리(방금 저장한 user 포함).
   // 캐릭터(name/role/traits)는 반드시 "본인" 것만 주입(DELTA §5).
   const [ctx, history] = await Promise.all([
-    buildContext(user.id),
+    buildContext(user.id, parsed.data.message), // 최근 메시지로 의미 기억 회수
     messagesRepo.listForPrompt(user.id, persona.id, 20),
   ]);
   const role = persona.role as Role;

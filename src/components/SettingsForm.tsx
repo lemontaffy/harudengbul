@@ -26,6 +26,7 @@ export interface SettingsInitial {
   eveningTime: string;
   llmBaseUrl: string;
   llmModel: string;
+  llmEmbeddingModel: string;
   hasLlmKey: boolean;
   llmKeyMasked: string;
   llmConfigured: boolean;
@@ -50,6 +51,7 @@ export default function SettingsForm({ initial }: { initial: SettingsInitial }) 
 
   const [baseUrl, setBaseUrl] = useState(initial.llmBaseUrl);
   const [model, setModel] = useState(initial.llmModel);
+  const [embedModel, setEmbedModel] = useState(initial.llmEmbeddingModel);
   const [apiKey, setApiKey] = useState("");
   const [keyView, setKeyView] = useState({
     has: initial.hasLlmKey,
@@ -115,6 +117,7 @@ export default function SettingsForm({ initial }: { initial: SettingsInitial }) 
           eveningTime: evening,
           llmBaseUrl: baseUrl,
           llmModel: model,
+          llmEmbeddingModel: embedModel,
           llmApiKey: apiKey,
         }),
       });
@@ -281,6 +284,17 @@ export default function SettingsForm({ initial }: { initial: SettingsInitial }) 
             </ul>
           </div>
         )}
+
+        <label className="mt-4 block text-xs opacity-60">임베딩 모델 (의미 기억 검색용, 선택)</label>
+        <input
+          value={embedModel}
+          onChange={(e) => setEmbedModel(e.target.value)}
+          placeholder="text-embedding-3-small (비우면 기본값)"
+          className={`${input} mt-1`}
+        />
+        <p className="mt-1 text-[11px] opacity-50">
+          1536차원 모델만 지원. 비우거나 미지원이면 중요도순으로 기억을 불러와요.
+        </p>
       </section>
 
       {/* 선제 톡 */}

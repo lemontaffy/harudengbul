@@ -74,7 +74,8 @@ services:
     restart: unless-stopped
 
   db:
-    image: postgres:16
+    # pgvector 포함(= postgres:16 + vector 확장). pg16 동일 데이터라 기존 볼륨 호환.
+    image: pgvector/pgvector:pg16
     environment:
       - POSTGRES_USER=${POSTGRES_USER}
       - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}

@@ -14,6 +14,8 @@
   - 터널은 dashboard 관리형 — Zero Trust 콘솔에서 Public Hostname 추가 시 DNS(CNAME) 자동 생성. 수동 A레코드 불필요.
 - 기존 동거 앱 `marinara`: `samchi.daltavern.org` → `localhost:7861` (같은 터널). **손대지 않음.**
 - Postgres: host에 포트 비공개. docker 내부망에서 `db:5432`로만 접근. 볼륨 `./data/pg`.
+  - 이미지 `pgvector/pgvector:pg16`(= postgres:16 + pgvector). 의미 기억 검색용 `vector` 확장(마이그 0008).
+    pg16 동일 데이터라 기존 볼륨 호환 — 배포 시 `up -d`가 db 컨테이너만 새 이미지로 재생성.
 - 80/443: 비어 있음(터널이 inbound 포트를 안 씀).
 
 ## 운영 모드 (DELTA-multiuser)

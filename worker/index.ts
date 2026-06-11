@@ -19,7 +19,8 @@ import { googleConfigured } from "../src/lib/google";
 import { syncUser } from "../src/lib/googlesync";
 import { sendToUser, pushConfigured } from "../src/lib/push";
 import { getWeather, weatherSourceConfigured } from "../src/lib/weather";
-import { getLlmConfig } from "../src/lib/config";
+import { getLlmConfig, getEmbedConfig, type EmbedConfig } from "../src/lib/config";
+import { embed } from "../src/lib/embeddings";
 import { completeChat } from "../src/lib/llm";
 import { extractMemories } from "../src/lib/memory";
 import { buildContext, buildSystemPrompt, type Role } from "../src/lib/persona";
@@ -166,19 +167,38 @@ async function proactiveJob() {
 
 const MEM_CHAT_THRESHOLD = 20; // 미처리 대화 20턴 이상이면 추출
 
-// 추출 후보를 중복 제거하며 저장 → 저장 건수 반환.
+// 추출 후보를 중복 제거하며 저장 → 저장 건수 반환. 임베딩 가능하면 같이 생성(best-effort).
 async function saveMemories(
   userId: number,
   cands: { content: string; importance: number }[],
   source: "chat" | "diary",
+  embedCfg: EmbedConfig,
 ): Promise<number> {
   let added = 0;
   for (const c of cands) {
     if (await memoriesRepo.existsContent(userId, c.content)) continue;
-    await memoriesRepo.add(userId, c.content, source, c.importance);
+    const row = await memoriesRepo.add(userId, c.content, source, c.importance);
+    if (embedCfg.configured) {
+      const vec = await embed(embedCfg, c.content);
+      if (vec) await memoriesRepo.setEmbedding(userId, row.id, vec);
+    }
     added++;
   }
   return added;
+}
+
+// 임베딩 안 된 기억 점진 백필(매 실행 최대 N건). 미설정이면 no-op.
+async function backfillEmbeddings(userId: number, embedCfg: EmbedConfig): Promise<number> {
+  if (!embedCfg.configured) return 0;
+  let done = 0;
+  for (const m of await memoriesRepo.listMissingEmbedding(userId, 20)) {
+    const vec = await embed(embedCfg, m.content);
+    if (vec) {
+      await memoriesRepo.setEmbedding(userId, m.id, vec);
+      done++;
+    }
+  }
+  return done;
 }
 
 /** 매 30분 — 사용자별 미처리 대화(20턴↑)·새 일기에서 장기기억 추출 → memories. */
@@ -188,6 +208,7 @@ async function memoryJob() {
     try {
       const conn = await getLlmConfig(s.userId);
       if (!conn.configured) continue;
+      const embedCfg = await getEmbedConfig(s.userId);
 
       // 대화: 워터마크 이후 20턴 이상 쌓였으면 추출
       const msgWm = s.memoryLastMsgId ?? 0;
@@ -197,7 +218,7 @@ async function memoryJob() {
           .map((m) => `${m.role === "user" ? "사용자" : "캐릭터"}: ${m.content}`)
           .join("\n");
         const cands = await extractMemories(conn, transcript); // 실패 시 throw → 워터마크 보류
-        const added = await saveMemories(s.userId, cands, "chat");
+        const added = await saveMemories(s.userId, cands, "chat", embedCfg);
         await settingsRepo.updateByUser(s.userId, { memoryLastMsgId: msgs[msgs.length - 1].id });
         await usageRepo.log(s.userId, "memory");
         log(`memoryJob: user#${s.userId} chat ${msgs.length}턴 → 기억 ${added}건`);
@@ -211,7 +232,7 @@ async function memoryJob() {
         if (withBody.length > 0) {
           const text = withBody.map((d) => `[${d.entryDate}] ${d.body}`).join("\n\n");
           const cands = await extractMemories(conn, text);
-          const added = await saveMemories(s.userId, cands, "diary");
+          const added = await saveMemories(s.userId, cands, "diary", embedCfg);
           await usageRepo.log(s.userId, "memory");
           log(`memoryJob: user#${s.userId} 일기 ${withBody.length}편 → 기억 ${added}건`);
         }
@@ -219,6 +240,10 @@ async function memoryJob() {
           memoryLastDiaryId: diaries[diaries.length - 1].id,
         });
       }
+
+      // 기존/누락 기억 임베딩 점진 백필
+      const filled = await backfillEmbeddings(s.userId, embedCfg);
+      if (filled) log(`memoryJob: user#${s.userId} 임베딩 백필 ${filled}건`);
     } catch (err) {
       log(`memoryJob user#${s.userId} 오류: ${(err as Error)?.message}`);
     }

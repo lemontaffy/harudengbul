@@ -86,7 +86,7 @@ export async function POST(req: Request) {
 
   if (hasBody && conn.configured && persona && persona.isActive) {
     try {
-      const ctx = await buildContext(user.id);
+      const ctx = await buildContext(user.id, d.body); // 일기 본문으로 의미 기억 회수
       const itemsText = (d.items ?? []).length
         ? (d.items ?? [])
             .map(

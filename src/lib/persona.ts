@@ -2,6 +2,8 @@
 import * as memoriesRepo from "../db/repo/memories";
 import * as eventsRepo from "../db/repo/events";
 import * as settingsRepo from "../db/repo/settings";
+import { getEmbedConfig } from "./config";
+import { embed } from "./embeddings";
 
 // 역할은 고정 2종. 캐릭터(이름·성격)는 사용자 소유 데이터(personas 테이블).
 export type Role = "counselor" | "secretary";
@@ -30,14 +32,33 @@ function startEndOfDay(tz: string): { start: Date; end: Date; nowLabel: string }
   return { start, end, nowLabel };
 }
 
-/** 사용자별(userId 스코프) 컨텍스트 수집 — 격리 필수(DELTA §5). */
-export async function buildContext(userId: number) {
+/** 기억 회수 — query+임베딩 가능하면 의미 검색, 아니면(또는 결과 없으면) importance 폴백. */
+async function recallMemories(userId: number, query?: string) {
+  const q = query?.trim();
+  if (q) {
+    const cfg = await getEmbedConfig(userId);
+    if (cfg.configured) {
+      const vec = await embed(cfg, q);
+      if (vec) {
+        const hits = await memoriesRepo.searchByEmbedding(userId, vec, 20);
+        if (hits.length) return hits;
+      }
+    }
+  }
+  return memoriesRepo.getForPrompt(userId, 20);
+}
+
+/**
+ * 사용자별(userId 스코프) 컨텍스트 수집 — 격리 필수(DELTA §5).
+ * query 주어지고 임베딩 가능하면 의미 검색으로 관련 기억을 회수, 아니면 importance 폴백.
+ */
+export async function buildContext(userId: number, query?: string) {
   const s = await settingsRepo.getByUser(userId);
   const tz = s?.timezone ?? "Asia/Seoul";
   const { start, end, nowLabel } = startEndOfDay(tz);
 
   const [mems, todays] = await Promise.all([
-    memoriesRepo.getForPrompt(userId, 20),
+    recallMemories(userId, query),
     eventsRepo.getBetween(userId, start, end),
   ]);
 

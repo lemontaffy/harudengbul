@@ -12,6 +12,7 @@ import {
   primaryKey,
   uniqueIndex,
   index,
+  vector,
 } from "drizzle-orm/pg-core";
 
 // DELTA-multiuser: 초대제 멀티유저. SPEC §4의 단일 사용자 전제를 대체한다.
@@ -104,6 +105,8 @@ export const settings = pgTable("settings", {
   llmApiKey: text("llm_api_key"),
   llmBaseUrl: text("llm_base_url"),
   llmModel: text("llm_model"),
+  // 임베딩 모델(선택). 비우면 text-embedding-3-small. 채팅과 같은 base_url/키 사용.
+  llmEmbeddingModel: text("llm_embedding_model"),
 });
 
 // 캐릭터(persona): 사용자 소유. 역할(role)과 캐릭터(이름·성격)를 분리.
@@ -240,6 +243,8 @@ export const memories = pgTable(
     content: text("content").notNull(),
     source: text("source"), // 'chat' | 'diary'
     importance: integer("importance").default(3), // 1~5
+    // 의미 검색용 임베딩(text-embedding-3-small 등 1536차원). null이면 importance 폴백.
+    embedding: vector("embedding", { dimensions: 1536 }),
     lastReferenced: timestamp("last_referenced", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
   },

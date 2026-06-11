@@ -82,6 +82,7 @@ export default async function SettingsPage({
     eveningTime: s?.eveningTime ?? "22:00",
     llmBaseUrl: llm.baseUrl,
     llmModel: llm.model,
+    llmEmbeddingModel: s?.llmEmbeddingModel ?? "",
     hasLlmKey: !!llm.apiKey,
     llmKeyMasked: maskApiKey(llm.apiKey),
     llmConfigured: llm.configured,

@@ -30,6 +30,27 @@ export async function getLlmConfig(userId: number): Promise<LlmConfig> {
   };
 }
 
+export interface EmbedConfig {
+  apiKey: string;
+  baseUrl: string;
+  model: string;
+  configured: boolean;
+}
+
+// 임베딩 연결 — 채팅과 같은 base_url/키 재사용, 모델만 별도(없으면 기본값).
+export async function getEmbedConfig(userId: number): Promise<EmbedConfig> {
+  const s = await settingsRepo.getByUser(userId);
+  let apiKey = "";
+  try {
+    apiKey = decryptSecret(s?.llmApiKey).trim();
+  } catch {
+    /* 미설정 취급 */
+  }
+  const baseUrl = s?.llmBaseUrl?.trim() || "";
+  const model = s?.llmEmbeddingModel?.trim() || "text-embedding-3-small";
+  return { apiKey, baseUrl, model, configured: !!apiKey && !!baseUrl };
+}
+
 export function maskApiKey(key: string): string {
   if (!key) return "";
   if (key.length <= 8) return "••••";
