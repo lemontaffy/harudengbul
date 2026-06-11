@@ -2,6 +2,23 @@
 
 import { useState } from "react";
 
+interface ModelItem {
+  id: string;
+  name?: string;
+  contextLength?: number;
+  pricePrompt?: string;
+  priceCompletion?: string;
+}
+
+function ctxLabel(n?: number): string {
+  return n ? `${Math.round(n / 1000)}k` : "";
+}
+function priceLabel(p?: string): string {
+  if (!p) return "";
+  const v = Number(p) * 1e6; // per-token → per 1M
+  return isFinite(v) && v > 0 ? `$${v.toFixed(2)}/M` : "";
+}
+
 export interface SettingsInitial {
   activePersona: "theo" | "nora";
   proactiveEnabled: boolean;
@@ -42,6 +59,47 @@ export default function SettingsForm({ initial }: { initial: SettingsInitial }) 
 
   const [status, setStatus] = useState("");
   const [saving, setSaving] = useState(false);
+
+  // 모델 자동 검색
+  const [models, setModels] = useState<ModelItem[]>([]);
+  const [modelsSource, setModelsSource] = useState("");
+  const [modelsMsg, setModelsMsg] = useState("");
+  const [loadingModels, setLoadingModels] = useState(false);
+  const [modelQuery, setModelQuery] = useState("");
+
+  async function loadModels() {
+    setLoadingModels(true);
+    setModelsMsg("");
+    try {
+      // 검색은 "저장된" 연결을 쓰므로, 현재 base_url/키를 먼저 서버에 반영
+      // (키는 입력했을 때만 전송 — 비우면 기존 키 유지).
+      await fetch("/api/settings", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ llmBaseUrl: baseUrl, llmApiKey: apiKey }),
+      });
+      if (apiKey) {
+        setApiKey("");
+        setKeyView((v) => ({ ...v, has: true }));
+      }
+      const res = await fetch("/api/settings/models");
+      const data = await res.json();
+      if (res.ok) {
+        setModels(data.models ?? []);
+        setModelsSource(data.source ?? "");
+        setModelsMsg(
+          `${(data.models ?? []).length}개${data.cached ? " · 캐시" : ""}`,
+        );
+      } else {
+        setModels([]);
+        setModelsMsg(data.error ?? "불러오기 실패 — 직접 입력하세요");
+      }
+    } catch {
+      setModelsMsg("네트워크 오류 — 직접 입력하세요");
+    } finally {
+      setLoadingModels(false);
+    }
+  }
 
   async function save() {
     setSaving(true);
@@ -159,13 +217,70 @@ export default function SettingsForm({ initial }: { initial: SettingsInitial }) 
           )}
         </div>
 
-        <label className="mb-1 block text-xs opacity-60">모델</label>
+        <div className="mb-1 flex items-center justify-between">
+          <label className="block text-xs opacity-60">모델</label>
+          <button
+            type="button"
+            onClick={loadModels}
+            disabled={loadingModels}
+            className="text-[11px] text-accent disabled:opacity-40"
+          >
+            {loadingModels ? "불러오는 중…" : "↻ 모델 불러오기"}
+          </button>
+        </div>
         <input
           value={model}
           onChange={(e) => setModel(e.target.value)}
           placeholder="deepseek-chat / anthropic/claude-sonnet-4.6 …"
           className={input}
         />
+        {modelsMsg && (
+          <p className="mt-1 text-[11px] opacity-50">
+            {modelsMsg}
+            {modelsSource && ` · ${modelsSource}`}
+          </p>
+        )}
+        {models.length > 0 && (
+          <div className="mt-2 overflow-hidden rounded-lg ring-1 ring-white/10">
+            <input
+              value={modelQuery}
+              onChange={(e) => setModelQuery(e.target.value)}
+              placeholder="검색…"
+              className="w-full bg-bg px-3 py-1.5 text-xs outline-none"
+            />
+            <ul className="max-h-48 overflow-auto">
+              {models
+                .filter((m) =>
+                  m.id.toLowerCase().includes(modelQuery.toLowerCase()),
+                )
+                .slice(0, 80)
+                .map((m) => {
+                  const meta = [ctxLabel(m.contextLength), priceLabel(m.pricePrompt)]
+                    .filter(Boolean)
+                    .join(" · ");
+                  return (
+                    <li key={m.id}>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setModel(m.id);
+                          setModelQuery("");
+                        }}
+                        className={`flex w-full items-center justify-between gap-2 px-3 py-1.5 text-left text-xs hover:bg-white/5 ${
+                          model === m.id ? "text-accent" : ""
+                        }`}
+                      >
+                        <span className="truncate">{m.id}</span>
+                        {meta && (
+                          <span className="shrink-0 opacity-40">{meta}</span>
+                        )}
+                      </button>
+                    </li>
+                  );
+                })}
+            </ul>
+          </div>
+        )}
       </section>
 
       {/* 페르소나 */}
