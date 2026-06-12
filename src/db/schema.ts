@@ -254,6 +254,22 @@ export const letters = pgTable(
   (t) => [uniqueIndex("letters_user_week_idx").on(t.userId, t.weekStart)],
 );
 
+// 비상 주머니 — 괜찮은 날의 내가 무너진 날의 나에게 미리 써두는 카드.
+export const pocketCards = pgTable(
+  "pocket_cards",
+  {
+    id: bigint("id", { mode: "number" })
+      .primaryKey()
+      .generatedAlwaysAsIdentity(),
+    userId: bigint("user_id", { mode: "number" })
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    body: text("body").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
+  },
+  (t) => [index("pocket_user_idx").on(t.userId, t.createdAt)],
+);
+
 export const memories = pgTable(
   "memories",
   {
