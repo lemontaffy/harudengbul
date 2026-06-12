@@ -10,6 +10,29 @@ export async function remove(userId: number, id: number) {
     .where(and(eq(transactions.id, id), eq(transactions.userId, userId)));
 }
 
+export async function getOne(userId: number, id: number) {
+  return db.query.transactions.findFirst({
+    where: and(eq(transactions.id, id), eq(transactions.userId, userId)),
+  });
+}
+
+export async function update(
+  userId: number,
+  id: number,
+  patch: {
+    txDate?: string;
+    kind?: "expense" | "income";
+    category?: string;
+    amount?: number;
+    memo?: string | null;
+  },
+) {
+  await db
+    .update(transactions)
+    .set(patch)
+    .where(and(eq(transactions.id, id), eq(transactions.userId, userId)));
+}
+
 export async function create(
   userId: number,
   input: {

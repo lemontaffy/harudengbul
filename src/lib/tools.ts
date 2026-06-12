@@ -4,7 +4,7 @@ import * as transactionsRepo from "@/db/repo/transactions";
 import * as memoriesRepo from "@/db/repo/memories";
 import * as settingsRepo from "@/db/repo/settings";
 import * as handoffsRepo from "@/db/repo/handoffs";
-import { pushCreate } from "@/lib/googlesync";
+import { pushCreate, pushUpdate, pushDelete } from "@/lib/googlesync";
 import type { Role } from "@/lib/persona";
 
 // SPEC §7 — 비서 도구. OpenAI 호환 tool-use 스펙.
@@ -41,6 +41,53 @@ export const SECRETARY_TOOLS: ToolDef[] = [
   {
     type: "function",
     function: {
+      name: "list_events",
+      description:
+        "사용자의 예정 일정을 id와 함께 조회한다. 일정을 수정/삭제하기 전, 대상 일정의 id를 확인하려면 먼저 이 도구를 호출한다.",
+      parameters: { type: "object", properties: {}, required: [] },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "update_event",
+      description:
+        "기존 일정을 수정한다. 먼저 list_events 로 event_id 를 확인하고 호출한다. 바꿀 필드만 넣는다.",
+      parameters: {
+        type: "object",
+        properties: {
+          event_id: { type: "integer", description: "수정할 일정 id(list_events로 확인)" },
+          title: { type: "string", description: "새 제목(선택)" },
+          starts_at: {
+            type: "string",
+            description:
+              "새 시작 일시(ISO 8601). [현재 컨텍스트]의 현재 시각 기준으로 계산하고, 가능하면 +09:00 오프셋을 포함한다(선택).",
+          },
+          alarm_minutes_before: {
+            type: "integer",
+            description: "몇 분 전 알림(선택). 0/생략 가능.",
+          },
+        },
+        required: ["event_id"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "delete_event",
+      description:
+        "기존 일정을 삭제한다. 먼저 list_events 로 event_id 를 확인하고 호출한다.",
+      parameters: {
+        type: "object",
+        properties: { event_id: { type: "integer", description: "삭제할 일정 id" } },
+        required: ["event_id"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
       name: "add_transaction",
       description: "가계부에 지출/수입을 기록한다. '점심 9천원 썼어' 같은 요청에 사용.",
       parameters: {
@@ -53,6 +100,48 @@ export const SECRETARY_TOOLS: ToolDef[] = [
           tx_date: { type: "string", description: "YYYY-MM-DD(선택, 생략 시 오늘)" },
         },
         required: ["kind", "category", "amount"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "list_transactions",
+      description:
+        "최근 가계부 내역을 id와 함께 조회한다. 내역을 수정/삭제하기 전, 대상 id를 확인하려면 먼저 이 도구를 호출한다.",
+      parameters: { type: "object", properties: {}, required: [] },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "update_transaction",
+      description:
+        "가계부 내역을 수정한다. 먼저 list_transactions 로 transaction_id 를 확인하고 호출한다. 바꿀 필드만 넣는다.",
+      parameters: {
+        type: "object",
+        properties: {
+          transaction_id: { type: "integer", description: "수정할 내역 id(list_transactions로 확인)" },
+          kind: { type: "string", enum: ["expense", "income"] },
+          category: { type: "string" },
+          amount: { type: "integer", description: "금액(원, KRW 정수)" },
+          memo: { type: "string" },
+          tx_date: { type: "string", description: "YYYY-MM-DD" },
+        },
+        required: ["transaction_id"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "delete_transaction",
+      description:
+        "가계부 내역을 삭제한다. 먼저 list_transactions 로 transaction_id 를 확인하고 호출한다.",
+      parameters: {
+        type: "object",
+        properties: { transaction_id: { type: "integer", description: "삭제할 내역 id" } },
+        required: ["transaction_id"],
       },
     },
   },
@@ -113,6 +202,22 @@ const addTxArgs = z.object({
   memo: z.string().max(200).nullish(),
   tx_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullish(),
 });
+const updateEventArgs = z.object({
+  event_id: z.number().int(),
+  title: z.string().min(1).max(120).optional(),
+  starts_at: z.string().min(1).optional(),
+  alarm_minutes_before: z.number().int().min(0).max(10080).nullish(),
+});
+const eventIdArgs = z.object({ event_id: z.number().int() });
+const updateTxArgs = z.object({
+  transaction_id: z.number().int(),
+  kind: z.enum(["expense", "income"]).optional(),
+  category: z.string().min(1).max(40).optional(),
+  amount: z.number().int().optional(),
+  memo: z.string().max(200).nullish(),
+  tx_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+});
+const txIdArgs = z.object({ transaction_id: z.number().int() });
 const saveMemArgs = z.object({
   content: z.string().min(1).max(200),
   importance: z.number().int().min(1).max(5).nullish(),
@@ -192,6 +297,62 @@ export async function executeTool(
       const label = when.toLocaleString("ko-KR", { timeZone: tz, dateStyle: "medium", timeStyle: "short" });
       return `OK: 일정 "${a.title}" ${label} 등록(id=${row.id})${a.alarm_minutes_before ? `, ${a.alarm_minutes_before}분 전 알람` : ""}`;
     }
+    if (name === "list_events") {
+      const s = await settingsRepo.getByUser(userId);
+      const tz = s?.timezone ?? "Asia/Seoul";
+      const from = new Date();
+      from.setHours(0, 0, 0, 0);
+      const rows = await eventsRepo.listFrom(userId, from, 30);
+      if (rows.length === 0) return "OK: 예정된 일정이 없어요.";
+      const lines = rows.map((e) => {
+        const when = new Date(e.startsAt as Date).toLocaleString("ko-KR", {
+          timeZone: tz,
+          dateStyle: "medium",
+          timeStyle: "short",
+        });
+        return `#${e.id} ${when} ${e.title}${e.alarmMinutesBefore != null ? ` (알람 ${e.alarmMinutesBefore}분전)` : ""}`;
+      });
+      return "OK: 예정 일정\n" + lines.join("\n");
+    }
+    if (name === "update_event") {
+      const a = updateEventArgs.parse(args);
+      const existing = await eventsRepo.getOne(userId, a.event_id);
+      if (!existing) return "ERROR: 그 일정을 찾지 못했어요. list_events로 id를 확인하세요.";
+      const s = await settingsRepo.getByUser(userId);
+      const tz = s?.timezone ?? "Asia/Seoul";
+      const patch: { title?: string; startsAt?: Date; alarmMinutesBefore?: number | null } = {};
+      if (a.title !== undefined) patch.title = a.title;
+      if (a.starts_at !== undefined) {
+        const when = parseToInstant(a.starts_at, tz);
+        if (!when) return "ERROR: 새 시작 일시를 이해하지 못했어요.";
+        patch.startsAt = when;
+      }
+      if (a.alarm_minutes_before !== undefined) patch.alarmMinutesBefore = a.alarm_minutes_before ?? null;
+      await eventsRepo.update(userId, a.event_id, patch);
+      const updated = await eventsRepo.getOne(userId, a.event_id);
+      // Google 미러링(연결+매핑 시, best-effort). await 금지.
+      if (updated) {
+        void pushUpdate(userId, {
+          googleEventId: updated.googleEventId,
+          title: updated.title,
+          startsAt: updated.startsAt as Date,
+          endsAt: updated.endsAt as Date | null,
+          alarmMinutesBefore: updated.alarmMinutesBefore,
+        });
+      }
+      const label = updated
+        ? new Date(updated.startsAt as Date).toLocaleString("ko-KR", { timeZone: tz, dateStyle: "medium", timeStyle: "short" })
+        : "";
+      return `OK: 일정 수정(id=${a.event_id}) "${updated?.title ?? ""}" ${label}`;
+    }
+    if (name === "delete_event") {
+      const a = eventIdArgs.parse(args);
+      const ev = await eventsRepo.getOne(userId, a.event_id);
+      if (!ev) return "ERROR: 그 일정을 찾지 못했어요.";
+      void pushDelete(userId, ev.googleEventId); // 원격도 삭제(매핑 시)
+      await eventsRepo.remove(userId, a.event_id);
+      return `OK: 일정 "${ev.title}" 삭제(id=${a.event_id})`;
+    }
     if (name === "add_transaction") {
       const a = addTxArgs.parse(args);
       const s = await settingsRepo.getByUser(userId);
@@ -205,6 +366,49 @@ export async function executeTool(
         memo: a.memo ?? null,
       });
       return `OK: ${a.kind === "expense" ? "지출" : "수입"} ${a.amount.toLocaleString("ko-KR")}원 (${a.category}) ${txDate} 기록(id=${row.id})`;
+    }
+    if (name === "list_transactions") {
+      const s = await settingsRepo.getByUser(userId);
+      const tz = s?.timezone ?? "Asia/Seoul";
+      const today = todayInTz(tz);
+      const fromD = new Date();
+      fromD.setDate(fromD.getDate() - 30);
+      const from = new Intl.DateTimeFormat("en-CA", { timeZone: tz }).format(fromD);
+      const rows = await transactionsRepo.listBetween(userId, from, today);
+      if (rows.length === 0) return "OK: 최근 30일 내역이 없어요.";
+      const lines = rows
+        .slice(0, 30)
+        .map(
+          (t) =>
+            `#${t.id} ${t.txDate} ${t.kind === "expense" ? "지출" : "수입"} ${t.amount.toLocaleString("ko-KR")}원 ${t.category}${t.memo ? ` (${t.memo})` : ""}`,
+        );
+      return "OK: 최근 내역\n" + lines.join("\n");
+    }
+    if (name === "update_transaction") {
+      const a = updateTxArgs.parse(args);
+      const existing = await transactionsRepo.getOne(userId, a.transaction_id);
+      if (!existing) return "ERROR: 그 내역을 찾지 못했어요. list_transactions로 id를 확인하세요.";
+      const patch: {
+        txDate?: string;
+        kind?: "expense" | "income";
+        category?: string;
+        amount?: number;
+        memo?: string | null;
+      } = {};
+      if (a.kind !== undefined) patch.kind = a.kind;
+      if (a.category !== undefined) patch.category = a.category;
+      if (a.amount !== undefined) patch.amount = a.amount;
+      if (a.memo !== undefined) patch.memo = a.memo ?? null;
+      if (a.tx_date !== undefined) patch.txDate = a.tx_date;
+      await transactionsRepo.update(userId, a.transaction_id, patch);
+      return `OK: 내역 수정(id=${a.transaction_id})`;
+    }
+    if (name === "delete_transaction") {
+      const a = txIdArgs.parse(args);
+      const existing = await transactionsRepo.getOne(userId, a.transaction_id);
+      if (!existing) return "ERROR: 그 내역을 찾지 못했어요.";
+      await transactionsRepo.remove(userId, a.transaction_id);
+      return `OK: 내역 삭제(id=${a.transaction_id}) ${existing.amount.toLocaleString("ko-KR")}원 (${existing.category})`;
     }
     if (name === "save_memory") {
       const a = saveMemArgs.parse(args);
