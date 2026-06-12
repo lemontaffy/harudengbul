@@ -100,14 +100,37 @@ export const settings = pgTable("settings", {
   kmaNx: integer("kma_nx"),
   kmaNy: integer("kma_ny"),
   timezone: text("timezone").default("Asia/Seoul"),
-  // OpenAI 호환 LLM 연결(사용자별). 공급사는 base_url로 구분
-  // (OpenRouter https://openrouter.ai/api/v1, DeepSeek https://api.deepseek.com 등)
+  // 메인 LLM 연결 → llm_connections.id. 연결 삭제 시 set null.
+  activeConnectionId: bigint("active_connection_id", { mode: "number" }).references(
+    () => llmConnections.id,
+    { onDelete: "set null" },
+  ),
+  // [레거시] 단일 연결 컬럼 — 다중 연결(llm_connections)로 이관됨. 폴백/하위호환용 유지.
   llmApiKey: text("llm_api_key"),
   llmBaseUrl: text("llm_base_url"),
   llmModel: text("llm_model"),
-  // 임베딩 모델(선택). 비우면 text-embedding-3-small. 채팅과 같은 base_url/키 사용.
   llmEmbeddingModel: text("llm_embedding_model"),
 });
+
+// 사용자별 다중 LLM 연결. 같은 공급사도 여러 개 가능. 사용자가 이름을 붙인다.
+export const llmConnections = pgTable(
+  "llm_connections",
+  {
+    id: bigint("id", { mode: "number" })
+      .primaryKey()
+      .generatedAlwaysAsIdentity(),
+    userId: bigint("user_id", { mode: "number" })
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    name: text("name").notNull(), // 사용자 라벨(예: "딥시크 프로")
+    apiKey: text("api_key"), // 암호화 저장(crypto)
+    baseUrl: text("base_url"),
+    model: text("model"),
+    embeddingModel: text("embedding_model"),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
+  },
+  (t) => [index("llm_conn_user_idx").on(t.userId, t.createdAt)],
+);
 
 // 캐릭터(persona): 사용자 소유. 역할(role)과 캐릭터(이름·성격)를 분리.
 //  - role 은 고정 2종: 'counselor'(상담가) | 'secretary'(비서)

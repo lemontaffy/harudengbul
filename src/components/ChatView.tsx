@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, useCallback } from "react";
+import ConnectionSwitcher from "@/components/ConnectionSwitcher";
 
 type Role = "counselor" | "secretary";
 export interface ChatPersona {
@@ -224,6 +225,10 @@ export default function ChatView({
 
   return (
     <div className="flex h-[calc(100vh-7rem)] flex-col">
+      {/* 메인 연결 전환 */}
+      <div className="mb-2 flex justify-end">
+        <ConnectionSwitcher />
+      </div>
       {/* 캐릭터 탭 */}
       <div className="mb-2 flex gap-2 overflow-x-auto pb-1">
         {personas.map((p) => (

@@ -1,10 +1,10 @@
 import Link from "next/link";
 import { requireUser } from "@/lib/currentUser";
-import { getLlmConfig, maskApiKey } from "@/lib/config";
 import type { Role } from "@/lib/persona";
 import * as settingsRepo from "@/db/repo/settings";
 import * as personasRepo from "@/db/repo/personas";
 import SettingsForm, { type SettingsInitial } from "@/components/SettingsForm";
+import ConnectionsManager from "@/components/ConnectionsManager";
 import CharacterManager, {
   type Character,
   type TriggerAssignments,
@@ -33,9 +33,8 @@ export default async function SettingsPage({
 }) {
   const user = await requireUser();
   const sp = await searchParams;
-  const [s, llm, personaRows, googleAcct] = await Promise.all([
+  const [s, personaRows, googleAcct] = await Promise.all([
     settingsRepo.getByUser(user.id),
-    getLlmConfig(user.id),
     personasRepo.listActiveByUser(user.id),
     googleRepo.getByUser(user.id),
   ]);
@@ -80,12 +79,6 @@ export default async function SettingsPage({
     handoffEnabled: s?.handoffEnabled ?? true,
     morningTime: s?.morningTime ?? "08:00",
     eveningTime: s?.eveningTime ?? "22:00",
-    llmBaseUrl: llm.baseUrl,
-    llmModel: llm.model,
-    llmEmbeddingModel: s?.llmEmbeddingModel ?? "",
-    hasLlmKey: !!llm.apiKey,
-    llmKeyMasked: maskApiKey(llm.apiKey),
-    llmConfigured: llm.configured,
   };
 
   return (
@@ -105,6 +98,7 @@ export default async function SettingsPage({
       )}
 
       <div className="flex flex-col gap-6">
+        <ConnectionsManager />
         <SettingsForm initial={initial} />
         <ProfileSection initial={profile} />
         <LocationSetting initial={location} />

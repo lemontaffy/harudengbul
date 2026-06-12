@@ -25,12 +25,12 @@
 - 가입: 공개 가입 없음. admin이 `/admin`에서 초대 코드 발급 → `/signup?code=...` (이메일/SMTP 없음).
 - 비밀번호: 설정에서 본인 변경. admin은 `/admin`에서 멤버 초기화(일회용 임시 비번 발급 → `must_change_password`로 다음 로그인 시 변경 강제). CLI 복구 `npm run reset-password -- <username>`.
 - 시드 멱등: `ADMIN_USERNAME` 계정 부재 시에만 env `APP_PASSWORD_HASH`를 재해싱 없이 복사해 생성. 존재하면 무수정 → 재시작/ env 제거에도 안전.
-- **AI 연결은 사용자별** — `settings.llm_api_key/llm_base_url/llm_model` (OpenAI 호환). 공급사는 Base URL로 구분(OpenRouter/DeepSeek/OpenAI/Custom). 전역 공유·env 요청폴백 없음. 각자 자기 키.
+- **AI 연결은 사용자별 다중 연결** — `llm_connections`(이름 붙인 OpenAI 호환 연결 여러 개, 같은 공급사도 가능). 메인은 `settings.active_connection_id`. `lib/config.ts#getLlmConfig`가 메인→첫 연결→레거시(`settings.llm_*`) 순으로 해석. 홈/채팅의 ConnectionSwitcher로 메인 전환. 키는 암호화 저장.
 - 데이터 접근은 `src/db/repo/*`의 userId-스코프 함수로만. 라우트에서 db 직접 호출 금지.
 
 ## 모델
 
-- 채팅 연결(키/BaseURL/모델)은 사용자별 `settings`에서만 읽는다(`lib/config.ts#getLlmConfig`). **코드에 모델명/공급사 하드코딩 금지.**
+- 채팅 연결(키/BaseURL/모델)은 사용자별 다중 연결(`llm_connections`, 메인=`settings.active_connection_id`)에서 `lib/config.ts#getLlmConfig`로만 읽는다. **코드에 모델명/공급사 하드코딩 금지.**
 - env `LLM_API_KEY/LLM_BASE_URL/LLM_MODEL`는 선택 — 첫 admin 본인 연결 시드용일 뿐 전역 폴백 아님.
 - 날씨원은 env로만 읽는다(`lib/weather.ts`): `KMA_API_KEY`(data.go.kr Decoding) 우선, `OWM_API_KEY` 폴백. 위치는 사용자별 `settings`(좌표→격자 nx/ny). 캐시는 격자 단위 `weather_cache`.
 

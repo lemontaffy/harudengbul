@@ -8,6 +8,7 @@ import * as messagesRepo from "@/db/repo/messages";
 import * as handoffsRepo from "@/db/repo/handoffs";
 import { phraseForDate } from "@/lib/phrases";
 import LogoutButton from "@/components/LogoutButton";
+import ConnectionSwitcher from "@/components/ConnectionSwitcher";
 import LiveClock from "@/components/LiveClock";
 import MoodChips from "@/components/MoodChips";
 import WeatherSlot from "@/components/WeatherSlot";
@@ -84,6 +85,12 @@ export default async function DashboardPage() {
           <LogoutButton />
         </div>
       </header>
+
+      {/* 메인 AI 연결 전환 */}
+      <div className="flex items-center justify-end gap-2 text-xs">
+        <span className="opacity-40">메인 연결</span>
+        <ConnectionSwitcher />
+      </div>
 
       {/* 시계 + 날씨 슬롯 */}
       <div className="flex gap-3">
