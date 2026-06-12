@@ -2,7 +2,6 @@ import Link from "next/link";
 import { requireUser } from "@/lib/currentUser";
 import * as lettersRepo from "@/db/repo/letters";
 import GenerateLetterButton from "@/components/GenerateLetterButton";
-import NavMenu from "@/components/NavMenu";
 
 export const dynamic = "force-dynamic";
 
@@ -24,7 +23,6 @@ export default async function LettersPage() {
     <main className="mx-auto max-w-md p-5">
       <div className="mb-5 flex items-center justify-between">
         <h1 className="text-lg font-semibold">편지함</h1>
-        <NavMenu isAdmin={user.role === "admin"} username={user.username} />
       </div>
 
       <GenerateLetterButton />

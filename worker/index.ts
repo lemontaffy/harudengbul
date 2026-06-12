@@ -133,7 +133,7 @@ async function sendProactive(
   const sent = await sendToUser(userId, {
     title: persona.name?.trim() || "하루등불",
     body: text.length > 120 ? text.slice(0, 117) + "…" : text,
-    url: "/chat",
+    url: `/chat/${personaId}`,
     tag: `proactive-${trigger}`,
   });
   await usageRepo.log(userId, "proactive");

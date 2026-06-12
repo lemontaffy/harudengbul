@@ -1,4 +1,3 @@
-import NavMenu from "@/components/NavMenu";
 import { requireUser } from "@/lib/currentUser";
 import * as txRepo from "@/db/repo/transactions";
 import { summarize } from "@/lib/txparse";
@@ -33,7 +32,6 @@ export default async function LedgerPage() {
     <main className="mx-auto max-w-md p-5">
       <div className="mb-5 flex items-center justify-between">
         <h1 className="text-lg font-semibold">가계부</h1>
-        <NavMenu isAdmin={user.role === "admin"} username={user.username} />
       </div>
       <LedgerView initialMonth={month} initialTxs={txs} initialSummary={summarize(rows)} />
     </main>

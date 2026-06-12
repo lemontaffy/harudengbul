@@ -1,4 +1,3 @@
-import NavMenu from "@/components/NavMenu";
 import { requireUser } from "@/lib/currentUser";
 import { getLlmConfig } from "@/lib/config";
 import * as settingsRepo from "@/db/repo/settings";
@@ -40,7 +39,6 @@ export default async function DiaryPage() {
     <main className="mx-auto max-w-md p-5">
       <div className="mb-5 flex items-center justify-between">
         <h1 className="text-lg font-semibold">일기</h1>
-        <NavMenu isAdmin={user.role === "admin"} username={user.username} />
       </div>
       <DiaryView
         today={today}

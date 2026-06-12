@@ -1,7 +1,6 @@
 "use client";
 
 import { Fragment, useEffect, useRef, useState, useCallback } from "react";
-import ConnectionSwitcher from "@/components/ConnectionSwitcher";
 
 type Role = "counselor" | "secretary" | "nutritionist" | "study_mate" | "friend";
 export interface ChatPersona {
@@ -17,15 +16,6 @@ interface Msg {
   hadToolCall?: boolean;
   createdAt?: string;
 }
-
-const ROLE_LABEL: Record<Role, string> = {
-  counselor: "상담가",
-  secretary: "비서",
-  nutritionist: "영양사",
-  study_mate: "스터디 메이트",
-  friend: "친구",
-};
-const rolesLabel = (roles: Role[]) => roles.map((r) => ROLE_LABEL[r]).join(" · ");
 
 function displayName(p: ChatPersona): string {
   return p.name?.trim() || "이름 없는 캐릭터";
@@ -57,22 +47,16 @@ function timeLabel(iso?: string): string {
 }
 
 export default function ChatView({
-  personas,
-  initialPersonaId,
+  persona,
   userAvatarPath,
   configured,
 }: {
-  personas: ChatPersona[];
-  initialPersonaId: number | null;
+  persona: ChatPersona;
   userAvatarPath: string | null;
   configured: boolean;
 }) {
-  const firstId = personas[0]?.id ?? null;
-  const [personaId, setPersonaId] = useState<number | null>(
-    initialPersonaId && personas.some((p) => p.id === initialPersonaId)
-      ? initialPersonaId
-      : firstId,
-  );
+  const personaId = persona.id;
+  const current = persona;
   const [messages, setMessages] = useState<Msg[]>([]);
   const [hasMore, setHasMore] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
@@ -80,8 +64,6 @@ export default function ChatView({
   const [streaming, setStreaming] = useState(false);
   const [menuFor, setMenuFor] = useState<number | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
-
-  const current = personas.find((p) => p.id === personaId) ?? null;
 
   const scrollToBottom = useCallback(() => {
     requestAnimationFrame(() => {
@@ -128,18 +110,8 @@ export default function ChatView({
   }
 
   useEffect(() => {
-    if (personaId != null) loadHistory(personaId);
+    loadHistory(personaId);
   }, [personaId, loadHistory]);
-
-  async function switchPersona(id: number) {
-    if (id === personaId || streaming) return;
-    setPersonaId(id);
-    fetch("/api/settings", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ activePersonaId: id }),
-    });
-  }
 
   function patchContentAt(idx: number, fn: (prev: string) => string) {
     setMessages((m) => {
@@ -269,50 +241,15 @@ export default function ChatView({
     }
   }
 
-  if (personas.length === 0) {
-    return (
-      <div className="flex h-[calc(100vh-7rem)] flex-col items-center justify-center text-center text-sm opacity-70">
-        <p>아직 대화할 캐릭터가 없어요.</p>
-        <a href="/settings" className="mt-2 text-accent">
-          설정에서 캐릭터 추가하기
-        </a>
-      </div>
-    );
-  }
-
   let lastAssistantIdx = -1;
   for (let i = messages.length - 1; i >= 0; i--) {
     if (messages[i].role === "assistant") { lastAssistantIdx = i; break; }
   }
 
   return (
-    <div className="flex h-[calc(100vh-7rem)] flex-col">
-      {/* 메인 연결 전환 */}
-      <div className="mb-2 flex justify-end">
-        <ConnectionSwitcher />
-      </div>
-      {/* 캐릭터 탭 */}
-      <div className="mb-2 flex gap-2 overflow-x-auto pb-1">
-        {personas.map((p) => (
-          <button
-            key={p.id}
-            onClick={() => switchPersona(p.id)}
-            className={`flex shrink-0 items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm ${
-              personaId === p.id ? "bg-accent text-black" : "bg-surface ring-1 ring-white/10"
-            }`}
-          >
-            {p.avatarPath && (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img src={p.avatarPath} alt="" className="h-5 w-5 rounded-full object-cover" />
-            )}
-            <span>{displayName(p)}</span>
-            <span className="opacity-50">· {rolesLabel(p.roles)}</span>
-          </button>
-        ))}
-      </div>
-
+    <div className="flex h-full min-h-0 flex-col">
       {/* 메시지 */}
-      <div ref={scrollRef} className="flex-1 space-y-2 overflow-y-auto pb-2">
+      <div ref={scrollRef} className="flex-1 space-y-2 overflow-y-auto py-2">
         {hasMore && (
           <div className="flex justify-center py-1">
             <button
@@ -418,7 +355,7 @@ export default function ChatView({
 
       {/* 입력 */}
       {configured ? (
-        <div className="mt-2 flex items-end gap-2">
+        <div className="flex items-end gap-2 border-t border-white/10 pt-2 pb-[env(safe-area-inset-bottom)]">
           <textarea
             value={input}
             onChange={(e) => setInput(e.target.value)}

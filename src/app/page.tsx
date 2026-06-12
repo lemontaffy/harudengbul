@@ -7,8 +7,6 @@ import * as diaryRepo from "@/db/repo/diary";
 import * as messagesRepo from "@/db/repo/messages";
 import * as handoffsRepo from "@/db/repo/handoffs";
 import { phraseForDate } from "@/lib/phrases";
-import NavMenu from "@/components/NavMenu";
-import ConnectionSwitcher from "@/components/ConnectionSwitcher";
 import LiveClock from "@/components/LiveClock";
 import MoodChips from "@/components/MoodChips";
 import WeatherSlot from "@/components/WeatherSlot";
@@ -55,14 +53,25 @@ export default async function DashboardPage() {
     personaName: h.personaName,
   }));
 
+  // 입구 카드는 "가장 최근 대화가 있었던 페르소나" 기준(활성 고정 아님).
+  const lasts = await Promise.all(
+    personaRows.map((p) => messagesRepo.lastMessage(user.id, p.id)),
+  );
+  let bestIdx = -1;
+  let bestTime = -1;
+  lasts.forEach((m, i) => {
+    const t = m?.createdAt ? new Date(m.createdAt).getTime() : -1;
+    if (t > bestTime) {
+      bestTime = t;
+      bestIdx = i;
+    }
+  });
   const active =
-    personaRows.find((p) => p.id === s?.activePersonaId) ?? personaRows[0] ?? null;
-  const [lastMsg, unread] = active
-    ? await Promise.all([
-        messagesRepo.lastMessage(user.id, active.id),
-        messagesRepo.countUnread(user.id, active.id, active.lastReadAt ?? null),
-      ])
-    : [null, 0];
+    (bestIdx >= 0 ? personaRows[bestIdx] : null) ?? personaRows[0] ?? null;
+  const lastMsg = bestIdx >= 0 ? lasts[bestIdx] : null;
+  const unread = active
+    ? await messagesRepo.countUnread(user.id, active.id, active.lastReadAt ?? null)
+    : 0;
 
   const phrase = phraseForDate(today);
   const personaName = active?.name?.trim() || "캐릭터";
@@ -72,14 +81,7 @@ export default async function DashboardPage() {
       {/* 헤더 */}
       <header className="flex items-center justify-between">
         <h1 className="text-base font-semibold text-accent">하루등불</h1>
-        <NavMenu isAdmin={user.role === "admin"} username={user.username} />
       </header>
-
-      {/* 메인 AI 연결 전환 */}
-      <div className="flex items-center justify-end gap-2 text-xs">
-        <span className="opacity-40">메인 연결</span>
-        <ConnectionSwitcher />
-      </div>
 
       {/* 시계 + 날씨 슬롯 */}
       <div className="flex gap-3">

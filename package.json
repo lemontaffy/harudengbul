@@ -23,6 +23,7 @@
     "drizzle-orm": "^0.38.3",
     "google-auth-library": "^10.7.0",
     "iron-session": "^8.0.4",
+    "lucide-react": "^1.17.0",
     "next": "^15.1.6",
     "node-cron": "^4.2.1",
     "pg": "^8.13.1",
