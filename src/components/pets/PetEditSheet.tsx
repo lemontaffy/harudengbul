@@ -74,8 +74,8 @@ export default function PetEditSheet({
               ))}
             </div>
             {tab === "info" && <InfoTab d={d} rooms={rooms} onChanged={onChanged} reload={load} />}
-            {tab === "sprites" && <SpritesTab d={d} reload={load} />}
-            {tab === "lines" && <LinesTab d={d} allPets={allPets} reload={load} />}
+            {tab === "sprites" && <SpritesTab d={d} reload={load} onChanged={onChanged} />}
+            {tab === "lines" && <LinesTab d={d} allPets={allPets} reload={load} onChanged={onChanged} />}
             {tab === "relations" && <RelationsTab d={d} allPets={allPets} reload={load} onChanged={onChanged} />}
           </>
         )}
@@ -169,7 +169,7 @@ function InfoTab({ d, rooms, onChanged, reload }: { d: Detail; rooms: PetRef[]; 
   );
 }
 
-function SpritesTab({ d, reload }: { d: Detail; reload: () => void }) {
+function SpritesTab({ d, reload, onChanged }: { d: Detail; reload: () => void; onChanged: () => void }) {
   const get = (st: string, kd: string) => d.sprites.find((s) => s.stage === st && s.kind === kd)?.path ?? null;
   const [msg, setMsg] = useState("");
 
@@ -179,9 +179,10 @@ function SpritesTab({ d, reload }: { d: Detail; reload: () => void }) {
     fd.append("stage", stage);
     fd.append("kind", kind);
     const res = await fetch(`/api/pets/${d.pet.id}/sprites`, { method: "POST", body: fd });
-    const j = await res.json();
-    setMsg(res.ok ? j.warning ?? "" : j.error ?? "업로드 실패");
+    const j = await res.json().catch(() => ({}));
+    setMsg(res.ok ? j.warning ?? "올렸어요." : j.error ?? "업로드 실패");
     reload();
+    onChanged(); // 방 화면에 즉시 반영
   }
   async function del(stage: string, kind: string) {
     await fetch(`/api/pets/${d.pet.id}/sprites`, {
@@ -190,6 +191,7 @@ function SpritesTab({ d, reload }: { d: Detail; reload: () => void }) {
       body: JSON.stringify({ stage, kind }),
     });
     reload();
+    onChanged();
   }
 
   return (
@@ -234,7 +236,7 @@ function SpritesTab({ d, reload }: { d: Detail; reload: () => void }) {
   );
 }
 
-function LinesTab({ d, allPets, reload }: { d: Detail; allPets: PetRef[]; reload: () => void }) {
+function LinesTab({ d, allPets, reload, onChanged }: { d: Detail; allPets: PetRef[]; reload: () => void; onChanged: () => void }) {
   const [stage, setStage] = useState<string>(d.pet.stage);
   const [content, setContent] = useState("");
   const [about, setAbout] = useState<number | null>(null);
@@ -250,6 +252,7 @@ function LinesTab({ d, allPets, reload }: { d: Detail; allPets: PetRef[]; reload
     });
     setContent("");
     reload();
+    onChanged();
   }
   async function del(id: number) {
     await fetch(`/api/pets/${d.pet.id}/lines`, {
@@ -258,6 +261,7 @@ function LinesTab({ d, allPets, reload }: { d: Detail; allPets: PetRef[]; reload
       body: JSON.stringify({ lineId: id }),
     });
     reload();
+    onChanged();
   }
 
   return (

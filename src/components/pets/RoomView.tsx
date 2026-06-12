@@ -28,6 +28,11 @@ export default function RoomView({
   const router = useRouter();
   const stageRef = useRef<HTMLDivElement>(null);
   const [pets, setPets] = useState<PetVM[]>(initialPets);
+  // 서버 새로고침(router.refresh: 스프라이트 업로드/방 이동 후) 시 새 데이터로 동기화.
+  // 로컬 드래그(setPets)는 initialPets 참조를 안 바꾸므로 이 effect를 트리거하지 않는다.
+  useEffect(() => {
+    setPets(initialPets);
+  }, [initialPets]);
   const [asleep, setAsleep] = useState(wasSleeping);
   const [effects, setEffects] = useState<ActiveEffect[]>([]);
   const [bubbles, setBubbles] = useState<Record<number, string>>({});
