@@ -112,9 +112,9 @@ export async function generateWeeklyLetter(userId: number): Promise<LetterResult
   let persona = s?.eveningPersonaId
     ? await personasRepo.getOne(userId, s.eveningPersonaId)
     : undefined;
-  if (!persona || persona.role !== "counselor" || !persona.isActive) {
+  if (!persona || !persona.roles.includes("counselor") || !persona.isActive) {
     const actives = await personasRepo.listActiveByUser(userId);
-    persona = actives.find((p) => p.role === "counselor") ?? actives[0];
+    persona = actives.find((p) => p.roles.includes("counselor")) ?? actives[0];
   }
 
   // 비전 모델이면 이번 주 사진들을 첨부(아니면 사진은 무시 → 텍스트 요약만).

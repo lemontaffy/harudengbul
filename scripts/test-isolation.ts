@@ -44,7 +44,7 @@ async function mkUser(username: string) {
 /** 사용자의 (역할별 첫) 활성 캐릭터 행. */
 async function personaByRole(userId: number, role: Role) {
   const list = await personasRepo.listActiveByUser(userId);
-  return list.find((p) => p.role === role)!;
+  return list.find((p) => p.roles.includes(role))!;
 }
 
 async function main() {
@@ -91,7 +91,7 @@ async function main() {
   // ── 프롬프트 레벨 격리(핵심) ──
   const ctxB = await buildContext(B.id);
   const promptB = buildSystemPrompt(
-    { name: bTheo!.name, role: bTheo!.role as Role, traits: bTheo!.traits },
+    { name: bTheo!.name, roles: bTheo!.roles as Role[], traits: bTheo!.traits },
     ctxB,
   );
   check("B 프롬프트에 A 기억 없음", !promptB.includes("A의 비밀 기억"));
@@ -103,7 +103,7 @@ async function main() {
   const ctxA = await buildContext(A.id);
   const aTheo = await personasRepo.getOne(A.id, aSecretary.id);
   const promptA = buildSystemPrompt(
-    { name: aTheo!.name, role: aTheo!.role as Role, traits: aTheo!.traits },
+    { name: aTheo!.name, roles: aTheo!.roles as Role[], traits: aTheo!.traits },
     ctxA,
   );
   check("A 프롬프트엔 A traits 주입됨", promptA.includes(A_TRAITS));

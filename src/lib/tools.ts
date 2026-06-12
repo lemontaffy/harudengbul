@@ -208,19 +208,24 @@ export const SEARCH_TOOL: ToolDef = {
 };
 
 /**
- * 역할·설정에 따른 도구 목록.
- * - search_past_messages: 모든 역할 공통.
- * - 비서: 등록 도구 일체(add_event/add_transaction/save_memory…).
- * - 비서 외 모든 역할: 핸드오프(suggest_handoff)는 handoff_enabled 일 때만.
- * - 영양사·스터디 메이트: save_memory 추가(친구는 제외).
- * 신규 3종에 비서 등록 도구(add_event 등)는 절대 바인딩하지 않는다.
+ * 복수 역할(roles)의 도구 합집합.
+ * - search_past_messages: 항상.
+ * - roles 에 'secretary' 포함 → 비서 등록 도구 일체. 핸드오프 도구는 제외(직접 등록 가능).
+ * - 'secretary' 미포함 → 핸드오프(handoff_enabled 일 때만). + 영양사/스터디면 save_memory.
+ * 신규 3종(영양사/스터디/친구)에 비서 등록 도구(add_event 등)는 절대 바인딩하지 않는다.
  */
-export function toolsForRole(role: Role, handoffEnabled: boolean): ToolDef[] | undefined {
-  if (role === "secretary") return [...SECRETARY_TOOLS, SEARCH_TOOL];
-  const tools: ToolDef[] = [SEARCH_TOOL];
-  if (handoffEnabled) tools.push(HANDOFF_TOOL);
-  if (role === "nutritionist" || role === "study_mate") tools.push(SAVE_MEMORY_TOOL);
-  return tools;
+export function toolsForRoles(roles: Role[], handoffEnabled: boolean): ToolDef[] | undefined {
+  const byName = new Map<string, ToolDef>();
+  const add = (t: ToolDef) => byName.set(t.function.name, t);
+  add(SEARCH_TOOL);
+  if (roles.includes("secretary")) {
+    for (const t of SECRETARY_TOOLS) add(t); // add_event/add_transaction/save_memory…
+  } else {
+    if (handoffEnabled) add(HANDOFF_TOOL);
+    if (roles.includes("nutritionist") || roles.includes("study_mate"))
+      add(SAVE_MEMORY_TOOL);
+  }
+  return [...byName.values()];
 }
 
 const searchArgs = z.object({
@@ -311,15 +316,15 @@ export async function executeTool(
       const caller = opts?.personaId
         ? personas.find((p) => p.id === opts.personaId)
         : undefined;
-      const scope =
-        caller?.role === "counselor"
-          ? { onlyPersonaId: caller.id, limit }
-          : {
-              excludePersonaIds: personas
-                .filter((p) => p.role === "counselor")
-                .map((p) => p.id),
-              limit,
-            };
+      // counselor 는 단독 전용이라 roles.includes("counselor") 면 순수 상담 방.
+      const scope = caller?.roles.includes("counselor")
+        ? { onlyPersonaId: caller.id, limit }
+        : {
+            excludePersonaIds: personas
+              .filter((p) => p.roles.includes("counselor"))
+              .map((p) => p.id),
+            limit,
+          };
 
       const hits = await messagesRepo.searchMessages(userId, a.query, scope);
       if (hits.length === 0) return "결과 없음";

@@ -42,11 +42,11 @@ export async function POST(
     20,
   );
   const ctx = await buildContext(user.id);
-  const role = persona.role as Role;
+  const roles = persona.roles as Role[];
   const messages: ChatMessage[] = [
     {
       role: "system",
-      content: buildSystemPrompt({ name: persona.name, role, traits: persona.traits }, ctx),
+      content: buildSystemPrompt({ name: persona.name, roles, traits: persona.traits }, ctx),
     },
     ...history.map((m) => ({
       role: m.role === "user" ? ("user" as const) : ("assistant" as const),

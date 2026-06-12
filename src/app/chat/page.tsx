@@ -18,7 +18,7 @@ export default async function ChatPage() {
   const personas: ChatPersona[] = personaRows.map((p) => ({
     id: p.id,
     name: p.name,
-    role: p.role as Role,
+    roles: p.roles as Role[],
     avatarPath: p.avatarPath,
   }));
 

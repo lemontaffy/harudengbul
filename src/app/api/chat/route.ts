@@ -3,7 +3,7 @@ import { getCurrentUser } from "@/lib/currentUser";
 import { getLlmConfig } from "@/lib/config";
 import { buildContext, buildSystemPrompt, type Role } from "@/lib/persona";
 import { type LlmMessage } from "@/lib/llm";
-import { toolsForRole } from "@/lib/tools";
+import { toolsForRoles } from "@/lib/tools";
 import { runAssistantStream } from "@/lib/assistant";
 import * as messagesRepo from "@/db/repo/messages";
 import * as settingsRepo from "@/db/repo/settings";
@@ -67,12 +67,12 @@ export async function POST(req: Request) {
     buildContext(user.id, parsed.data.message), // 최근 메시지로 의미 기억 회수
     messagesRepo.listForPrompt(user.id, persona.id, 20),
   ]);
-  const role = persona.role as Role;
+  const roles = persona.roles as Role[];
   const llmMessages: LlmMessage[] = [
     {
       role: "system",
       content: buildSystemPrompt(
-        { name: persona.name, role, traits: persona.traits },
+        { name: persona.name, roles, traits: persona.traits },
         ctx,
       ),
     },
@@ -81,8 +81,8 @@ export async function POST(req: Request) {
       content: m.content,
     })),
   ];
-  // 역할별 도구: 비서=등록 도구, 상담가=핸드오프(설정 켜졌을 때만, SPEC §3·6).
-  const tools = toolsForRole(role, ctx.handoffEnabled !== false);
+  // 역할 합집합 도구: 비서 포함=등록 도구, 비서 외=핸드오프(설정 켜졌을 때만, SPEC §3·6).
+  const tools = toolsForRoles(roles, ctx.handoffEnabled !== false);
 
   const personaId = persona.id;
   const userId = user.id;

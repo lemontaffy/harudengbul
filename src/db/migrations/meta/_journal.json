@@ -134,6 +134,13 @@
       "when": 1781240773374,
       "tag": "0018_conn_vision",
       "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1781240800000,
+      "tag": "0019_persona_roles_array",
+      "breakpoints": true
     }
   ]
 }

@@ -53,7 +53,7 @@ export default async function SettingsPage({
   const characters: Character[] = personaRows.map((p) => ({
     id: p.id,
     name: p.name,
-    role: p.role as Role,
+    roles: p.roles as Role[],
     avatarPath: p.avatarPath,
     traits: p.traits,
   }));
@@ -85,7 +85,7 @@ export default async function SettingsPage({
   };
 
   const counselors = personaRows
-    .filter((p) => p.role === "counselor")
+    .filter((p) => p.roles.includes("counselor"))
     .map((p) => ({ id: p.id, name: p.name?.trim() || "상담가" }));
   const diaryReminder: DiaryReminderInitial = {
     enabled: s?.diaryReminderEnabled ?? false,

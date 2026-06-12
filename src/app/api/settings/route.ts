@@ -138,7 +138,7 @@ export async function POST(req: Request) {
     if (!p || !p.isActive) {
       return Response.json({ error: `${label} 담당 캐릭터가 올바르지 않아요.` }, { status: 400 });
     }
-    if (role && p.role !== role) {
+    if (role && !p.roles.includes(role)) {
       const need = role === "counselor" ? "상담가" : "비서";
       return Response.json(
         { error: `${label} 담당은 ${need} 역할이어야 해요.` },

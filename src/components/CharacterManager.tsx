@@ -15,7 +15,7 @@ const ALL_ROLES: Role[] = [
 export interface Character {
   id: number;
   name: string | null;
-  role: Role;
+  roles: Role[]; // 첫 원소가 주 역할
   avatarPath: string | null;
   traits: string | null;
 }
@@ -34,6 +34,7 @@ const ROLE_LABEL: Record<Role, string> = {
   study_mate: "스터디 메이트",
   friend: "친구",
 };
+const rolesLabel = (roles: Role[]) => roles.map((r) => ROLE_LABEL[r]).join(" · ");
 
 const inputCls =
   "w-full rounded-lg bg-bg px-3 py-2 text-sm outline-none ring-1 ring-white/10 focus:ring-accent";
@@ -55,8 +56,8 @@ export default function CharacterManager({
   const [adding, setAdding] = useState(false);
   const [status, setStatus] = useState("");
 
-  const counselors = chars.filter((c) => c.role === "counselor");
-  const secretaries = chars.filter((c) => c.role === "secretary");
+  const counselors = chars.filter((c) => c.roles.includes("counselor"));
+  const secretaries = chars.filter((c) => c.roles.includes("secretary"));
 
   async function refresh() {
     const [pRes, sRes] = await Promise.all([
@@ -140,7 +141,7 @@ export default function CharacterManager({
               <Avatar path={c.avatarPath} />
               <div className="min-w-0 flex-1">
                 <div className="truncate text-sm">{dn(c.name)}</div>
-                <div className="text-[11px] opacity-50">{ROLE_LABEL[c.role]}</div>
+                <div className="text-[11px] opacity-50">{rolesLabel(c.roles)}</div>
               </div>
               <button
                 onClick={() => {
@@ -275,8 +276,22 @@ function CharacterForm({
   onError: (msg: string) => void;
 }) {
   const [name, setName] = useState(initial?.name ?? "");
-  const [role, setRole] = useState<Role>(initial?.role ?? "counselor");
+  const [roles, setRoles] = useState<Role[]>(initial?.roles ?? ["counselor"]);
   const [traits, setTraits] = useState(initial?.traits ?? "");
+
+  // 선택 순서 = 우선순위(첫 원소가 주 역할). counselor 는 단독 전용.
+  function toggleRole(r: Role) {
+    setRoles((cur) => {
+      if (cur.includes(r)) {
+        const next = cur.filter((x) => x !== r);
+        return next.length ? next : cur; // 최소 1개 유지
+      }
+      if (r === "counselor") return ["counselor"]; // 단독 전용
+      if (cur.includes("counselor")) return [r]; // counselor 해제하고 교체
+      if (cur.length >= 3) return cur; // 최대 3개
+      return [...cur, r];
+    });
+  }
   const [avatarPath, setAvatarPath] = useState(initial?.avatarPath ?? null);
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
@@ -294,7 +309,7 @@ function CharacterForm({
         {
           method: initial ? "PATCH" : "POST",
           headers: { "content-type": "application/json" },
-          body: JSON.stringify({ name: name.trim(), role, traits: traits.trim() }),
+          body: JSON.stringify({ name: name.trim(), roles, traits: traits.trim() }),
         },
       );
       const data = await res.json().catch(() => ({}));
@@ -380,21 +395,39 @@ function CharacterForm({
         className={inputCls}
       />
 
-      <label className="mb-1 mt-3 block text-xs opacity-60">역할</label>
+      <label className="mb-1 mt-3 block text-xs opacity-60">
+        역할 <span className="opacity-40">· 여러 개 가능(최대 3). 먼저 고른 게 주 역할</span>
+      </label>
       <div className="flex flex-wrap gap-2">
-        {ALL_ROLES.map((r) => (
-          <button
-            key={r}
-            type="button"
-            onClick={() => setRole(r)}
-            className={`rounded-lg px-4 py-2 text-sm ${
-              role === r ? "bg-accent text-black" : "bg-surface ring-1 ring-white/10"
-            }`}
-          >
-            {ROLE_LABEL[r]}
-          </button>
-        ))}
+        {ALL_ROLES.map((r) => {
+          const idx = roles.indexOf(r);
+          const selected = idx >= 0;
+          // counselor 는 단독 전용 → 상호 배타로 비활성화.
+          const disabled =
+            (r === "counselor" && roles.some((x) => x !== "counselor")) ||
+            (r !== "counselor" && roles.includes("counselor")) ||
+            (!selected && roles.length >= 3 && r !== "counselor");
+          return (
+            <button
+              key={r}
+              type="button"
+              onClick={() => toggleRole(r)}
+              disabled={disabled}
+              className={`flex items-center gap-1 rounded-lg px-4 py-2 text-sm ${
+                selected ? "bg-accent text-black" : "bg-surface ring-1 ring-white/10"
+              } ${disabled ? "opacity-30" : ""}`}
+            >
+              {selected && (
+                <span className="text-[10px] font-bold">{idx === 0 ? "주" : idx + 1}</span>
+              )}
+              {ROLE_LABEL[r]}
+            </button>
+          );
+        })}
       </div>
+      <p className="mt-1 text-[11px] opacity-40">
+        상담가는 단독 전용이라 다른 역할과 조합할 수 없어요.
+      </p>
 
       <label className="mb-1 mt-3 block text-xs opacity-60">성격·말버릇 (traits)</label>
       <textarea

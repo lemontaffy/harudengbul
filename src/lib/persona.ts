@@ -52,6 +52,38 @@ export const ROLE_LABEL: Record<Role, string> = {
   friend: "친구",
 };
 
+// 페르소나는 복수 역할(roles 배열)을 가질 수 있다. 배열 첫 원소가 '주 역할'.
+/** 주 역할(말투·호칭 기준). roles[0]. */
+export function primaryRole(roles: string[]): Role {
+  return (roles[0] ?? "secretary") as Role;
+}
+/** 표기용 — "스터디 메이트 · 친구" */
+export function rolesLabel(roles: string[]): string {
+  return roles.map((r) => ROLE_LABEL[r as Role] ?? r).join(" · ");
+}
+
+/**
+ * 역할 조합 검증(생성·수정 API·UI 공통 규칙).
+ * - 최소 1개, 최대 3개, 중복 금지.
+ * - counselor 는 단독 전용: 다른 역할과 조합 불가.
+ *   (상담 공간 분리 원칙 — 상담가가 실행 도구를 겸하면 동의 기반 핸드오프 구조가 무력화됨)
+ * - 그 외(secretary|nutritionist|study_mate|friend)는 자유 조합.
+ */
+export function validateRoles(
+  input: unknown,
+): { ok: true; roles: Role[] } | { ok: false; error: string } {
+  if (!Array.isArray(input) || input.length === 0)
+    return { ok: false, error: "역할을 최소 1개 선택하세요." };
+  if (!input.every(isRole)) return { ok: false, error: "알 수 없는 역할이 있어요." };
+  const roles = input as Role[];
+  if (new Set(roles).size !== roles.length)
+    return { ok: false, error: "같은 역할을 중복할 수 없어요." };
+  if (roles.length > 3) return { ok: false, error: "역할은 최대 3개까지예요." };
+  if (roles.includes("counselor") && roles.length > 1)
+    return { ok: false, error: "상담가는 다른 역할과 조합할 수 없어요(단독 전용)." };
+  return { ok: true, roles };
+}
+
 // 프롬프트 조립은 lib/prompt.ts 로 3층 분리. 기존 import 경로 호환을 위해 re-export.
 export { buildSystemPrompt } from "./prompt";
 export type { PromptPersona, PromptContext } from "./prompt";

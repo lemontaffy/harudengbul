@@ -37,9 +37,9 @@ export async function POST(req: Request) {
   let persona = s?.eveningPersonaId
     ? await personasRepo.getOne(user.id, s.eveningPersonaId)
     : undefined;
-  if (!persona || persona.role !== "counselor" || !persona.isActive) {
+  if (!persona || !persona.roles.includes("counselor") || !persona.isActive) {
     const actives = await personasRepo.listActiveByUser(user.id);
-    persona = actives.find((p) => p.role === "counselor") ?? actives[0];
+    persona = actives.find((p) => p.roles.includes("counselor")) ?? actives[0];
   }
 
   const system = buildEmergencyPrompt(

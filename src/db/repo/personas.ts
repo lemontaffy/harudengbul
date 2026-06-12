@@ -1,4 +1,4 @@
-import { and, asc, eq, count } from "drizzle-orm";
+import { and, asc, eq, count, sql } from "drizzle-orm";
 import { db } from "../client";
 import { personas, settings } from "../schema";
 import type { Role } from "../../lib/persona";
@@ -34,7 +34,7 @@ export async function create(
   userId: number,
   input: {
     name: string;
-    role: Role;
+    roles: Role[];
     traits?: string | null;
     avatarPath?: string | null;
   },
@@ -44,7 +44,7 @@ export async function create(
     .values({
       userId,
       name: input.name,
-      role: input.role,
+      roles: input.roles,
       traits: input.traits ?? null,
       avatarPath: input.avatarPath ?? null,
     })
@@ -57,7 +57,7 @@ export async function update(
   id: number,
   patch: {
     name?: string;
-    role?: Role;
+    roles?: Role[];
     traits?: string | null;
     avatarPath?: string | null;
   },
@@ -84,7 +84,7 @@ export async function archive(userId: number, id: number) {
     .where(and(eq(personas.id, id), eq(personas.userId, userId)));
 }
 
-/** 역할별 활성 캐릭터 수 — 역할별 최소 1명 강제 검사용. */
+/** 역할(roles 배열에 포함)별 활성 캐릭터 수 — 역할별 최소 1명 강제 검사용. */
 export async function countActiveByRole(
   userId: number,
   role: Role,
@@ -95,7 +95,7 @@ export async function countActiveByRole(
     .where(
       and(
         eq(personas.userId, userId),
-        eq(personas.role, role),
+        sql`${role} = ANY(${personas.roles})`,
         eq(personas.isActive, true),
       ),
     );
@@ -116,13 +116,13 @@ export async function ensureDefaultsForUser(userId: number) {
 
   const nora = await create(userId, {
     name: "노라",
-    role: "counselor",
+    roles: ["counselor"],
     traits:
       "따뜻하지만 물러서지 않는다. 좋은 질문을 하나씩 던진다. 호들갑은 금지.",
   });
   const theo = await create(userId, {
     name: "테오",
-    role: "secretary",
+    roles: ["secretary"],
     traits:
       "차분하고 군더더기 없다. 가끔 건조한 농담. 걱정은 짧고 정확하게 표현한다.",
   });
@@ -154,9 +154,10 @@ export async function normalizeSettingsForUser(userId: number) {
   if (!s) return;
 
   const firstOf = (role: Role) =>
-    active.find((p) => p.role === role)?.id ?? null;
+    active.find((p) => p.roles.includes(role))?.id ?? null;
   const valid = (id: number | null, role?: Role) =>
-    id != null && active.some((p) => p.id === id && (!role || p.role === role));
+    id != null &&
+    active.some((p) => p.id === id && (!role || p.roles.includes(role)));
 
   const patch: Partial<typeof settings.$inferInsert> = {};
   if (!valid(s.activePersonaId)) patch.activePersonaId = active[0].id;

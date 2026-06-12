@@ -18,9 +18,9 @@ export default async function PocketPage() {
   let counselor = s?.eveningPersonaId
     ? await personasRepo.getOne(user.id, s.eveningPersonaId)
     : undefined;
-  if (!counselor || counselor.role !== "counselor" || !counselor.isActive) {
+  if (!counselor || !counselor.roles.includes("counselor") || !counselor.isActive) {
     const actives = await personasRepo.listActiveByUser(user.id);
-    counselor = actives.find((p) => p.role === "counselor") ?? actives[0];
+    counselor = actives.find((p) => p.roles.includes("counselor")) ?? actives[0];
   }
   const counselorName = counselor?.name?.trim() || "상담사";
 

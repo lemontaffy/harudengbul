@@ -48,7 +48,7 @@ async function main() {
         .values({
           userId: admin.id,
           name: "노라",
-          role: "counselor",
+          roles: ["counselor"],
           traits:
             "따뜻하지만 물러서지 않는다. 좋은 질문을 하나씩 던진다. 호들갑은 금지.",
         })
@@ -58,7 +58,7 @@ async function main() {
         .values({
           userId: admin.id,
           name: "테오",
-          role: "secretary",
+          roles: ["secretary"],
           traits:
             "차분하고 군더더기 없다. 가끔 건조한 농담. 걱정은 짧고 정확하게 표현한다.",
         })

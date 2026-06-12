@@ -140,7 +140,7 @@ export async function POST(req: Request) {
         {
           role: "system",
           content: buildSystemPrompt(
-            { name: persona.name, role: persona.role as Role, traits: persona.traits },
+            { name: persona.name, roles: persona.roles as Role[], traits: persona.traits },
             ctx,
           ),
         },

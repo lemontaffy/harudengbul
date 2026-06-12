@@ -7,7 +7,7 @@ type Role = "counselor" | "secretary" | "nutritionist" | "study_mate" | "friend"
 export interface ChatPersona {
   id: number;
   name: string | null;
-  role: Role;
+  roles: Role[];
   avatarPath: string | null;
 }
 interface Msg {
@@ -25,6 +25,7 @@ const ROLE_LABEL: Record<Role, string> = {
   study_mate: "스터디 메이트",
   friend: "친구",
 };
+const rolesLabel = (roles: Role[]) => roles.map((r) => ROLE_LABEL[r]).join(" · ");
 
 function displayName(p: ChatPersona): string {
   return p.name?.trim() || "이름 없는 캐릭터";
@@ -305,7 +306,7 @@ export default function ChatView({
               <img src={p.avatarPath} alt="" className="h-5 w-5 rounded-full object-cover" />
             )}
             <span>{displayName(p)}</span>
-            <span className="opacity-50">· {ROLE_LABEL[p.role]}</span>
+            <span className="opacity-50">· {rolesLabel(p.roles)}</span>
           </button>
         ))}
       </div>

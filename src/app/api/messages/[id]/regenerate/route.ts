@@ -2,7 +2,7 @@ import { getCurrentUser } from "@/lib/currentUser";
 import { getLlmConfig } from "@/lib/config";
 import { buildContext, buildSystemPrompt, type Role } from "@/lib/persona";
 import { type LlmMessage } from "@/lib/llm";
-import { toolsForRole } from "@/lib/tools";
+import { toolsForRoles } from "@/lib/tools";
 import { runAssistantStream } from "@/lib/assistant";
 import * as messagesRepo from "@/db/repo/messages";
 import * as personasRepo from "@/db/repo/personas";
@@ -46,18 +46,18 @@ export async function POST(
   const history = await messagesRepo.listForPrompt(user.id, msg.personaId, 20);
   const lastUser = [...history].reverse().find((m) => m.role === "user")?.content;
   const ctx = await buildContext(user.id, lastUser);
-  const role = persona.role as Role;
+  const roles = persona.roles as Role[];
   const llmMessages: LlmMessage[] = [
     {
       role: "system",
-      content: buildSystemPrompt({ name: persona.name, role, traits: persona.traits }, ctx),
+      content: buildSystemPrompt({ name: persona.name, roles, traits: persona.traits }, ctx),
     },
     ...history.map((m) => ({
       role: m.role === "user" ? ("user" as const) : ("assistant" as const),
       content: m.content,
     })),
   ];
-  const tools = toolsForRole(role, ctx.handoffEnabled !== false);
+  const tools = toolsForRoles(roles, ctx.handoffEnabled !== false);
   const personaId = msg.personaId;
   const userId = user.id;
 

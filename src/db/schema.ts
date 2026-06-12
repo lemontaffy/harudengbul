@@ -156,7 +156,9 @@ export const personas = pgTable(
       .notNull()
       .references(() => users.id, { onDelete: "cascade" }),
     name: text("name"),
-    role: text("role").notNull(), // 'counselor' | 'secretary'
+    // 복수 역할(순서 의미 있음 — 첫 원소가 주 역할). 최소 1개.
+    // counselor 는 단독 전용(조합 불가) — lib/persona.validateRoles 강제.
+    roles: text("roles").array().notNull(),
     avatarPath: text("avatar_path"),
     traits: text("traits"), // 자유 텍스트(구 custom_traits)
     isActive: boolean("is_active").notNull().default(true),
