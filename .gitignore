@@ -34,3 +34,6 @@ android.keystore
 *.keystore
 *.jks
 keystore.properties
+
+# TypeScript 증분 빌드 캐시(추적 불필요)
+tsconfig.tsbuildinfo
