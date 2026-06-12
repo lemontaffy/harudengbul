@@ -135,6 +135,9 @@ export const llmConnections = pgTable(
     baseUrl: text("base_url"),
     model: text("model"),
     embeddingModel: text("embedding_model"),
+    // 이미지 인식(비전) 지원 모델 여부 — 켜면 일기 사진을 읽어 답장/주간편지에 반영.
+    // 자동감지 불가(OpenAI 호환 엔드포인트)라 사용자가 연결별로 지정. 기본 off(예: DeepSeek).
+    supportsVision: boolean("supports_vision").notNull().default(false),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
   },
   (t) => [index("llm_conn_user_idx").on(t.userId, t.createdAt)],

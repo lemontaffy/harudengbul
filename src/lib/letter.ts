@@ -6,7 +6,8 @@ import * as lettersRepo from "../db/repo/letters";
 import * as settingsRepo from "../db/repo/settings";
 import * as personasRepo from "../db/repo/personas";
 import { getLlmConfig } from "./config";
-import { completeChat, type ChatMessage } from "./llm";
+import { completeChat, type ChatMessage, type ContentPart } from "./llm";
+import { readDiaryPhotoDataUrl } from "./diaryPhotos";
 import { todayInTz } from "./proactive";
 
 const MOOD_LABEL: Record<string, string> = {
@@ -37,6 +38,7 @@ async function gatherWeek(userId: number, weekStart: string, weekEnd: string) {
   const entries = await diaryRepo.listBetween(userId, weekStart, weekEnd);
   const moodCount: Record<string, number> = {};
   const dayLines: string[] = [];
+  const photos: { date: string; weekday: string; photoPath: string }[] = [];
   for (const e of entries) {
     const items = await diaryRepo.getItems(e.id);
     const wd = WEEKDAY[new Date(e.entryDate + "T00:00:00Z").getUTCDay()];
@@ -47,12 +49,14 @@ async function gatherWeek(userId: number, weekStart: string, weekEnd: string) {
         items.map((it) => `${it.label}${it.amount ? ` ${it.amount}` : ""}`).join(", ")
       : "";
     const bodyTxt = e.body?.trim() ? ` · 일기: ${e.body.trim().slice(0, 200)}` : "";
-    dayLines.push(`[${e.entryDate}(${wd})] 기분 ${moodTxt}${itemTxt}${bodyTxt}`);
+    const photoTxt = e.photoPath ? " · 사진 1장" : "";
+    dayLines.push(`[${e.entryDate}(${wd})] 기분 ${moodTxt}${itemTxt}${bodyTxt}${photoTxt}`);
+    if (e.photoPath) photos.push({ date: e.entryDate, weekday: wd, photoPath: e.photoPath });
   }
   const moodSummary = Object.entries(moodCount)
     .map(([m, n]) => `${MOOD_LABEL[m] ?? m} ${n}일`)
     .join(", ");
-  return { dayLines, moodSummary, hasData: entries.length > 0 };
+  return { dayLines, moodSummary, photos, hasData: entries.length > 0 };
 }
 
 function letterSystem(name: string | null, traits: string | null): string {
@@ -67,7 +71,8 @@ function letterSystem(name: string | null, traits: string | null): string {
 - 진단하지 않는다. 자책이 과해 보이면 친한 친구의 관점으로 부드럽게 비춰준다.
 - 기록이 적으면 적은 대로 담백하게, 다그치지 않는다.
 - 인사말로 시작하고, 마지막 문단은 다음 한 주를 향한 짧은 응원 한 줄.
-- 끝에 서명은 직접 적지 않는다(서명은 앱이 붙인다).${traits?.trim() ? `\n\n[너의 말버릇/성격]\n${traits.trim()}` : ""}`;
+- 끝에 서명은 직접 적지 않는다(서명은 앱이 붙인다).
+- 사진이 함께 첨부되면 그 장면을 억지로 다 설명하지 말고, 한두 군데만 자연스럽게 비춘다.${traits?.trim() ? `\n\n[너의 말버릇/성격]\n${traits.trim()}` : ""}`;
 }
 
 function letterUser(
@@ -100,7 +105,7 @@ export async function generateWeeklyLetter(userId: number): Promise<LetterResult
   const conn = await getLlmConfig(userId);
   if (!conn.configured) return { skipped: "AI 연결 미설정" };
 
-  const { dayLines, moodSummary, hasData } = await gatherWeek(userId, weekStart, weekEnd);
+  const { dayLines, moodSummary, photos, hasData } = await gatherWeek(userId, weekStart, weekEnd);
   if (!hasData) return { skipped: "이번 주 일기 기록 없음" };
 
   // 서명할 상담사: 저녁 담당 캐릭터 → 없으면 첫 활성 상담가 → 그것도 없으면 첫 캐릭터.
@@ -112,9 +117,23 @@ export async function generateWeeklyLetter(userId: number): Promise<LetterResult
     persona = actives.find((p) => p.role === "counselor") ?? actives[0];
   }
 
+  // 비전 모델이면 이번 주 사진들을 첨부(아니면 사진은 무시 → 텍스트 요약만).
+  const userText = letterUser(weekStart, weekEnd, moodSummary, dayLines);
+  let userContent: ChatMessage["content"] = userText;
+  if (conn.supportsVision && photos.length > 0) {
+    const parts: ContentPart[] = [{ type: "text", text: userText }];
+    for (const p of photos) {
+      const url = await readDiaryPhotoDataUrl(p.photoPath);
+      if (!url) continue;
+      parts.push({ type: "text", text: `[${p.date}(${p.weekday}) 사진]` });
+      parts.push({ type: "image_url", image_url: { url } });
+    }
+    if (parts.length > 1) userContent = parts; // 한 장이라도 읽혔을 때만 멀티모달.
+  }
+
   const messages: ChatMessage[] = [
     { role: "system", content: letterSystem(persona?.name ?? null, persona?.traits ?? null) },
-    { role: "user", content: letterUser(weekStart, weekEnd, moodSummary, dayLines) },
+    { role: "user", content: userContent },
   ];
   const body = (await completeChat(conn, messages)).trim();
   if (!body) return { skipped: "생성 실패" };

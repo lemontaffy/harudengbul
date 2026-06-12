@@ -1,8 +1,13 @@
 import type { LlmConfig } from "@/lib/config";
 
+// 멀티모달 콘텐츠 파트(OpenAI 호환 비전 포맷). 이미지는 data:URL 또는 공개 URL.
+export type ContentPart =
+  | { type: "text"; text: string }
+  | { type: "image_url"; image_url: { url: string } };
+
 export interface ChatMessage {
   role: "system" | "user" | "assistant";
-  content: string;
+  content: string | ContentPart[];
 }
 
 // tool-use 메시지(어시스턴트 tool_calls / tool 결과 포함)

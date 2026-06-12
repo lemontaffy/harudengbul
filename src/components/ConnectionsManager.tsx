@@ -8,6 +8,7 @@ interface Conn {
   baseUrl: string;
   model: string;
   embeddingModel: string;
+  supportsVision: boolean;
   hasKey: boolean;
   keyMasked: string;
 }
@@ -39,7 +40,14 @@ function host(u: string) {
   }
 }
 
-const EMPTY = { name: "", baseUrl: "", apiKey: "", model: "", embeddingModel: "" };
+const EMPTY = {
+  name: "",
+  baseUrl: "",
+  apiKey: "",
+  model: "",
+  embeddingModel: "",
+  supportsVision: false,
+};
 
 export default function ConnectionsManager() {
   const [conns, setConns] = useState<Conn[]>([]);
@@ -77,7 +85,14 @@ export default function ConnectionsManager() {
   }
   function openEdit(c: Conn) {
     setEditing(c.id);
-    setForm({ name: c.name, baseUrl: c.baseUrl, apiKey: "", model: c.model, embeddingModel: c.embeddingModel });
+    setForm({
+      name: c.name,
+      baseUrl: c.baseUrl,
+      apiKey: "",
+      model: c.model,
+      embeddingModel: c.embeddingModel,
+      supportsVision: c.supportsVision,
+    });
     setKeyView({ has: c.hasKey, masked: c.keyMasked });
     setModels([]);
     setModelsMsg("");
@@ -96,6 +111,7 @@ export default function ConnectionsManager() {
       baseUrl: form.baseUrl,
       model: form.model,
       embeddingModel: form.embeddingModel,
+      supportsVision: form.supportsVision,
     };
     if (form.apiKey.trim()) body.apiKey = form.apiKey.trim();
     const url = editing === "new" ? "/api/connections" : `/api/connections/${editing}`;
@@ -280,6 +296,23 @@ export default function ConnectionsManager() {
             className={input}
           />
 
+          {/* 비전(이미지 인식) 지원 토글 */}
+          <label className="mt-3 flex cursor-pointer items-start gap-2">
+            <input
+              type="checkbox"
+              checked={form.supportsVision}
+              onChange={(e) => setForm((f) => ({ ...f, supportsVision: e.target.checked }))}
+              className="mt-0.5 h-4 w-4 shrink-0 accent-accent"
+            />
+            <span className="text-xs">
+              이미지 인식(비전) 지원
+              <span className="mt-0.5 block text-[11px] opacity-50">
+                켜면 일기 사진을 읽어 답장·주간 편지에 반영해요. DeepSeek 등 비전 미지원
+                모델은 꺼두세요(사진은 무시됩니다).
+              </span>
+            </span>
+          </label>
+
           <div className="mt-4 flex items-center gap-3">
             <button
               onClick={save}
@@ -313,6 +346,14 @@ export default function ConnectionsManager() {
                     {activeId === c.id && (
                       <span className="shrink-0 rounded bg-accent px-1.5 py-0.5 text-[10px] font-bold text-black">
                         메인
+                      </span>
+                    )}
+                    {c.supportsVision && (
+                      <span
+                        className="shrink-0 rounded bg-white/10 px-1.5 py-0.5 text-[10px]"
+                        title="이미지 인식(비전) 지원"
+                      >
+                        👁 비전
                       </span>
                     )}
                   </div>

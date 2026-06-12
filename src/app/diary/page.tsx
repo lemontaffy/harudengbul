@@ -1,5 +1,6 @@
 import NavMenu from "@/components/NavMenu";
 import { requireUser } from "@/lib/currentUser";
+import { getLlmConfig } from "@/lib/config";
 import * as settingsRepo from "@/db/repo/settings";
 import * as diaryRepo from "@/db/repo/diary";
 import DiaryView, { type DiaryEntry } from "@/components/DiaryView";
@@ -14,6 +15,7 @@ export default async function DiaryPage() {
   const user = await requireUser();
   const s = await settingsRepo.getByUser(user.id);
   const today = todayInTz(s?.timezone ?? "Asia/Seoul");
+  const conn = await getLlmConfig(user.id);
 
   const rows = await diaryRepo.listByUser(user.id);
   const entries: DiaryEntry[] = await Promise.all(
@@ -40,7 +42,11 @@ export default async function DiaryPage() {
         <h1 className="text-lg font-semibold">일기</h1>
         <NavMenu isAdmin={user.role === "admin"} username={user.username} />
       </div>
-      <DiaryView today={today} initialEntries={entries} />
+      <DiaryView
+        today={today}
+        initialEntries={entries}
+        mainSupportsVision={conn.supportsVision}
+      />
     </main>
   );
 }

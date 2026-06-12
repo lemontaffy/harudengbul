@@ -1,0 +1,1 @@
+ALTER TABLE "llm_connections" ADD COLUMN "supports_vision" boolean DEFAULT false NOT NULL;

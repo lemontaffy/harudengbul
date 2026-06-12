@@ -14,6 +14,7 @@ const patchSchema = z.object({
   clearKey: z.boolean().optional(),
   model: z.string().optional(),
   embeddingModel: z.string().optional(),
+  supportsVision: z.boolean().optional(),
 });
 
 export async function PATCH(
@@ -38,6 +39,7 @@ export async function PATCH(
   if (typeof d.model === "string") patch.model = d.model.trim() || null;
   if (typeof d.embeddingModel === "string")
     patch.embeddingModel = d.embeddingModel.trim() || null;
+  if (typeof d.supportsVision === "boolean") patch.supportsVision = d.supportsVision;
   if (d.clearKey) patch.apiKey = null;
   else if (typeof d.apiKey === "string" && d.apiKey.trim() !== "")
     patch.apiKey = encryptSecret(d.apiKey.trim());

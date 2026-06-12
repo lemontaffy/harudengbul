@@ -78,3 +78,19 @@ export async function readDiaryPhotoBySegments(
     return null;
   }
 }
+
+const PHOTO_URL_PREFIX = "/api/diary-photos/";
+
+/**
+ * photo_path(public URL)를 비전 모델용 data:URL(webp base64)로 읽는다.
+ * 저장 파일은 항상 webp. 못 읽으면 null(첨부 생략 → 안전 폴백).
+ */
+export async function readDiaryPhotoDataUrl(
+  photoPath: string,
+): Promise<string | null> {
+  if (!photoPath.startsWith(PHOTO_URL_PREFIX)) return null;
+  const segments = photoPath.slice(PHOTO_URL_PREFIX.length).split("/");
+  const buf = await readDiaryPhotoBySegments(segments);
+  if (!buf) return null;
+  return `data:image/webp;base64,${buf.toString("base64")}`;
+}

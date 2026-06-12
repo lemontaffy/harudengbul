@@ -8,6 +8,7 @@ export interface LlmConfig {
   baseUrl: string;
   model: string;
   configured: boolean; // 키+baseUrl+모델 모두 있어야 채팅 가능
+  supportsVision: boolean; // 이미지 인식 가능 모델(일기 사진을 읽힐지). 레거시 연결은 false.
 }
 
 function dec(v: string | null | undefined): string {
@@ -38,7 +39,13 @@ export async function getLlmConfig(userId: number): Promise<LlmConfig> {
   const apiKey = dec(conn ? conn.apiKey : legacy?.llmApiKey);
   const baseUrl = (conn ? conn.baseUrl : legacy?.llmBaseUrl)?.trim() || "";
   const model = (conn ? conn.model : legacy?.llmModel)?.trim() || "";
-  return { apiKey, baseUrl, model, configured: !!apiKey && !!baseUrl && !!model };
+  return {
+    apiKey,
+    baseUrl,
+    model,
+    configured: !!apiKey && !!baseUrl && !!model,
+    supportsVision: conn?.supportsVision ?? false,
+  };
 }
 
 export interface EmbedConfig {

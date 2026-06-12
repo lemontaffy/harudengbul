@@ -35,9 +35,11 @@ const inputCls =
 export default function DiaryView({
   today,
   initialEntries,
+  mainSupportsVision,
 }: {
   today: string;
   initialEntries: DiaryEntry[];
+  mainSupportsVision: boolean;
 }) {
   const todays = initialEntries.find((e) => e.entryDate === today) ?? null;
   const past = initialEntries.filter((e) => e.entryDate !== today);
@@ -147,6 +149,13 @@ export default function DiaryView({
           <p className="mb-2 text-[11px] opacity-60">
             글 쓸 힘이 없는 날엔, 사진 한 장 + 한 줄이면 그날 일기로 충분해요.
           </p>
+          {!mainSupportsVision && (
+            <p className="mb-2 rounded-lg bg-amber-400/10 px-2 py-1.5 text-[11px] text-amber-300/90">
+              ⚠️ 지금 메인 모델은 사진을 읽지 못해요(예: DeepSeek). 사진은 기록으로
+              저장되지만, 답장·주간 편지엔 사진 내용이 빠져요. 사진을 읽히려면 설정 →
+              AI 연결에서 ‘이미지 인식(비전) 지원’을 켠 모델을 메인으로 쓰세요.
+            </p>
+          )}
           {photoPath ? (
             <div className="relative">
               {/* eslint-disable-next-line @next/next/no-img-element */}

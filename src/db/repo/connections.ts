@@ -34,6 +34,7 @@ export async function create(
     baseUrl?: string | null;
     model?: string | null;
     embeddingModel?: string | null;
+    supportsVision?: boolean;
   },
 ) {
   const [row] = await db
@@ -45,6 +46,7 @@ export async function create(
       baseUrl: input.baseUrl ?? null,
       model: input.model ?? null,
       embeddingModel: input.embeddingModel ?? null,
+      supportsVision: input.supportsVision ?? false,
     })
     .returning();
   return row;
@@ -59,6 +61,7 @@ export async function update(
     baseUrl?: string | null;
     model?: string | null;
     embeddingModel?: string | null;
+    supportsVision?: boolean;
   },
 ) {
   await db

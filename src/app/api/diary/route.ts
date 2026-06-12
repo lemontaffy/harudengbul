@@ -3,6 +3,7 @@ import { getCurrentUser } from "@/lib/currentUser";
 import { getLlmConfig } from "@/lib/config";
 import { buildContext, buildSystemPrompt, type Role } from "@/lib/persona";
 import { completeChat, type ChatMessage } from "@/lib/llm";
+import { readDiaryPhotoDataUrl } from "@/lib/diaryPhotos";
 import * as diaryRepo from "@/db/repo/diary";
 import * as settingsRepo from "@/db/repo/settings";
 import * as personasRepo from "@/db/repo/personas";
@@ -83,7 +84,7 @@ export async function POST(req: Request) {
   const entry = await diaryRepo.upsertEntry(user.id, date, patch);
   if (d.items) await diaryRepo.setItems(user.id, entry.id, d.items);
 
-  // 2) 담당 상담가가 답장(동기). 본문 없거나 LLM 미설정이면 답장 없이 저장만.
+  // 2) 담당 상담가가 답장(동기). 본문/사진 없거나 LLM 미설정이면 답장 없이 저장만.
   let reply: string | null = null;
   let replyPersona: string | null = null;
   const hasBody = !!d.body?.trim();
@@ -93,7 +94,15 @@ export async function POST(req: Request) {
     ? await personasRepo.getOne(user.id, counselorId)
     : null;
 
-  if (hasBody && conn.configured && persona && persona.isActive) {
+  // 비전 모델일 때만 사진을 실제로 읽어 첨부한다(아니면 사진은 무시 → 답장에 미반영).
+  const photoDataUrl =
+    conn.supportsVision && entry.photoPath
+      ? await readDiaryPhotoDataUrl(entry.photoPath)
+      : null;
+  // 사진 한 장만 남긴 날도(비전이면) 코멘트가 성립한다.
+  const shouldReply = hasBody || !!photoDataUrl;
+
+  if (shouldReply && conn.configured && persona && persona.isActive) {
     try {
       const ctx = await buildContext(user.id, d.body); // 일기 본문으로 의미 기억 회수
       const itemsText = (d.items ?? []).length
@@ -107,13 +116,26 @@ export async function POST(req: Request) {
             .join("\n")
         : "(없음)";
       const condForReply = d.bodyCondition ?? entry.bodyCondition;
+      const photoLine = photoDataUrl
+        ? "오늘 일기에 사진도 한 장 첨부했어. 아래 이미지를 보고 느낀 걸 답장에 자연스럽게 녹여줘(사진을 길게 묘사하진 말고).\n"
+        : entry.photoPath
+          ? "오늘은 사진도 한 장 남겼어(내용은 안 보여줘도 돼).\n"
+          : "";
+      const diaryBlock = hasBody ? `\n[일기]\n${d.body!.trim()}\n` : "";
       const userTurn =
         `오늘 일기를 썼어.\n기분: ${d.mood ? MOOD_LABEL[d.mood] : "(미기록)"}\n` +
         `컨디션: ${condForReply ? CONDITION_LABEL[condForReply] : "(미기록)"}\n` +
-        (entry.photoPath ? "오늘은 사진도 한 장 남겼어(내용은 안 보여줘도 돼).\n" : "") +
-        `오늘 한 일:\n${itemsText}\n\n[일기]\n${d.body!.trim()}\n\n` +
-        `— 위 일기에 1~5문장으로 따뜻하게, 상담가로서 답장해줘. ` +
+        photoLine +
+        `오늘 한 일:\n${itemsText}\n` +
+        diaryBlock +
+        `\n— 위 기록${photoDataUrl ? "과 사진" : ""}에 1~5문장으로 따뜻하게, 상담가로서 답장해줘. ` +
         `몸이 안 좋은 날(아픔/피곤)이면 기분이 낮은 걸 너무 무겁게 받지 않도록 부드럽게 짚어줘.`;
+      const userContent: ChatMessage["content"] = photoDataUrl
+        ? [
+            { type: "text", text: userTurn },
+            { type: "image_url", image_url: { url: photoDataUrl } },
+          ]
+        : userTurn;
       const messages: ChatMessage[] = [
         {
           role: "system",
@@ -122,7 +144,7 @@ export async function POST(req: Request) {
             ctx,
           ),
         },
-        { role: "user", content: userTurn },
+        { role: "user", content: userContent },
       ];
       reply = (await completeChat(conn, messages, req.signal)).trim() || null;
       if (reply) {
@@ -141,6 +163,6 @@ export async function POST(req: Request) {
     entry: { ...entry, items, aiReply: reply ?? entry.aiReply, aiPersona: replyPersona ?? entry.aiPersona },
     reply,
     replyPersona,
-    replyUnavailable: hasBody && !reply,
+    replyUnavailable: shouldReply && !reply,
   });
 }

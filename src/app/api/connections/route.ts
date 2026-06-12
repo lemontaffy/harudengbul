@@ -21,6 +21,7 @@ function publicConn(c: connectionsRepo.ConnectionRow) {
     baseUrl: c.baseUrl ?? "",
     model: c.model ?? "",
     embeddingModel: c.embeddingModel ?? "",
+    supportsVision: c.supportsVision ?? false,
     hasKey: !!key,
     keyMasked: maskApiKey(key),
   };
@@ -45,6 +46,7 @@ const createSchema = z.object({
   apiKey: z.string().optional(),
   model: z.string().optional(),
   embeddingModel: z.string().optional(),
+  supportsVision: z.boolean().optional(),
 });
 
 export async function POST(req: Request) {
@@ -62,6 +64,7 @@ export async function POST(req: Request) {
     baseUrl: d.baseUrl?.trim() || null,
     model: d.model?.trim() || null,
     embeddingModel: d.embeddingModel?.trim() || null,
+    supportsVision: d.supportsVision ?? false,
   });
   // 첫 연결이면 메인으로.
   if (first) await settingsRepo.updateByUser(user.id, { activeConnectionId: row.id });
