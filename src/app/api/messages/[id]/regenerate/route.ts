@@ -1,7 +1,8 @@
 import { getCurrentUser } from "@/lib/currentUser";
 import { getLlmConfig } from "@/lib/config";
 import { buildContext, buildSystemPrompt, type Role } from "@/lib/persona";
-import { type LlmMessage } from "@/lib/llm";
+import { type ChatMessage, type LlmMessage } from "@/lib/llm";
+import { toLlmHistory } from "@/lib/chatHistory";
 import { toolsForRoles } from "@/lib/tools";
 import { runAssistantStream } from "@/lib/assistant";
 import * as messagesRepo from "@/db/repo/messages";
@@ -47,15 +48,13 @@ export async function POST(
   const lastUser = [...history].reverse().find((m) => m.role === "user")?.content;
   const ctx = await buildContext(user.id, lastUser);
   const roles = persona.roles as Role[];
-  const llmMessages: LlmMessage[] = [
+  const llmHistory = await toLlmHistory(user.id, history, conn.supportsVision);
+  const llmMessages: (LlmMessage | ChatMessage)[] = [
     {
       role: "system",
       content: buildSystemPrompt({ name: persona.name, roles, traits: persona.traits }, ctx),
     },
-    ...history.map((m) => ({
-      role: m.role === "user" ? ("user" as const) : ("assistant" as const),
-      content: m.content,
-    })),
+    ...llmHistory,
   ];
   const tools = toolsForRoles(roles, ctx.handoffEnabled !== false);
   const personaId = msg.personaId;

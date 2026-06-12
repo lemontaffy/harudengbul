@@ -1,6 +1,7 @@
 "use client";
 
 import { Fragment, useEffect, useRef, useState, useCallback } from "react";
+import { ImagePlus } from "lucide-react";
 import ConnectionSwitcher from "@/components/ConnectionSwitcher";
 
 type Role = "counselor" | "secretary" | "nutritionist" | "study_mate" | "friend";
@@ -15,6 +16,7 @@ interface Msg {
   role: "user" | "assistant" | "proactive";
   content: string;
   hadToolCall?: boolean;
+  attachmentPath?: string | null;
   createdAt?: string;
 }
 
@@ -51,10 +53,12 @@ export default function ChatView({
   persona,
   userAvatarPath,
   configured,
+  supportsVision,
 }: {
   persona: ChatPersona;
   userAvatarPath: string | null;
   configured: boolean;
+  supportsVision: boolean;
 }) {
   const personaId = persona.id;
   const current = persona;
@@ -64,7 +68,36 @@ export default function ChatView({
   const [input, setInput] = useState("");
   const [streaming, setStreaming] = useState(false);
   const [menuFor, setMenuFor] = useState<number | null>(null);
+  const [pendingPhoto, setPendingPhoto] = useState<string | null>(null);
+  const [uploadingPhoto, setUploadingPhoto] = useState(false);
+  const [toast, setToast] = useState("");
+  const [lightbox, setLightbox] = useState<string | null>(null);
+  const photoRef = useRef<HTMLInputElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
+
+  function showToast(msg: string) {
+    setToast(msg);
+    window.setTimeout(() => setToast(""), 2200);
+  }
+
+  async function onPickPhoto(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+    setUploadingPhoto(true);
+    try {
+      const fd = new FormData();
+      fd.append("photo", file);
+      const res = await fetch("/api/chat/upload", { method: "POST", body: fd });
+      const d = await res.json().catch(() => ({}));
+      if (res.ok) setPendingPhoto(d.path);
+      else showToast(d.error ?? "업로드 실패");
+    } catch {
+      showToast("네트워크 오류");
+    } finally {
+      setUploadingPhoto(false);
+    }
+  }
 
   const scrollToBottom = useCallback(() => {
     requestAnimationFrame(() => {
@@ -134,13 +167,15 @@ export default function ChatView({
 
   async function send() {
     const text = input.trim();
-    if (!text || streaming || !configured || personaId == null) return;
+    const photo = pendingPhoto;
+    if ((!text && !photo) || streaming || !configured || personaId == null) return;
     setInput("");
+    setPendingPhoto(null);
     setMenuFor(null);
     const nowIso = new Date().toISOString();
     setMessages((m) => [
       ...m,
-      { role: "user", content: text, createdAt: nowIso },
+      { role: "user", content: text, attachmentPath: photo, createdAt: nowIso },
       { role: "assistant", content: "", createdAt: nowIso },
     ]);
     setStreaming(true);
@@ -149,7 +184,7 @@ export default function ChatView({
       const res = await fetch("/api/chat", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ personaId, message: text }),
+        body: JSON.stringify({ personaId, message: text, attachmentPath: photo ?? undefined }),
       });
       if (!res.ok || !res.body) {
         const data = await res.json().catch(() => ({}));
@@ -293,11 +328,24 @@ export default function ChatView({
                       <div className="h-6 w-6 shrink-0 rounded-full bg-white/10" />
                     ))}
                   <div
-                    className={`max-w-[78%] whitespace-pre-wrap rounded-2xl px-3 py-2 text-sm ${
+                    className={`max-w-[78%] overflow-hidden rounded-2xl text-sm ${
                       mine ? "bg-accent text-black" : "bg-surface ring-1 ring-white/10"
                     }`}
                   >
-                    {m.content || (streaming && !mine ? "…" : "")}
+                    {m.attachmentPath && (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img
+                        src={m.attachmentPath}
+                        alt="첨부 사진"
+                        onClick={() => setLightbox(m.attachmentPath!)}
+                        className="max-h-64 w-full cursor-zoom-in object-cover"
+                      />
+                    )}
+                    {(m.content || (streaming && !mine)) && (
+                      <div className="whitespace-pre-wrap px-3 py-2">
+                        {m.content || (streaming && !mine ? "…" : "")}
+                      </div>
+                    )}
                   </div>
                   {canMenu && (
                     <button
@@ -356,24 +404,65 @@ export default function ChatView({
 
       {/* 입력 */}
       {configured ? (
-        <div className="flex items-end gap-2 border-t border-white/10 pt-2 pb-[env(safe-area-inset-bottom)]">
-          {/* 메인 연결 전환 — 입력줄 왼쪽 컴팩트 버튼(streaming 중 비활성). 텍스트는 유지. */}
-          <ConnectionSwitcher disabled={streaming} />
-          <textarea
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            onKeyDown={onKeyDown}
-            rows={1}
-            placeholder="메시지…"
-            className="max-h-32 flex-1 resize-none rounded-xl bg-surface px-3 py-2 text-sm outline-none ring-1 ring-white/10 focus:ring-accent"
-          />
-          <button
-            onClick={send}
-            disabled={streaming || !input.trim()}
-            className="rounded-xl bg-accent px-4 py-2 text-sm font-medium text-black disabled:opacity-40"
-          >
-            {streaming ? "…" : "전송"}
-          </button>
+        <div className="border-t border-white/10 pt-2 pb-[env(safe-area-inset-bottom)]">
+          {/* 선택한 사진 미리보기(제거 가능) */}
+          {pendingPhoto && (
+            <div className="mb-2 inline-block relative">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={pendingPhoto} alt="" className="h-16 w-16 rounded-lg object-cover ring-1 ring-white/15" />
+              <button
+                type="button"
+                onClick={() => setPendingPhoto(null)}
+                aria-label="사진 제거"
+                className="absolute -right-1.5 -top-1.5 grid h-5 w-5 place-items-center rounded-full bg-black/75 text-xs text-white ring-1 ring-white/25"
+              >
+                ×
+              </button>
+            </div>
+          )}
+          <div className="flex items-end gap-2">
+            {/* 메인 연결 전환 — streaming 중 비활성. 입력 텍스트는 유지. */}
+            <ConnectionSwitcher disabled={streaming} />
+            {/* 사진 — 비전 연결일 때만 활성(아니면 탭 시 토스트) */}
+            <button
+              type="button"
+              disabled={streaming || uploadingPhoto}
+              onClick={() => {
+                if (!supportsVision) {
+                  showToast("이 연결은 사진을 볼 수 없어요");
+                  return;
+                }
+                photoRef.current?.click();
+              }}
+              aria-label="사진 첨부"
+              title={supportsVision ? "사진 첨부" : "이 연결은 사진을 볼 수 없어요"}
+              className={`grid h-9 w-9 shrink-0 place-items-center rounded-full ring-1 ring-white/15 disabled:opacity-40 ${supportsVision ? "" : "opacity-40"}`}
+            >
+              <ImagePlus size={18} />
+            </button>
+            <input
+              ref={photoRef}
+              type="file"
+              accept="image/png,image/jpeg,image/webp"
+              className="hidden"
+              onChange={onPickPhoto}
+            />
+            <textarea
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              onKeyDown={onKeyDown}
+              rows={1}
+              placeholder={uploadingPhoto ? "사진 올리는 중…" : "메시지…"}
+              className="max-h-32 flex-1 resize-none rounded-xl bg-surface px-3 py-2 text-sm outline-none ring-1 ring-white/10 focus:ring-accent"
+            />
+            <button
+              onClick={send}
+              disabled={streaming || (!input.trim() && !pendingPhoto)}
+              className="rounded-xl bg-accent px-4 py-2 text-sm font-medium text-black disabled:opacity-40"
+            >
+              {streaming ? "…" : "전송"}
+            </button>
+          </div>
         </div>
       ) : (
         <div className="mt-2 rounded-xl bg-surface p-3 text-center text-xs opacity-70">
@@ -382,6 +471,23 @@ export default function ChatView({
             설정 → AI 연결
           </a>
           을 입력하세요.
+        </div>
+      )}
+
+      {/* 토스트 */}
+      {toast && (
+        <div className="pointer-events-none fixed inset-x-0 bottom-28 z-50 mx-auto w-fit rounded-full bg-black/80 px-4 py-2 text-xs text-white shadow-lg">
+          {toast}
+        </div>
+      )}
+      {/* 확대 보기 */}
+      {lightbox && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 p-4"
+          onClick={() => setLightbox(null)}
+        >
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={lightbox} alt="" className="max-h-full max-w-full object-contain" />
         </div>
       )}
     </div>

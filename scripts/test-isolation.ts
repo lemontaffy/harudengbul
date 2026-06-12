@@ -122,6 +122,15 @@ async function main() {
   );
   check("A user 메시지 여전히 존재", !!(await messagesRepo.getOne(A.id, aUser.id)));
 
+  // ── 첨부 사진 서빙 화이트리스트: userId 스코프(교차 유저 차단) ──
+  const A_UPLOAD = `/api/uploads/${A.id}/secret-photo.jpg`;
+  await messagesRepo.add(A.id, aSecretary.id, "user", "사진", false, A_UPLOAD);
+  check("A 본인은 자기 첨부 경로 서빙 허용", await messagesRepo.attachmentPathExists(A_UPLOAD, A.id));
+  check(
+    "B는 A 첨부 경로 서빙 불가(교차 유저 차단)",
+    (await messagesRepo.attachmentPathExists(A_UPLOAD, B.id)) === false,
+  );
+
   // ── 과거 대화 검색: 교차 유저 격리 ──
   await messagesRepo.add(A.id, aSecretary.id, "user", "A만의 검색키워드 SEARCHSECRET_A 회사 얘기");
   const bSearchOfA = await messagesRepo.searchMessages(B.id, "SEARCHSECRET_A");

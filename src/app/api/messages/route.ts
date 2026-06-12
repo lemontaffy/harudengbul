@@ -34,6 +34,7 @@ export async function GET(req: Request) {
       role: m.role,
       content: m.content,
       hadToolCall: m.hadToolCall,
+      attachmentPath: m.attachmentPath,
       createdAt: m.createdAt,
     })),
     hasMore,

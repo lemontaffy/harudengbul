@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { getCurrentUser } from "@/lib/currentUser";
-import { getLlmConfig } from "@/lib/config";
+import { getLlmConfig, pickVisionConn } from "@/lib/config";
+import { captionImage } from "@/lib/caption";
 import { buildContext, buildSystemPrompt, type Role } from "@/lib/persona";
 import { completeChat, type ChatMessage } from "@/lib/llm";
 import { readDiaryPhotoDataUrl } from "@/lib/diaryPhotos";
@@ -94,13 +95,20 @@ export async function POST(req: Request) {
     ? await personasRepo.getOne(user.id, counselorId)
     : null;
 
-  // 비전 모델일 때만 사진을 실제로 읽어 첨부한다(아니면 사진은 무시 → 답장에 미반영).
+  // 메인이 비전이면 사진을 직접 첨부, 아니면 보조 비전 연결(pickVisionConn)로 캡션해 인식.
+  //   사진 인식 연결 선택은 채팅 캡션과 동일 경로(코드 두 벌 금지).
   const photoDataUrl =
     conn.supportsVision && entry.photoPath
       ? await readDiaryPhotoDataUrl(entry.photoPath)
       : null;
-  // 사진 한 장만 남긴 날도(비전이면) 코멘트가 성립한다.
-  const shouldReply = hasBody || !!photoDataUrl;
+  let photoCaption: string | null = null;
+  if (!photoDataUrl && entry.photoPath) {
+    const vc = await pickVisionConn(user.id);
+    const durl = vc ? await readDiaryPhotoDataUrl(entry.photoPath) : null;
+    if (vc && durl) photoCaption = await captionImage(vc, durl);
+  }
+  // 사진 한 장만 남긴 날도(비전이거나 캡션이 있으면) 코멘트가 성립한다.
+  const shouldReply = hasBody || !!photoDataUrl || !!photoCaption;
 
   if (shouldReply && conn.configured && persona && persona.isActive) {
     try {
@@ -118,9 +126,11 @@ export async function POST(req: Request) {
       const condForReply = d.bodyCondition ?? entry.bodyCondition;
       const photoLine = photoDataUrl
         ? "오늘 일기에 사진도 한 장 첨부했어. 아래 이미지를 보고 느낀 걸 답장에 자연스럽게 녹여줘(사진을 길게 묘사하진 말고).\n"
-        : entry.photoPath
-          ? "오늘은 사진도 한 장 남겼어(내용은 안 보여줘도 돼).\n"
-          : "";
+        : photoCaption
+          ? `오늘은 사진도 한 장 남겼어. [사진: ${photoCaption}]\n`
+          : entry.photoPath
+            ? "오늘은 사진도 한 장 남겼어(내용은 안 보여줘도 돼).\n"
+            : "";
       const diaryBlock = hasBody ? `\n[일기]\n${d.body!.trim()}\n` : "";
       const userTurn =
         `오늘 일기를 썼어.\n기분: ${d.mood ? MOOD_LABEL[d.mood] : "(미기록)"}\n` +

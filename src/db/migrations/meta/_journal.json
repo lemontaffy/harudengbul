@@ -141,6 +141,13 @@
       "when": 1781240800000,
       "tag": "0019_persona_roles_array",
       "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1781252943550,
+      "tag": "0020_chat_photos",
+      "breakpoints": true
     }
   ]
 }

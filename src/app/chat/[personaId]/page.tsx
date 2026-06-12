@@ -51,6 +51,7 @@ export default async function ChatRoomPage({
           }}
           userAvatarPath={s?.userAvatarPath ?? null}
           configured={llm.configured}
+          supportsVision={llm.supportsVision}
         />
       </div>
     </main>

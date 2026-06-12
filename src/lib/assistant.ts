@@ -1,5 +1,5 @@
 import type { LlmConfig } from "@/lib/config";
-import { streamCompletion, type LlmMessage } from "@/lib/llm";
+import { streamCompletion, type ChatMessage, type LlmMessage } from "@/lib/llm";
 import { executeTool, type ToolDef } from "@/lib/tools";
 
 /**
@@ -9,7 +9,7 @@ import { executeTool, type ToolDef } from "@/lib/tools";
  */
 export function runAssistantStream(opts: {
   conn: LlmConfig;
-  llmMessages: LlmMessage[];
+  llmMessages: (LlmMessage | ChatMessage)[];
   tools?: ToolDef[];
   userId: number;
   personaId: number;

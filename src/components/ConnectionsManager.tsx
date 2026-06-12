@@ -52,6 +52,7 @@ const EMPTY = {
 export default function ConnectionsManager() {
   const [conns, setConns] = useState<Conn[]>([]);
   const [activeId, setActiveId] = useState<number | null>(null);
+  const [auxId, setAuxId] = useState<number | null>(null);
   const [editing, setEditing] = useState<number | "new" | null>(null);
   const [form, setForm] = useState({ ...EMPTY });
   const [keyView, setKeyView] = useState<{ has: boolean; masked: string }>({ has: false, masked: "" });
@@ -69,11 +70,21 @@ export default function ConnectionsManager() {
       const d = await res.json();
       setConns(d.connections);
       setActiveId(d.activeId);
+      setAuxId(d.auxId ?? null);
     }
   }, []);
   useEffect(() => {
     load();
   }, [load]);
+
+  async function setAux(id: number | null) {
+    setAuxId(id);
+    await fetch("/api/settings", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ auxConnectionId: id }),
+    });
+  }
 
   function openNew() {
     setEditing("new");
@@ -378,6 +389,30 @@ export default function ConnectionsManager() {
             </li>
           ))}
         </ul>
+      )}
+
+      {/* 보조 모델 — 배경 작업(사진 캡션 등) 전용 */}
+      {conns.length > 0 && editing === null && (
+        <div className="mt-5 border-t border-white/10 pt-4">
+          <h3 className="mb-1 text-sm font-semibold">보조 모델</h3>
+          <p className="mb-2 text-[11px] opacity-50">
+            사진 캡션 등 배경 작업에 쓰는 연결. 대화에는 안 나서요. 비전 지원 연결을 고르면
+            사진 인식이 그 연결로 처리돼요.
+          </p>
+          <select
+            value={auxId ?? ""}
+            onChange={(e) => setAux(e.target.value ? Number(e.target.value) : null)}
+            className="w-full rounded-lg bg-bg px-3 py-2 text-sm outline-none ring-1 ring-white/10 focus:ring-accent"
+          >
+            <option value="">없음 (비전 지원 연결 중 자동 선택)</option>
+            {conns.map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.name}
+                {c.supportsVision ? " · 비전" : ""}
+              </option>
+            ))}
+          </select>
+        </div>
       )}
     </section>
   );

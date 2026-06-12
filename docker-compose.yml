@@ -42,6 +42,7 @@ services:
       - NODE_ENV=production
       - AVATARS_DIR=/data/avatars
       - DIARY_PHOTOS_DIR=/data/diary-photos
+      - UPLOADS_DIR=/data/uploads
       # 웹검색(영양사·스터디) — 내부 SearxNG. 다운돼도 대화는 graceful 처리.
       - SEARXNG_URL=http://searxng:8080
     volumes:
@@ -50,6 +51,8 @@ services:
       - ./data/avatars:/data/avatars
       # 일기 사진(한 줄+사진 모드) 영속 저장.
       - ./data/diary-photos:/data/diary-photos
+      # 채팅 첨부 사진 영속 저장.
+      - ./data/uploads:/data/uploads
     ports:
       # 터널(cloudflared, host systemd)만 접근. 인터넷 직접 노출 없음.
       - "127.0.0.1:3000:3000"

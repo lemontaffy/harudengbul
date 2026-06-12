@@ -113,6 +113,11 @@ export const settings = pgTable("settings", {
     () => llmConnections.id,
     { onDelete: "set null" },
   ),
+  // 보조 모델 — 사진 캡션 등 배경 작업용 연결(대화엔 안 나섬). 연결 삭제 시 set null.
+  auxConnectionId: bigint("aux_connection_id", { mode: "number" }).references(
+    () => llmConnections.id,
+    { onDelete: "set null" },
+  ),
   // [레거시] 단일 연결 컬럼 — 다중 연결(llm_connections)로 이관됨. 폴백/하위호환용 유지.
   llmApiKey: text("llm_api_key"),
   llmBaseUrl: text("llm_base_url"),
@@ -185,6 +190,10 @@ export const messages = pgTable(
     content: text("content").notNull(),
     // 응답 생성 중 도구(add_event 등)를 실제로 호출했는지 — 재생성 차단/삭제 경고용.
     hadToolCall: boolean("had_tool_call").notNull().default(false),
+    // 첨부 이미지(v1: 메시지당 1장). caption = 비전 보조모델이 1회 생성한 텍스트 묘사.
+    //   비전 미지원 연결로 전환해도 caption 으로 대화가 이어진다.
+    attachmentPath: text("attachment_path"),
+    attachmentCaption: text("attachment_caption"),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
   },
   (t) => [

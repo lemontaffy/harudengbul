@@ -37,6 +37,7 @@ export async function GET() {
   return Response.json({
     connections: rows.map(publicConn),
     activeId: s?.activeConnectionId ?? null,
+    auxId: s?.auxConnectionId ?? null,
   });
 }
 

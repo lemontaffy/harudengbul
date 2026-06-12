@@ -6,6 +6,7 @@ import { latLonToGrid } from "@/lib/weather";
 import type { Role } from "@/lib/persona";
 import * as settingsRepo from "@/db/repo/settings";
 import * as personasRepo from "@/db/repo/personas";
+import * as connectionsRepo from "@/db/repo/connections";
 import type { settings as settingsTable } from "@/db/schema";
 
 type SettingsPatch = Partial<typeof settingsTable.$inferInsert>;
@@ -41,6 +42,8 @@ const bodySchema = z.object({
   // 일기 리마인드
   diaryReminderEnabled: z.boolean().optional(),
   diaryReminderTime: z.string().regex(timeRe).optional(),
+  // 보조 모델(사진 캡션 등 배경 작업) — 연결 id 또는 null(없음).
+  auxConnectionId: z.number().int().nullable().optional(),
 });
 
 async function snapshot(userId: number) {
@@ -113,6 +116,17 @@ export async function POST(req: Request) {
 
   if (typeof d.nickname === "string") set.nickname = d.nickname.trim() || null;
   if (typeof d.about === "string") set.about = d.about.trim() || null;
+
+  // 보조 모델 연결: null=해제, 숫자=본인 소유 연결만.
+  if (d.auxConnectionId !== undefined) {
+    if (d.auxConnectionId === null) {
+      set.auxConnectionId = null;
+    } else {
+      const c = await connectionsRepo.getOne(user.id, d.auxConnectionId);
+      if (!c) return Response.json({ error: "없는 연결" }, { status: 400 });
+      set.auxConnectionId = d.auxConnectionId;
+    }
+  }
 
   // 위치: 좌표가 둘 다 오면 격자(nx/ny) 도출해 함께 저장(numeric 컬럼 → 문자열).
   if (typeof d.locationLat === "number" && typeof d.locationLon === "number") {

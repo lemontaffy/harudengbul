@@ -19,12 +19,34 @@ export async function add(
   role: MsgRole,
   content: string,
   hadToolCall = false,
+  attachmentPath: string | null = null,
 ) {
   const [row] = await db
     .insert(messages)
-    .values({ userId, personaId, role, content, hadToolCall })
+    .values({ userId, personaId, role, content, hadToolCall, attachmentPath })
     .returning();
   return row;
+}
+
+/** 첨부 사진 캡션 1회 저장(보조 모델이 생성). 소유 스코프. */
+export async function setCaption(userId: number, id: number, caption: string) {
+  await db
+    .update(messages)
+    .set({ attachmentCaption: caption })
+    .where(and(eq(messages.id, id), eq(messages.userId, userId)));
+}
+
+/** 첨부 서빙 화이트리스트 — 본인(userId) 메시지에 등록된 attachment_path 인지(교차 유저 차단). */
+export async function attachmentPathExists(
+  url: string,
+  userId: number,
+): Promise<boolean> {
+  const [r] = await db
+    .select({ id: messages.id })
+    .from(messages)
+    .where(and(eq(messages.attachmentPath, url), eq(messages.userId, userId)))
+    .limit(1);
+  return !!r;
 }
 
 /** 본인 소유 단건 조회(소유 검증). */
@@ -93,7 +115,13 @@ export async function listForPromptThrough(
   limit = 20,
 ) {
   const rows = await db
-    .select({ role: messages.role, content: messages.content })
+    .select({
+      id: messages.id,
+      role: messages.role,
+      content: messages.content,
+      attachmentPath: messages.attachmentPath,
+      attachmentCaption: messages.attachmentCaption,
+    })
     .from(messages)
     .where(
       and(
@@ -270,7 +298,13 @@ export async function listForPrompt(
   limit = 20,
 ) {
   const rows = await db
-    .select({ role: messages.role, content: messages.content })
+    .select({
+      id: messages.id,
+      role: messages.role,
+      content: messages.content,
+      attachmentPath: messages.attachmentPath,
+      attachmentCaption: messages.attachmentCaption,
+    })
     .from(messages)
     .where(and(eq(messages.userId, userId), eq(messages.personaId, personaId)))
     .orderBy(desc(messages.createdAt))

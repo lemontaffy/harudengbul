@@ -2,7 +2,9 @@ import { z } from "zod";
 import { getCurrentUser } from "@/lib/currentUser";
 import { getLlmConfig } from "@/lib/config";
 import { buildContext, buildSystemPrompt, type Role } from "@/lib/persona";
-import { type LlmMessage } from "@/lib/llm";
+import { type ChatMessage, type LlmMessage } from "@/lib/llm";
+import { toLlmHistory } from "@/lib/chatHistory";
+import { captionMessage } from "@/lib/caption";
 import { toolsForRoles } from "@/lib/tools";
 import { runAssistantStream } from "@/lib/assistant";
 import * as messagesRepo from "@/db/repo/messages";
@@ -14,8 +16,9 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 const bodySchema = z.object({
-  message: z.string().min(1).max(8000),
+  message: z.string().max(8000).optional(),
   personaId: z.number().int().optional(),
+  attachmentPath: z.string().max(300).optional(),
 });
 
 export async function POST(req: Request) {
@@ -26,6 +29,15 @@ export async function POST(req: Request) {
   const parsed = bodySchema.safeParse(body);
   if (!parsed.success) {
     return Response.json({ error: "잘못된 입력" }, { status: 400 });
+  }
+  const text = parsed.data.message?.trim() ?? "";
+  // 본인 업로드 경로만 허용(/api/uploads/{userId}/...). 타인 경로 주입 차단.
+  const attach =
+    parsed.data.attachmentPath?.startsWith(`/api/uploads/${user.id}/`)
+      ? parsed.data.attachmentPath
+      : null;
+  if (!text && !attach) {
+    return Response.json({ error: "메시지나 사진이 필요해요." }, { status: 400 });
   }
 
   const conn = await getLlmConfig(user.id);
@@ -58,17 +70,26 @@ export async function POST(req: Request) {
     );
   }
 
-  // 사용자 메시지 먼저 저장
-  await messagesRepo.add(user.id, persona.id, "user", parsed.data.message);
+  // 사용자 메시지 먼저 저장(첨부 포함). 캡션은 전송을 막지 않게 비동기로.
+  const userMsg = await messagesRepo.add(
+    user.id,
+    persona.id,
+    "user",
+    text,
+    false,
+    attach,
+  );
+  if (attach) void captionMessage(user.id, userMsg.id); // fire-and-forget(① aux ② 첫 비전 ③ 보류)
 
   // 시스템 프롬프트(3층) + 최근 히스토리(방금 저장한 user 포함).
   // 캐릭터(name/role/traits)는 반드시 "본인" 것만 주입(DELTA §5).
   const [ctx, history] = await Promise.all([
-    buildContext(user.id, parsed.data.message), // 최근 메시지로 의미 기억 회수
+    buildContext(user.id, text), // 최근 메시지로 의미 기억 회수
     messagesRepo.listForPrompt(user.id, persona.id, 20),
   ]);
   const roles = persona.roles as Role[];
-  const llmMessages: LlmMessage[] = [
+  const llmHistory = await toLlmHistory(user.id, history, conn.supportsVision);
+  const llmMessages: (LlmMessage | ChatMessage)[] = [
     {
       role: "system",
       content: buildSystemPrompt(
@@ -76,10 +97,7 @@ export async function POST(req: Request) {
         ctx,
       ),
     },
-    ...history.map((m) => ({
-      role: m.role === "user" ? ("user" as const) : ("assistant" as const),
-      content: m.content,
-    })),
+    ...llmHistory,
   ];
   // 역할 합집합 도구: 비서 포함=등록 도구, 비서 외=핸드오프(설정 켜졌을 때만, SPEC §3·6).
   const tools = toolsForRoles(roles, ctx.handoffEnabled !== false);
