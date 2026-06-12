@@ -97,9 +97,20 @@ export async function saveSprite(
   }
 
   const dir = path.join(SPRITES_DIR, String(userId));
-  await fs.mkdir(dir, { recursive: true });
   const filename = `${randomUUID()}.${ext}`;
-  await fs.writeFile(path.join(dir, filename), buf); // 원본 그대로
+  try {
+    await fs.mkdir(dir, { recursive: true });
+    await fs.writeFile(path.join(dir, filename), buf); // 원본 그대로
+  } catch (err) {
+    const code = (err as NodeJS.ErrnoException)?.code;
+    console.error(`[sprite] 저장 실패 ${SPRITES_DIR} (${code}):`, (err as Error)?.message);
+    if (code === "EACCES" || code === "EPERM") {
+      throw new SpriteError(
+        "저장 폴더에 쓸 수 없어요(서버 권한). data/sprites 디렉터리 쓰기 권한을 확인하세요.",
+      );
+    }
+    throw new SpriteError("이미지를 저장하지 못했어요. 잠시 후 다시 시도해 주세요.");
+  }
   return { path: `/api/pet-sprites/${userId}/${filename}`, warning };
 }
 

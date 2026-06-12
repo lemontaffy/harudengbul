@@ -148,11 +148,23 @@ export default function RoomView({
     window.addEventListener("pointerup", up);
   }
 
+  const [bgMsg, setBgMsg] = useState("");
   async function uploadBg(file: File) {
-    const fd = new FormData();
-    fd.append("background", file);
-    const res = await fetch(`/api/pet-rooms/${room.id}/background`, { method: "POST", body: fd });
-    if (res.ok) router.refresh();
+    setBgMsg("올리는 중…");
+    try {
+      const fd = new FormData();
+      fd.append("background", file);
+      const res = await fetch(`/api/pet-rooms/${room.id}/background`, { method: "POST", body: fd });
+      const j = await res.json().catch(() => ({}));
+      if (res.ok) {
+        setBgMsg(j.warning ?? "");
+        router.refresh();
+      } else {
+        setBgMsg(j.error ?? "배경 업로드 실패");
+      }
+    } catch {
+      setBgMsg("네트워크 오류");
+    }
   }
 
   const pixel = (on: boolean) => (on ? ({ imageRendering: "pixelated" } as const) : {});
@@ -229,6 +241,7 @@ export default function RoomView({
           />
         </label>
         <span className="opacity-40">펫을 끌어 배치 · 탭하면 반응</span>
+        {bgMsg && <span className="text-accent">{bgMsg}</span>}
       </div>
 
       {/* 펫 목록(편집 진입) */}
