@@ -13,7 +13,14 @@ import * as diaryRepo from "../src/db/repo/diary";
 import * as memoriesRepo from "../src/db/repo/memories";
 import * as handoffsRepo from "../src/db/repo/handoffs";
 import * as googleRepo from "../src/db/repo/google";
+import * as capsulesRepo from "../src/db/repo/timeCapsules";
 import * as usageRepo from "../src/db/repo/usage";
+import {
+  composeDelivery,
+  fallbackIntro,
+  introInstruction,
+  resolveDeliveryPersona,
+} from "../src/lib/timecapsule";
 import { runBackup } from "../src/lib/backup";
 import { googleConfigured } from "../src/lib/google";
 import { syncUser } from "../src/lib/googlesync";
@@ -140,9 +147,80 @@ async function sendProactive(
   log(`  proactive ${trigger} → user#${userId} persona#${personaId} (push ${sent})`);
 }
 
+/**
+ * 도착일이 된 타임캡슐 배달(전 사용자, proactive 토글과 무관 — 사용자가 명시적으로 봉인한 약속).
+ * 인트로만 페르소나가 생성하고 본문은 원문 그대로 결합(LLM에 본문 미전달). 원자적 청구로 중복 방지.
+ */
+async function deliverDueCapsules() {
+  let due;
+  try {
+    due = await capsulesRepo.listAllDue();
+  } catch (err) {
+    log(`capsule listDue 오류: ${(err as Error)?.message}`);
+    return;
+  }
+  for (const cap of due) {
+    try {
+      // 배달 캐릭터: 지정(활성) → 비서 폴백 → 아무 활성 캐릭터. 활성 캐릭터 없으면 보류.
+      const actives = await personasRepo.listActiveByUser(cap.userId);
+      const persona = resolveDeliveryPersona(actives, cap.personaId);
+      if (!persona) continue;
+
+      // 원자적 청구 — 중복 배달 방지(다른 틱이 이미 가져갔으면 skip).
+      const claimed = await capsulesRepo.claimDelivery(cap.id);
+      if (!claimed) continue;
+
+      const createdLabel = new Date(cap.createdAt ?? new Date()).toLocaleDateString("ko-KR", {
+        timeZone: "Asia/Seoul",
+        year: "numeric",
+        month: "long",
+        day: "numeric",
+      });
+
+      // 인트로만 생성(LLM). 본문은 절대 LLM에 주지 않는다 — 실패/미설정이면 폴백 인트로.
+      let intro = fallbackIntro(createdLabel);
+      const conn = await getLlmConfig(cap.userId);
+      if (conn.configured) {
+        try {
+          const ctx = await buildContext(cap.userId);
+          const out = (
+            await completeChat(conn, [
+              {
+                role: "system",
+                content: buildSystemPrompt(
+                  { name: persona.name, roles: persona.roles as Role[], traits: persona.traits },
+                  ctx,
+                ),
+              },
+              { role: "user", content: introInstruction(createdLabel) },
+            ])
+          ).trim();
+          if (out) intro = out;
+        } catch {
+          /* 폴백 인트로 유지 */
+        }
+      }
+
+      const full = composeDelivery(intro, cap.content); // 원문 그대로 결합(코드에서)
+      await messagesRepo.add(cap.userId, persona.id, "proactive", full);
+      const sent = await sendToUser(cap.userId, {
+        title: persona.name?.trim() || "하루등불",
+        body: "📮 타임캡슐이 도착했어요.",
+        url: `/chat/${persona.id}`,
+        tag: `capsule-${cap.id}`,
+      });
+      await usageRepo.log(cap.userId, "proactive");
+      log(`  timecapsule → user#${cap.userId} capsule#${cap.id} persona#${persona.id} (push ${sent})`);
+    } catch (err) {
+      log(`capsule deliver #${cap.id} 오류: ${(err as Error)?.message}`);
+    }
+  }
+}
+
 /** 매 5분 — proactive 켠 사용자별로 아침(비서)/저녁(상담가) 슬롯 도달 시 선제 톡. */
 async function proactiveJob() {
   try {
+    await deliverDueCapsules(); // 타임캡슐 배달(토글 무관)
     const rows = await settingsRepo.listProactiveEnabled();
     for (const s of rows) {
       const tz = s.timezone ?? "Asia/Seoul";

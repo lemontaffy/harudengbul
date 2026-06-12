@@ -306,6 +306,32 @@ export const letters = pgTable(
   (t) => [uniqueIndex("letters_user_week_idx").on(t.userId, t.weekStart)],
 );
 
+// 타임캡슐 — 미래의 나에게 쓰는 편지. 봉인 후 도착일에 배달 캐릭터가 선제 톡으로 전달.
+export const timeCapsules = pgTable(
+  "time_capsules",
+  {
+    id: bigint("id", { mode: "number" })
+      .primaryKey()
+      .generatedAlwaysAsIdentity(),
+    userId: bigint("user_id", { mode: "number" })
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    // 배달 캐릭터. 삭제되면 NULL → 배달 시 비서 역할로 폴백.
+    personaId: bigint("persona_id", { mode: "number" }).references(
+      () => personas.id,
+      { onDelete: "set null" },
+    ),
+    content: text("content").notNull(), // 편지 원문(배달 시 변형 금지)
+    deliverOn: date("deliver_on").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
+    deliveredAt: timestamp("delivered_at", { withTimezone: true }),
+  },
+  (t) => [
+    index("time_capsules_user_idx").on(t.userId),
+    index("time_capsules_due_idx").on(t.deliverOn, t.deliveredAt),
+  ],
+);
+
 // 비상 주머니 — 괜찮은 날의 내가 무너진 날의 나에게 미리 써두는 카드.
 export const pocketCards = pgTable(
   "pocket_cards",

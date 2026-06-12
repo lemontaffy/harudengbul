@@ -155,6 +155,13 @@
       "when": 1781254957234,
       "tag": "0021_theme_customcss",
       "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "7",
+      "when": 1781265621332,
+      "tag": "0022_time_capsule",
+      "breakpoints": true
     }
   ]
 }
