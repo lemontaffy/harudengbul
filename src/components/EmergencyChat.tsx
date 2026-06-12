@@ -59,8 +59,8 @@ export default function EmergencyChat({ counselorName }: { counselorName: string
   }
 
   return (
-    <section className="rounded-2xl bg-surface p-5">
-      <h2 className="text-sm font-semibold">지금 많이 힘들면</h2>
+    <section className="rounded-card bg-surface p-5">
+      <h2 className="font-display text-sm font-semibold">지금 많이 힘들면</h2>
       <p className="mb-3 text-[11px] opacity-50">
         무슨 일이 있었는지 한 줄만 적어도 돼요. {counselorName}이(가) 곁에 있어요.
       </p>
@@ -72,8 +72,8 @@ export default function EmergencyChat({ counselorName }: { counselorName: string
             return (
               <div key={i} className={`flex ${mine ? "justify-end" : "justify-start"}`}>
                 <div
-                  className={`max-w-[85%] whitespace-pre-wrap rounded-2xl px-3 py-2 text-sm ${
-                    mine ? "bg-accent text-black" : "bg-bg ring-1 ring-white/10"
+                  className={`max-w-[85%] whitespace-pre-wrap rounded-card px-3 py-2 text-sm ${
+                    mine ? "bg-accent text-black" : "bg-bg ring-1 ring-border"
                   }`}
                 >
                   {m.content || (busy && !mine ? "…" : "")}
@@ -91,7 +91,7 @@ export default function EmergencyChat({ counselorName }: { counselorName: string
           onKeyDown={onKeyDown}
           rows={2}
           placeholder="예: 또 다 망친 것 같아…"
-          className="max-h-32 flex-1 resize-none rounded-xl bg-bg px-3 py-2 text-sm outline-none ring-1 ring-white/10 focus:ring-accent"
+          className="max-h-32 flex-1 resize-none rounded-xl bg-bg px-3 py-2 text-sm outline-none ring-1 ring-border focus:ring-accent"
         />
         <button
           onClick={send}

@@ -10,7 +10,7 @@ export interface SettingsInitial {
 }
 
 const input =
-  "w-full rounded-lg bg-bg px-3 py-2 text-sm outline-none ring-1 ring-white/10 focus:ring-accent";
+  "w-full rounded-control bg-bg px-3 py-2 text-sm outline-none ring-1 ring-border focus:ring-accent";
 
 export default function SettingsForm({ initial }: { initial: SettingsInitial }) {
   const [proactive, setProactive] = useState(initial.proactiveEnabled);
@@ -45,13 +45,13 @@ export default function SettingsForm({ initial }: { initial: SettingsInitial }) 
   return (
     <div className="flex flex-col gap-6">
       {/* 선제 톡 */}
-      <section className="rounded-2xl bg-surface p-5">
+      <section className="rounded-card bg-surface p-5">
         <div className="mb-4 flex items-center justify-between">
-          <h2 className="text-sm font-semibold">선제 톡</h2>
+          <h2 className="font-display text-sm font-semibold">선제 톡</h2>
           <button
             type="button"
             onClick={() => setProactive((v) => !v)}
-            className={`h-6 w-11 rounded-full transition ${proactive ? "bg-accent" : "bg-white/15"}`}
+            className={`h-6 w-11 rounded-full transition ${proactive ? "bg-accent" : "bg-border"}`}
           >
             <span
               className={`block h-5 w-5 rounded-full bg-white transition ${
@@ -86,13 +86,13 @@ export default function SettingsForm({ initial }: { initial: SettingsInitial }) 
       </section>
 
       {/* 상담→비서 핸드오프 */}
-      <section className="rounded-2xl bg-surface p-5">
+      <section className="rounded-card bg-surface p-5">
         <div className="mb-2 flex items-center justify-between">
-          <h2 className="text-sm font-semibold">상담→비서 전달</h2>
+          <h2 className="font-display text-sm font-semibold">상담→비서 전달</h2>
           <button
             type="button"
             onClick={() => setHandoff((v) => !v)}
-            className={`h-6 w-11 rounded-full transition ${handoff ? "bg-accent" : "bg-white/15"}`}
+            className={`h-6 w-11 rounded-full transition ${handoff ? "bg-accent" : "bg-border"}`}
           >
             <span
               className={`block h-5 w-5 rounded-full bg-white transition ${
@@ -111,7 +111,7 @@ export default function SettingsForm({ initial }: { initial: SettingsInitial }) 
         <button
           onClick={save}
           disabled={saving}
-          className="rounded-lg bg-accent px-5 py-2 text-sm font-medium text-black disabled:opacity-50"
+          className="rounded-control bg-accent px-5 py-2 text-sm font-medium text-black disabled:opacity-50"
         >
           {saving ? "저장 중…" : "저장"}
         </button>

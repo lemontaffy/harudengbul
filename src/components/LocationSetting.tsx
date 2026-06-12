@@ -9,7 +9,7 @@ export interface LocationInitial {
 }
 
 const inputCls =
-  "w-full rounded-lg bg-bg px-3 py-2 text-sm outline-none ring-1 ring-white/10 focus:ring-accent";
+  "w-full rounded-control bg-bg px-3 py-2 text-sm outline-none ring-1 ring-border focus:ring-accent";
 
 export default function LocationSetting({ initial }: { initial: LocationInitial }) {
   const [lat, setLat] = useState(initial.locationLat?.toString() ?? "");
@@ -77,9 +77,9 @@ export default function LocationSetting({ initial }: { initial: LocationInitial 
   }
 
   return (
-    <section className="rounded-2xl bg-surface p-5">
+    <section className="rounded-card bg-surface p-5">
       <div className="mb-1 flex items-center justify-between">
-        <h2 className="text-sm font-semibold">위치(날씨)</h2>
+        <h2 className="font-display text-sm font-semibold">위치(날씨)</h2>
         {status && <span className="text-[11px] opacity-60">{status}</span>}
       </div>
       <p className="mb-4 text-[11px] opacity-50">
@@ -89,7 +89,7 @@ export default function LocationSetting({ initial }: { initial: LocationInitial 
       <button
         onClick={useCurrent}
         disabled={busy}
-        className="mb-3 w-full rounded-lg bg-accent px-4 py-2 text-sm font-medium text-black disabled:opacity-50"
+        className="mb-3 w-full rounded-control bg-accent px-4 py-2 text-sm font-medium text-black disabled:opacity-50"
       >
         {busy ? "처리 중…" : "📍 현재 위치 사용"}
       </button>
@@ -106,7 +106,7 @@ export default function LocationSetting({ initial }: { initial: LocationInitial 
         <button
           onClick={() => save(lat, lon)}
           disabled={busy}
-          className="rounded-lg bg-bg px-4 py-2 text-sm ring-1 ring-white/10 disabled:opacity-50"
+          className="rounded-control bg-bg px-4 py-2 text-sm ring-1 ring-border disabled:opacity-50"
         >
           저장
         </button>

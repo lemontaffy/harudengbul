@@ -83,13 +83,13 @@ export default async function DashboardPage() {
     <main className="mx-auto flex min-h-screen max-w-md flex-col gap-4 p-4">
       {/* 헤더 — 우측에 메인 연결 스위처(현 위치 유지) */}
       <header className="flex items-center justify-between">
-        <h1 className="text-base font-semibold text-accent">하루등불</h1>
+        <h1 className="font-display text-base font-semibold text-accent">하루등불</h1>
         <ConnectionSwitcher />
       </header>
 
       {/* 시계 + 날씨 슬롯 */}
       <div className="flex gap-3">
-        <div className="flex-1 rounded-2xl bg-surface p-4">
+        <div className="flex-1 rounded-card bg-surface p-4">
           <LiveClock />
         </div>
         <WeatherSlot />
@@ -98,13 +98,13 @@ export default async function DashboardPage() {
       {/* 채팅 입구 카드 */}
       <Link
         href="/chat"
-        className="flex items-center gap-3 rounded-2xl bg-surface p-4 ring-1 ring-white/5 hover:ring-accent/40"
+        className="flex items-center gap-3 rounded-card bg-surface p-4 ring-1 ring-border hover:ring-accent"
       >
         {active?.avatarPath ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img src={active.avatarPath} alt="" className="h-11 w-11 rounded-full object-cover" />
         ) : (
-          <div className="h-11 w-11 rounded-full bg-white/10" />
+          <div className="h-11 w-11 rounded-full bg-surface-2" />
         )}
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2">
@@ -128,15 +128,15 @@ export default async function DashboardPage() {
       <HandoffCard initial={handoffs} />
 
       {/* 오늘 일정 미니 */}
-      <section className="rounded-2xl bg-surface p-4">
+      <section className="rounded-card bg-surface p-4">
         <div className="mb-2 flex items-center justify-between">
-          <h2 className="text-sm font-semibold">오늘 일정</h2>
+          <h2 className="font-display text-sm font-semibold">오늘 일정</h2>
           <Link href="/events" className="text-[11px] text-accent">전체 보기</Link>
         </div>
         {todayEvents.length === 0 ? (
           <Link
             href={sec.href}
-            className="flex items-center justify-between text-xs text-accent/90 hover:text-accent"
+            className="flex items-center justify-between text-xs text-accent hover:text-accent"
           >
             <span>
               {sec.exists

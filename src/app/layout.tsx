@@ -1,6 +1,8 @@
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import TabBar from "@/components/TabBar";
+import CustomCss from "@/components/CustomCss";
+import { getAppearance, sanitizeCss } from "@/lib/theme";
 
 export const metadata: Metadata = {
   applicationName: "하루등불",
@@ -22,16 +24,18 @@ export const viewport: Viewport = {
   viewportFit: "cover",
 };
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
+  const { theme, customCss } = await getAppearance();
   return (
-    <html lang="ko">
+    <html lang="ko" data-theme={theme}>
       <body>
         {children}
         <TabBar />
+        <CustomCss css={customCss ? sanitizeCss(customCss) : null} />
       </body>
     </html>
   );

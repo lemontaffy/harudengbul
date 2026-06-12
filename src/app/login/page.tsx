@@ -35,15 +35,15 @@ export default function LoginPage() {
   }
 
   const input =
-    "mb-3 w-full rounded-lg bg-bg px-3 py-2 text-sm outline-none ring-1 ring-white/10 focus:ring-accent";
+    "mb-3 w-full rounded-control bg-bg px-3 py-2 text-sm outline-none ring-1 ring-border focus:ring-accent";
 
   return (
     <main className="flex min-h-screen items-center justify-center p-6">
       <form
         onSubmit={onSubmit}
-        className="w-full max-w-xs rounded-2xl bg-surface p-6 shadow-lg"
+        className="w-full max-w-xs rounded-card bg-surface p-6"
       >
-        <h1 className="mb-1 text-xl font-semibold text-accent">하루등불</h1>
+        <h1 className="font-display mb-1 text-xl font-semibold text-accent">하루등불</h1>
         <p className="mb-5 text-xs opacity-60">로그인</p>
 
         <input
@@ -68,7 +68,7 @@ export default function LoginPage() {
         <button
           type="submit"
           disabled={loading || !username || !password}
-          className="w-full rounded-lg bg-accent py-2 text-sm font-medium text-black disabled:opacity-50"
+          className="w-full rounded-control bg-accent py-2 text-sm font-medium text-black disabled:opacity-50"
         >
           {loading ? "확인 중…" : "로그인"}
         </button>

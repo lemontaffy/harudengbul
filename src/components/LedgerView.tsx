@@ -14,7 +14,7 @@ export interface Tx {
 }
 
 const inputCls =
-  "w-full rounded-lg bg-bg px-3 py-2 text-sm outline-none ring-1 ring-white/10 focus:ring-accent";
+  "w-full rounded-control bg-bg px-3 py-2 text-sm outline-none ring-1 ring-border focus:ring-accent";
 
 function won(n: number): string {
   return `${n.toLocaleString("ko-KR")}원`;
@@ -119,16 +119,16 @@ export default function LedgerView({
       </div>
 
       {/* 요약 + 도넛 */}
-      <section className="flex items-center gap-4 rounded-2xl bg-surface p-4">
+      <section className="flex items-center gap-4 rounded-card bg-surface p-4">
         <DonutChart segments={segs} centerLabel={won(summary.expense)} />
         <div className="flex-1 text-sm">
           <div className="mb-2">
             <div className="text-xs opacity-50">지출</div>
-            <div className="font-semibold">{won(summary.expense)}</div>
+            <div className="font-display font-semibold">{won(summary.expense)}</div>
           </div>
           <div className="mb-3">
             <div className="text-xs opacity-50">수입</div>
-            <div className="font-semibold text-accent">{won(summary.income)}</div>
+            <div className="font-display font-semibold text-accent">{won(summary.income)}</div>
           </div>
           <ul className="flex flex-col gap-1">
             {segs.slice(0, 4).map((s) => (
@@ -144,7 +144,7 @@ export default function LedgerView({
       </section>
 
       {/* 빠른 입력 */}
-      <section className="rounded-2xl bg-surface p-4">
+      <section className="rounded-card bg-surface p-4">
         <div className="flex items-end gap-2">
           <input
             value={quick}
@@ -156,7 +156,7 @@ export default function LedgerView({
           <button
             onClick={quickAdd}
             disabled={busy || !quick.trim()}
-            className="shrink-0 rounded-lg bg-accent px-4 py-2 text-sm font-medium text-black disabled:opacity-40"
+            className="shrink-0 rounded-control bg-accent px-4 py-2 text-sm font-medium text-black disabled:opacity-40"
           >
             기록
           </button>
@@ -179,13 +179,13 @@ export default function LedgerView({
       </section>
 
       {/* 내역 */}
-      <section className="rounded-2xl bg-surface p-4">
-        <h2 className="mb-2 text-sm font-semibold">내역</h2>
+      <section className="rounded-card bg-surface p-4">
+        <h2 className="font-display mb-2 text-sm font-semibold">내역</h2>
         {txs.length === 0 ? (
           emptyCta ? (
             <a
               href={emptyCta.href}
-              className="flex items-center gap-1 py-1 text-xs text-accent/90 hover:text-accent"
+              className="flex items-center gap-1 py-1 text-xs text-accent hover:text-accent"
             >
               {emptyCta.text} <span aria-hidden>→</span>
             </a>
@@ -250,14 +250,14 @@ function ManualForm({ month, onAdded }: { month: string; onAdded: (tx: Tx) => vo
   }
 
   return (
-    <div className="mt-3 flex flex-col gap-2 border-t border-white/10 pt-3">
+    <div className="mt-3 flex flex-col gap-2 border-t border-border pt-3">
       <div className="flex gap-2">
         {(["expense", "income"] as const).map((k) => (
           <button
             key={k}
             type="button"
             onClick={() => setKind(k)}
-            className={`flex-1 rounded-lg px-3 py-1.5 text-xs ${kind === k ? "bg-accent text-black" : "bg-bg ring-1 ring-white/10"}`}
+            className={`flex-1 rounded-control px-3 py-1.5 text-xs ${kind === k ? "bg-accent text-black" : "bg-bg ring-1 ring-border"}`}
           >
             {k === "expense" ? "지출" : "수입"}
           </button>
@@ -272,7 +272,7 @@ function ManualForm({ month, onAdded }: { month: string; onAdded: (tx: Tx) => vo
         <input value={memo} onChange={(e) => setMemo(e.target.value)} placeholder="메모(선택)" className={inputCls} />
       </div>
       {err && <p className="text-[11px] text-red-400">{err}</p>}
-      <button onClick={save} disabled={saving} className="rounded-lg bg-accent px-4 py-2 text-sm font-medium text-black disabled:opacity-50">
+      <button onClick={save} disabled={saving} className="rounded-control bg-accent px-4 py-2 text-sm font-medium text-black disabled:opacity-50">
         {saving ? "저장 중…" : "추가"}
       </button>
     </div>

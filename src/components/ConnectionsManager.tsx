@@ -25,7 +25,7 @@ const PRESETS: { name: string; baseUrl: string }[] = [
   { name: "Custom", baseUrl: "" },
 ];
 const input =
-  "w-full rounded-lg bg-bg px-3 py-2 text-sm outline-none ring-1 ring-white/10 focus:ring-accent";
+  "w-full rounded-control bg-bg px-3 py-2 text-sm outline-none ring-1 ring-border focus:ring-accent";
 const ctxLabel = (n?: number) => (n ? `${Math.round(n / 1000)}k` : "");
 const priceLabel = (p?: string) => {
   if (!p) return "";
@@ -185,9 +185,9 @@ export default function ConnectionsManager() {
   }
 
   return (
-    <section className="rounded-2xl bg-surface p-5">
+    <section className="rounded-card bg-surface p-5">
       <div className="mb-1 flex items-center justify-between">
-        <h2 className="text-sm font-semibold">AI 연결</h2>
+        <h2 className="font-display text-sm font-semibold">AI 연결</h2>
         {editing === null && (
           <button onClick={openNew} className="text-[11px] text-accent">
             + 연결 추가
@@ -200,7 +200,7 @@ export default function ConnectionsManager() {
 
       {/* 폼(추가/편집) */}
       {editing !== null && (
-        <div className="mb-4 rounded-xl bg-bg/60 p-4 ring-1 ring-white/10">
+        <div className="mb-4 rounded-xl bg-surface-2 p-4 ring-1 ring-border">
           <label className="mb-1 block text-xs opacity-60">이름</label>
           <input
             value={form.name}
@@ -216,10 +216,10 @@ export default function ConnectionsManager() {
                 key={p.name}
                 type="button"
                 onClick={() => setForm((f) => ({ ...f, baseUrl: p.baseUrl }))}
-                className={`rounded-lg px-3 py-1.5 text-xs ${
+                className={`rounded-control px-3 py-1.5 text-xs ${
                   form.baseUrl === p.baseUrl && (p.baseUrl !== "" || form.baseUrl === "")
                     ? "bg-accent text-black"
-                    : "bg-bg ring-1 ring-white/10"
+                    : "bg-bg ring-1 ring-border"
                 }`}
               >
                 {p.name}
@@ -264,7 +264,7 @@ export default function ConnectionsManager() {
           />
           {modelsMsg && <p className="mt-1 text-[11px] opacity-50">{modelsMsg}</p>}
           {models.length > 0 && (
-            <div className="mt-2 overflow-hidden rounded-lg ring-1 ring-white/10">
+            <div className="mt-2 overflow-hidden rounded-control ring-1 ring-border">
               <input
                 value={modelQuery}
                 onChange={(e) => setModelQuery(e.target.value)}
@@ -285,7 +285,7 @@ export default function ConnectionsManager() {
                             setForm((f) => ({ ...f, model: m.id }));
                             setModelQuery("");
                           }}
-                          className={`flex w-full items-center justify-between gap-2 px-3 py-1.5 text-left text-xs hover:bg-white/5 ${
+                          className={`flex w-full items-center justify-between gap-2 px-3 py-1.5 text-left text-xs hover:bg-surface-2 ${
                             form.model === m.id ? "text-accent" : ""
                           }`}
                         >
@@ -328,13 +328,13 @@ export default function ConnectionsManager() {
             <button
               onClick={save}
               disabled={saving}
-              className="rounded-lg bg-accent px-5 py-2 text-sm font-medium text-black disabled:opacity-50"
+              className="rounded-control bg-accent px-5 py-2 text-sm font-medium text-black disabled:opacity-50"
             >
               {saving ? "저장 중…" : "저장"}
             </button>
             <button
               onClick={() => setEditing(null)}
-              className="rounded-lg px-4 py-2 text-sm opacity-60 ring-1 ring-white/10"
+              className="rounded-control px-4 py-2 text-sm opacity-60 ring-1 ring-border"
             >
               취소
             </button>
@@ -349,7 +349,7 @@ export default function ConnectionsManager() {
       ) : (
         <ul className="flex flex-col gap-2">
           {conns.map((c) => (
-            <li key={c.id} className="rounded-xl bg-bg p-3 text-xs ring-1 ring-white/10">
+            <li key={c.id} className="rounded-xl bg-bg p-3 text-xs ring-1 ring-border">
               <div className="flex items-center justify-between gap-2">
                 <div className="min-w-0">
                   <div className="flex items-center gap-1.5">
@@ -361,7 +361,7 @@ export default function ConnectionsManager() {
                     )}
                     {c.supportsVision && (
                       <span
-                        className="shrink-0 rounded bg-white/10 px-1.5 py-0.5 text-[10px]"
+                        className="shrink-0 rounded bg-surface-2 px-1.5 py-0.5 text-[10px]"
                         title="이미지 인식(비전) 지원"
                       >
                         👁 비전
@@ -393,7 +393,7 @@ export default function ConnectionsManager() {
 
       {/* 보조 모델 — 배경 작업(사진 캡션 등) 전용 */}
       {conns.length > 0 && editing === null && (
-        <div className="mt-5 border-t border-white/10 pt-4">
+        <div className="mt-5 border-t border-border pt-4">
           <h3 className="mb-1 text-sm font-semibold">보조 모델</h3>
           <p className="mb-2 text-[11px] opacity-50">
             사진 캡션 등 배경 작업에 쓰는 연결. 대화에는 안 나서요. 비전 지원 연결을 고르면
@@ -402,7 +402,7 @@ export default function ConnectionsManager() {
           <select
             value={auxId ?? ""}
             onChange={(e) => setAux(e.target.value ? Number(e.target.value) : null)}
-            className="w-full rounded-lg bg-bg px-3 py-2 text-sm outline-none ring-1 ring-white/10 focus:ring-accent"
+            className="w-full rounded-control bg-bg px-3 py-2 text-sm outline-none ring-1 ring-border focus:ring-accent"
           >
             <option value="">없음 (비전 지원 연결 중 자동 선택)</option>
             {conns.map((c) => (

@@ -29,11 +29,11 @@ export default function RoomHeader({ persona }: { persona: RoomPersona }) {
 
   return (
     <>
-      <header className="flex items-center gap-2.5 border-b border-white/10 py-2.5">
+      <header className="flex items-center gap-2.5 border-b border-border py-2.5">
         <Link
           href="/chat"
           aria-label="뒤로"
-          className="-ml-1.5 rounded-lg p-1 opacity-80 hover:bg-white/5"
+          className="-ml-1.5 rounded-control p-1 opacity-80 hover:bg-surface-2"
         >
           <ChevronLeft size={22} />
         </Link>
@@ -47,7 +47,7 @@ export default function RoomHeader({ persona }: { persona: RoomPersona }) {
             // eslint-disable-next-line @next/next/no-img-element
             <img src={avatar} alt="" className="h-8 w-8 rounded-full object-cover" />
           ) : (
-            <div className="h-8 w-8 rounded-full bg-white/10" />
+            <div className="h-8 w-8 rounded-full bg-surface-2" />
           )}
           <div className="min-w-0">
             <div className="truncate text-sm font-semibold">{persona.name}</div>
@@ -59,10 +59,10 @@ export default function RoomHeader({ persona }: { persona: RoomPersona }) {
       {open && (
         <div className="fixed inset-0 z-40 bg-black/50" onClick={() => setOpen(false)}>
           <div
-            className="absolute inset-x-0 bottom-0 mx-auto max-w-md rounded-t-2xl bg-surface p-5 pb-[calc(1.5rem+env(safe-area-inset-bottom))] shadow-2xl ring-1 ring-white/10"
+            className="absolute inset-x-0 bottom-0 mx-auto max-w-md rounded-t-card bg-surface p-5 pb-[calc(1.5rem+env(safe-area-inset-bottom))] ring-1 ring-border"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="mx-auto mb-3 h-1 w-10 rounded-full bg-white/20" />
+            <div className="mx-auto mb-3 h-1 w-10 rounded-full bg-border" />
             <div className="flex flex-col items-center gap-1 text-center">
               <AvatarPicker
                 src={avatar}
@@ -83,7 +83,7 @@ export default function RoomHeader({ persona }: { persona: RoomPersona }) {
             )}
             <Link
               href="/characters"
-              className="mt-4 block rounded-xl bg-bg py-2.5 text-center text-sm text-accent ring-1 ring-white/10"
+              className="mt-4 block rounded-xl bg-bg py-2.5 text-center text-sm text-accent ring-1 ring-border"
             >
               캐릭터 관리에서 수정 →
             </Link>

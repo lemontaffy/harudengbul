@@ -35,10 +35,10 @@ export default async function CharactersPage() {
   return (
     <main className="mx-auto max-w-md p-5">
       <div className="mb-5 flex items-center gap-2">
-        <Link href="/chat" aria-label="뒤로" className="-ml-1.5 rounded-lg p-1 opacity-80 hover:bg-white/5">
+        <Link href="/chat" aria-label="뒤로" className="-ml-1.5 rounded-control p-1 opacity-80 hover:bg-surface-2">
           <ChevronLeft size={20} />
         </Link>
-        <h1 className="text-lg font-semibold">캐릭터</h1>
+        <h1 className="font-display text-lg font-semibold">캐릭터</h1>
       </div>
       <CharacterManager initialCharacters={characters} initialTriggers={triggers} />
     </main>

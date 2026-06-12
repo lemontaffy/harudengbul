@@ -28,7 +28,7 @@ const KEEP_OPTIONS: { label: string; value: number | null }[] = [
 ];
 
 const inputCls =
-  "w-full rounded-lg bg-bg px-3 py-2 text-sm outline-none ring-1 ring-white/10 focus:ring-accent";
+  "w-full rounded-control bg-bg px-3 py-2 text-sm outline-none ring-1 ring-border focus:ring-accent";
 
 // ISO instant ↔ <input type="datetime-local"> (브라우저 로컬 기준)
 function toLocalInput(iso: string): string {
@@ -109,7 +109,7 @@ export default function EventsView({
               setAdding(true);
               setEditingId(null);
             }}
-            className="rounded-lg bg-accent px-3 py-1.5 text-xs font-medium text-black"
+            className="rounded-control bg-accent px-3 py-1.5 text-xs font-medium text-black"
           >
             + 일정 추가
           </button>
@@ -132,7 +132,7 @@ export default function EventsView({
         emptyCta ? (
           <a
             href={emptyCta.href}
-            className="flex items-center justify-center gap-1 py-8 text-center text-sm text-accent/90 hover:text-accent"
+            className="flex items-center justify-center gap-1 py-8 text-center text-sm text-accent hover:text-accent"
           >
             {emptyCta.text} <span aria-hidden>→</span>
           </a>
@@ -162,7 +162,7 @@ export default function EventsView({
               ) : (
                 <li
                   key={e.id}
-                  className="flex items-center gap-3 rounded-xl bg-surface p-3 ring-1 ring-white/10"
+                  className="flex items-center gap-3 rounded-xl bg-surface p-3 ring-1 ring-border"
                 >
                   <div className="min-w-0 flex-1">
                     <div className="truncate text-sm">{e.title}</div>
@@ -180,7 +180,7 @@ export default function EventsView({
                       setEditingId(e.id);
                       setAdding(false);
                     }}
-                    className="rounded-lg bg-bg px-3 py-1.5 text-xs ring-1 ring-white/10"
+                    className="rounded-control bg-bg px-3 py-1.5 text-xs ring-1 ring-border"
                   >
                     편집
                   </button>
@@ -262,7 +262,7 @@ function EventForm({
   }
 
   return (
-    <div className="rounded-xl bg-surface p-4 ring-1 ring-white/10">
+    <div className="rounded-xl bg-surface p-4 ring-1 ring-border">
       <label className="mb-1 block text-xs opacity-60">제목</label>
       <input
         value={title}
@@ -316,10 +316,10 @@ function EventForm({
             key={o.label}
             type="button"
             onClick={() => setAlarm(o.value)}
-            className={`rounded-lg px-2.5 py-1 text-[11px] ${
+            className={`rounded-control px-2.5 py-1 text-[11px] ${
               (o.value ?? null) === (alarm ?? null)
                 ? "bg-accent text-black"
-                : "bg-bg ring-1 ring-white/10"
+                : "bg-bg ring-1 ring-border"
             }`}
           >
             {o.label}
@@ -357,10 +357,10 @@ function EventForm({
             key={o.label}
             type="button"
             onClick={() => setKeep(o.value)}
-            className={`rounded-lg px-2.5 py-1 text-[11px] ${
+            className={`rounded-control px-2.5 py-1 text-[11px] ${
               (o.value ?? null) === (keep ?? null)
                 ? "bg-accent text-black"
-                : "bg-bg ring-1 ring-white/10"
+                : "bg-bg ring-1 ring-border"
             }`}
           >
             {o.label}
@@ -375,13 +375,13 @@ function EventForm({
         <button
           onClick={save}
           disabled={saving}
-          className="rounded-lg bg-accent px-4 py-2 text-sm font-medium text-black disabled:opacity-50"
+          className="rounded-control bg-accent px-4 py-2 text-sm font-medium text-black disabled:opacity-50"
         >
           {saving ? "저장 중…" : "저장"}
         </button>
         <button
           onClick={onCancel}
-          className="rounded-lg px-4 py-2 text-sm opacity-60 ring-1 ring-white/10"
+          className="rounded-control px-4 py-2 text-sm opacity-60 ring-1 ring-border"
         >
           취소
         </button>

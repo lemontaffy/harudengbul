@@ -10,7 +10,7 @@ export interface ProfileInitial {
 }
 
 const inputCls =
-  "w-full rounded-lg bg-bg px-3 py-2 text-sm outline-none ring-1 ring-white/10 focus:ring-accent";
+  "w-full rounded-control bg-bg px-3 py-2 text-sm outline-none ring-1 ring-border focus:ring-accent";
 
 export default function ProfileSection({ initial }: { initial: ProfileInitial }) {
   const [nickname, setNickname] = useState(initial.nickname);
@@ -38,9 +38,9 @@ export default function ProfileSection({ initial }: { initial: ProfileInitial })
   }
 
   return (
-    <section className="rounded-2xl bg-surface p-5">
+    <section className="rounded-card bg-surface p-5">
       <div className="mb-1 flex items-center justify-between">
-        <h2 className="text-sm font-semibold">내 프로필</h2>
+        <h2 className="font-display text-sm font-semibold">내 프로필</h2>
         {status && <span className="text-[11px] opacity-60">{status}</span>}
       </div>
       <p className="mb-4 text-[11px] opacity-50">
@@ -83,7 +83,7 @@ export default function ProfileSection({ initial }: { initial: ProfileInitial })
       <button
         onClick={save}
         disabled={saving}
-        className="mt-3 rounded-lg bg-accent px-5 py-2 text-sm font-medium text-black disabled:opacity-50"
+        className="mt-3 rounded-control bg-accent px-5 py-2 text-sm font-medium text-black disabled:opacity-50"
       >
         {saving ? "저장 중…" : "저장"}
       </button>

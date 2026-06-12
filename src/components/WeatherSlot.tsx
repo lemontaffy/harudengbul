@@ -40,7 +40,7 @@ export default function WeatherSlot() {
   }, []);
 
   const base =
-    "flex w-32 flex-col items-center justify-center rounded-2xl bg-surface p-4 text-center";
+    "flex w-32 flex-col items-center justify-center rounded-card bg-surface p-4 text-center";
 
   if (loading) {
     return (
@@ -52,7 +52,7 @@ export default function WeatherSlot() {
   }
   if (!w || w.configured === false) {
     return (
-      <a href="/settings" className={`${base} hover:ring-1 hover:ring-accent/40`}>
+      <a href="/settings" className={`${base} hover:ring-1 hover:ring-accent`}>
         <span className="text-2xl opacity-40">📍</span>
         <span className="mt-1 text-[11px] opacity-60">위치 설정</span>
       </a>
@@ -75,7 +75,7 @@ export default function WeatherSlot() {
       </span>
       <span className="text-[11px] opacity-60">{w.summary}</span>
       {(w.hasRain || w.hasSnow) && (
-        <span className="mt-1 rounded-full bg-accent/20 px-1.5 text-[10px] text-accent">
+        <span className="mt-1 rounded-full bg-accent-soft px-1.5 text-[10px] text-accent">
           ☔ {w.hasSnow ? "눈" : "비"} 예보
         </span>
       )}

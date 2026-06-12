@@ -2,13 +2,86 @@
 @tailwind components;
 @tailwind utilities;
 
+/* ── 폰트(셀프호스팅) ──
+   실제 woff2 는 public/fonts/ 에 드롭(아래 파일명). 없으면 시스템 폰트로 graceful fallback.
+   Pretendard=본문/UI, Paperlogy=제목/숫자 강조(SemiBold·ExtraBold 2웨이트만, 용량 때문). */
+@font-face {
+  font-family: "Pretendard";
+  src: url("/fonts/PretendardVariable.subset.woff2") format("woff2-variations");
+  font-weight: 45 920;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Paperlogy";
+  src: url("/fonts/Paperlogy-SemiBold.subset.woff2") format("woff2");
+  font-weight: 600;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Paperlogy";
+  src: url("/fonts/Paperlogy-ExtraBold.subset.woff2") format("woff2");
+  font-weight: 800;
+  font-display: swap;
+}
+
+/* ── 디자인 토큰 ── (반경·폰트는 테마 비의존이라 :root 고정) */
 :root {
+  --radius-card: 12px;
+  --radius-control: 8px;
+  --font-body:
+    "Pretendard", ui-sans-serif, system-ui, -apple-system, "Apple SD Gothic Neo",
+    "Segoe UI", Roboto, "Noto Sans KR", sans-serif;
+  --font-display: "Paperlogy", var(--font-body);
+}
+
+/* 테마별 색 토큰 — html[data-theme] 로 전환(컴포넌트 분기 없음). lantern 이 기본. */
+:root,
+html[data-theme="lantern"] {
   color-scheme: dark;
+  --bg: #191b25;
+  --surface: #222531;
+  --surface-2: #2b2f3d; /* 중첩 카드 */
+  --border: #383d4d; /* 1px 보더(불투명) */
+  --text: #e7e7ea;
+  --text-dim: #9aa0ae;
+  --accent: #e8a86b;
+  --accent-soft: #352a20; /* accent 배경용 저채도 */
+  --danger: #e5736b;
+}
+html[data-theme="dawn"] {
+  color-scheme: dark;
+  --bg: #0f1830;
+  --surface: #172241;
+  --surface-2: #1f2d52;
+  --border: #2e3e68;
+  --text: #e6ecf7;
+  --text-dim: #93a3c4;
+  --accent: #7db7ff;
+  --accent-soft: #16243f;
+  --danger: #f08a8a;
+}
+html[data-theme="paper"] {
+  color-scheme: light;
+  --bg: #f5f3ec;
+  --surface: #ffffff;
+  --surface-2: #efece2;
+  --border: #d9d5c7;
+  --text: #23211c;
+  --text-dim: #6b675c;
+  --accent: #b5651d;
+  --accent-soft: #f0e6d6;
+  --danger: #c0392b;
 }
 
 html,
 body {
-  background: #191b25;
-  color: #e7e7ea;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-body);
   -webkit-font-smoothing: antialiased;
+}
+
+/* Paperlogy 표시 텍스트 — 살짝 좁은 자간 */
+.font-display {
+  letter-spacing: -0.01em;
 }

@@ -120,9 +120,9 @@ export default function NotificationToggle() {
   }
 
   return (
-    <section className="rounded-2xl bg-surface p-5">
+    <section className="rounded-card bg-surface p-5">
       <div className="mb-1 flex items-center justify-between">
-        <h2 className="text-sm font-semibold">알림(웹푸시)</h2>
+        <h2 className="font-display text-sm font-semibold">알림(웹푸시)</h2>
         {status && <span className="text-[11px] opacity-60">{status}</span>}
       </div>
       <p className="mb-4 text-[11px] opacity-50">
@@ -131,7 +131,7 @@ export default function NotificationToggle() {
 
       {supported === false ? (
         isIOS && !installed ? (
-          <div className="rounded-lg bg-bg p-3 text-xs leading-relaxed ring-1 ring-accent/30">
+          <div className="rounded-control bg-bg p-3 text-xs leading-relaxed ring-1 ring-accent">
             <p className="mb-1 font-medium text-accent">먼저 홈 화면에 설치하세요</p>
             <p className="opacity-70">
               iOS는 <b>홈 화면에 추가된 앱</b>에서만 알림이 옵니다.
@@ -154,14 +154,14 @@ export default function NotificationToggle() {
                 <button
                   onClick={disable}
                   disabled={busy}
-                  className="rounded-lg bg-bg px-4 py-2 text-sm ring-1 ring-white/10 disabled:opacity-50"
+                  className="rounded-control bg-bg px-4 py-2 text-sm ring-1 ring-border disabled:opacity-50"
                 >
                   알림 끄기
                 </button>
                 <button
                   onClick={test}
                   disabled={busy}
-                  className="rounded-lg px-4 py-2 text-sm text-accent disabled:opacity-50"
+                  className="rounded-control px-4 py-2 text-sm text-accent disabled:opacity-50"
                 >
                   테스트 발송
                 </button>
@@ -170,7 +170,7 @@ export default function NotificationToggle() {
               <button
                 onClick={enable}
                 disabled={busy || supported === null}
-                className="rounded-lg bg-accent px-5 py-2 text-sm font-medium text-black disabled:opacity-50"
+                className="rounded-control bg-accent px-5 py-2 text-sm font-medium text-black disabled:opacity-50"
               >
                 {busy ? "처리 중…" : "알림 켜기"}
               </button>
@@ -178,7 +178,7 @@ export default function NotificationToggle() {
           </div>
 
           {subscribed && (
-            <p className="mt-3 rounded-lg bg-bg p-3 text-[11px] leading-relaxed opacity-70">
+            <p className="mt-3 rounded-control bg-bg p-3 text-[11px] leading-relaxed opacity-70">
               잠금화면·배너로 받으려면 휴대폰 <b>설정 → 알림 → 하루등불</b>에서{" "}
               {isIOS ? (
                 <>

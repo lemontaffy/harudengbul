@@ -130,7 +130,7 @@ export default function AdminPanel() {
 
   return (
     <div className="flex flex-col gap-6">
-      <p className="rounded-lg bg-surface/60 p-3 text-[11px] opacity-60">
+      <p className="rounded-control bg-surface-2 p-3 text-[11px] opacity-60">
         AI 연결은 사용자별입니다. 본인 키는{" "}
         <a href="/settings" className="text-accent">
           설정
@@ -139,12 +139,12 @@ export default function AdminPanel() {
       </p>
 
       {/* 초대 */}
-      <section className="rounded-2xl bg-surface p-5">
+      <section className="rounded-card bg-surface p-5">
         <div className="mb-3 flex items-center justify-between">
-          <h2 className="text-sm font-semibold">초대 코드</h2>
+          <h2 className="font-display text-sm font-semibold">초대 코드</h2>
           <button
             onClick={issueInvite}
-            className="rounded-lg bg-accent px-3 py-1.5 text-xs font-medium text-black"
+            className="rounded-control bg-accent px-3 py-1.5 text-xs font-medium text-black"
           >
             + 발급 (7일)
           </button>
@@ -154,7 +154,7 @@ export default function AdminPanel() {
         ) : (
           <ul className="flex flex-col gap-2">
             {invites.map((i) => (
-              <li key={i.code} className="rounded-lg bg-bg p-2 text-xs">
+              <li key={i.code} className="rounded-control bg-bg p-2 text-xs">
                 <div className="flex items-center justify-between gap-2">
                   <code className="select-all truncate opacity-80" title={i.url}>
                     {i.url}
@@ -184,11 +184,11 @@ export default function AdminPanel() {
       </section>
 
       {/* 사용자 */}
-      <section className="rounded-2xl bg-surface p-5">
-        <h2 className="mb-3 text-sm font-semibold">사용자</h2>
+      <section className="rounded-card bg-surface p-5">
+        <h2 className="font-display mb-3 text-sm font-semibold">사용자</h2>
         <ul className="flex flex-col gap-2">
           {users.map((u) => (
-            <li key={u.id} className="rounded-lg bg-bg p-2 text-xs">
+            <li key={u.id} className="rounded-control bg-bg p-2 text-xs">
               <div className="flex items-center justify-between">
                 <div>
                   <span className="font-medium">{u.username}</span>
@@ -221,7 +221,7 @@ export default function AdminPanel() {
                 )}
               </div>
               {tempPw[u.id] && (
-                <div className="mt-1 flex items-center gap-2 rounded bg-accent/10 px-2 py-1 text-accent">
+                <div className="mt-1 flex items-center gap-2 rounded bg-accent-soft px-2 py-1 text-accent">
                   <code className="select-all flex-1 truncate">
                     임시 비밀번호: {tempPw[u.id]}
                   </code>

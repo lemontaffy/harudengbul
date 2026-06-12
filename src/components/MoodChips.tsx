@@ -61,9 +61,9 @@ export default function MoodChips({
   }
 
   return (
-    <div className="rounded-2xl bg-surface p-4">
+    <div className="rounded-card bg-surface p-4">
       <div className="mb-2 flex items-center justify-between">
-        <h2 className="text-sm font-semibold">오늘 기분</h2>
+        <h2 className="font-display text-sm font-semibold">오늘 기분</h2>
         {saving && <span className="text-[11px] opacity-40">저장 중…</span>}
       </div>
       <div className="flex gap-2">
@@ -71,8 +71,8 @@ export default function MoodChips({
           <button
             key={m.key}
             onClick={() => pickMood(m.key)}
-            className={`flex flex-1 flex-col items-center rounded-lg py-2 text-xs ${
-              mood === m.key ? "bg-accent text-black" : "bg-bg ring-1 ring-white/10"
+            className={`flex flex-1 flex-col items-center rounded-control py-2 text-xs ${
+              mood === m.key ? "bg-accent text-black" : "bg-bg ring-1 ring-border"
             }`}
             title={m.label}
           >
@@ -82,14 +82,14 @@ export default function MoodChips({
         ))}
       </div>
 
-      <h2 className="mb-2 mt-4 text-sm font-semibold">오늘 컨디션</h2>
+      <h2 className="font-display mb-2 mt-4 text-sm font-semibold">오늘 컨디션</h2>
       <div className="flex gap-2">
         {CONDITIONS.map((c) => (
           <button
             key={c.key}
             onClick={() => pickCondition(c.key)}
-            className={`flex flex-1 flex-col items-center rounded-lg py-2 text-xs ${
-              condition === c.key ? "bg-accent text-black" : "bg-bg ring-1 ring-white/10"
+            className={`flex flex-1 flex-col items-center rounded-control py-2 text-xs ${
+              condition === c.key ? "bg-accent text-black" : "bg-bg ring-1 ring-border"
             }`}
             title={c.label}
           >

@@ -10,7 +10,7 @@ export default async function AdminPage() {
   return (
     <main className="mx-auto max-w-md p-5">
       <div className="mb-5 flex items-center justify-between">
-        <h1 className="text-lg font-semibold">어드민</h1>
+        <h1 className="font-display text-lg font-semibold">어드민</h1>
         <Link href="/" className="text-sm text-accent">
           ← 홈
         </Link>

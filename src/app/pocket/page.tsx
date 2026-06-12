@@ -26,10 +26,10 @@ export default async function PocketPage() {
   return (
     <main className="mx-auto flex max-w-md flex-col gap-5 p-5">
       <div className="flex items-center justify-between">
-        <h1 className="text-lg font-semibold">비상 주머니</h1>
+        <h1 className="font-display text-lg font-semibold">비상 주머니</h1>
       </div>
 
-      <p className="rounded-2xl bg-surface p-4 text-sm leading-relaxed opacity-80">
+      <p className="rounded-card bg-surface p-4 text-sm leading-relaxed opacity-80">
         지금 많이 힘들구나. 천천히 해도 돼. 먼저, 괜찮았던 날의 네가 남겨둔 말부터
         읽어보자.
       </p>

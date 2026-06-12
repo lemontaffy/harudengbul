@@ -26,8 +26,8 @@ export default function LiveClock() {
   });
   return (
     <div>
-      <div className="text-2xl font-semibold">{time}</div>
-      <div className="text-xs opacity-60">{date}</div>
+      <div className="font-display text-2xl font-semibold">{time}</div>
+      <div className="text-xs text-text-dim">{date}</div>
     </div>
   );
 }

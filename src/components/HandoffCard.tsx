@@ -9,7 +9,7 @@ export interface HandoffItem {
 }
 
 const inputCls =
-  "w-full rounded-lg bg-bg px-3 py-2 text-sm outline-none ring-1 ring-white/10 focus:ring-accent";
+  "w-full rounded-control bg-bg px-3 py-2 text-sm outline-none ring-1 ring-border focus:ring-accent";
 
 const ALARM_OPTIONS: { label: string; value: number | null }[] = [
   { label: "알람 없음", value: null },
@@ -44,7 +44,7 @@ export default function HandoffCard({ initial }: { initial: HandoffItem[] }) {
   }
 
   return (
-    <section className="rounded-2xl bg-surface p-4">
+    <section className="rounded-card bg-surface p-4">
       <button
         onClick={() => setOpen((v) => !v)}
         className="flex w-full items-center justify-between text-left"
@@ -59,7 +59,7 @@ export default function HandoffCard({ initial }: { initial: HandoffItem[] }) {
       {open && (
         <ul className="mt-3 flex flex-col gap-2">
           {items.map((it) => (
-            <li key={it.id} className="rounded-xl bg-bg p-3 ring-1 ring-white/10">
+            <li key={it.id} className="rounded-xl bg-bg p-3 ring-1 ring-border">
               <div className="text-sm">{it.suggestedText}</div>
               {form?.id === it.id ? (
                 <RegisterForm
@@ -72,19 +72,19 @@ export default function HandoffCard({ initial }: { initial: HandoffItem[] }) {
                 <div className="mt-2 flex flex-wrap gap-2 text-xs">
                   <button
                     onClick={() => setForm({ id: it.id, editable: false })}
-                    className="rounded-lg bg-accent px-3 py-1.5 font-medium text-black"
+                    className="rounded-control bg-accent px-3 py-1.5 font-medium text-black"
                   >
                     등록
                   </button>
                   <button
                     onClick={() => setForm({ id: it.id, editable: true })}
-                    className="rounded-lg bg-surface px-3 py-1.5 ring-1 ring-white/10"
+                    className="rounded-control bg-surface px-3 py-1.5 ring-1 ring-border"
                   >
                     수정 후 등록
                   </button>
                   <button
                     onClick={() => dismiss(it.id)}
-                    className="rounded-lg px-3 py-1.5 opacity-60 hover:text-red-400"
+                    className="rounded-control px-3 py-1.5 opacity-60 hover:text-red-400"
                   >
                     넘기기
                   </button>
@@ -179,13 +179,13 @@ function RegisterForm({
         <button
           onClick={save}
           disabled={saving}
-          className="rounded-lg bg-accent px-4 py-2 text-sm font-medium text-black disabled:opacity-50"
+          className="rounded-control bg-accent px-4 py-2 text-sm font-medium text-black disabled:opacity-50"
         >
           {saving ? "등록 중…" : "일정 등록"}
         </button>
         <button
           onClick={onCancel}
-          className="rounded-lg px-4 py-2 text-sm opacity-60 ring-1 ring-white/10"
+          className="rounded-control px-4 py-2 text-sm opacity-60 ring-1 ring-border"
         >
           취소
         </button>

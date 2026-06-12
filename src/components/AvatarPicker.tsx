@@ -56,9 +56,9 @@ export default function AvatarPicker({
           // eslint-disable-next-line @next/next/no-img-element
           <img src={src} alt="" className="h-full w-full rounded-full object-cover" />
         ) : (
-          <div className="h-full w-full rounded-full bg-white/10" />
+          <div className="h-full w-full rounded-full bg-surface-2" />
         )}
-        <span className="absolute -bottom-0.5 -right-0.5 flex items-center justify-center rounded-full bg-black/65 p-1 ring-1 ring-white/25 backdrop-blur">
+        <span className="absolute -bottom-0.5 -right-0.5 flex items-center justify-center rounded-full bg-black/65 p-1 ring-1 ring-border backdrop-blur">
           <Camera size={cam} className="text-white" />
         </span>
         {busy && (

@@ -33,7 +33,7 @@ export default async function EventsPage() {
   return (
     <main className="mx-auto max-w-md p-5">
       <div className="mb-5 flex items-center justify-between">
-        <h1 className="text-lg font-semibold">일정</h1>
+        <h1 className="font-display text-lg font-semibold">일정</h1>
       </div>
       <EventsView initial={initial} emptyCta={emptyCta} />
     </main>

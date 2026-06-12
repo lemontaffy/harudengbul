@@ -38,19 +38,19 @@ function SignupForm() {
   }
 
   const input =
-    "mb-3 w-full rounded-lg bg-bg px-3 py-2 text-sm outline-none ring-1 ring-white/10 focus:ring-accent";
+    "mb-3 w-full rounded-control bg-bg px-3 py-2 text-sm outline-none ring-1 ring-border focus:ring-accent";
 
   return (
     <main className="flex min-h-screen items-center justify-center p-6">
       <form
         onSubmit={onSubmit}
-        className="w-full max-w-xs rounded-2xl bg-surface p-6 shadow-lg"
+        className="w-full max-w-xs rounded-card bg-surface p-6"
       >
-        <h1 className="mb-1 text-xl font-semibold text-accent">하루등불 가입</h1>
+        <h1 className="font-display mb-1 text-xl font-semibold text-accent">하루등불 가입</h1>
         <p className="mb-5 text-xs opacity-60">초대 코드로 계정을 만듭니다.</p>
 
         {!code && (
-          <p className="mb-3 rounded-lg bg-red-500/10 p-2 text-xs text-red-400">
+          <p className="mb-3 rounded-control bg-red-500/10 p-2 text-xs text-red-400">
             초대 코드가 없습니다. 받은 가입 링크로 접속하세요.
           </p>
         )}
@@ -77,7 +77,7 @@ function SignupForm() {
         <button
           type="submit"
           disabled={loading || !code || !username || !password}
-          className="w-full rounded-lg bg-accent py-2 text-sm font-medium text-black disabled:opacity-50"
+          className="w-full rounded-control bg-accent py-2 text-sm font-medium text-black disabled:opacity-50"
         >
           {loading ? "가입 중…" : "가입하기"}
         </button>

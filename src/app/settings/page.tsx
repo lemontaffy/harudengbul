@@ -14,6 +14,7 @@ import NotificationToggle from "@/components/NotificationToggle";
 import GoogleCalendarSection, { type GoogleInitial } from "@/components/GoogleCalendarSection";
 import PasswordChange from "@/components/PasswordChange";
 import LogoutButton from "@/components/LogoutButton";
+import AppearanceSection from "@/components/AppearanceSection";
 import { googleConfigured } from "@/lib/google";
 import * as googleRepo from "@/db/repo/google";
 
@@ -40,7 +41,7 @@ function Section({
 }) {
   return (
     <details open={defaultOpen} className="group">
-      <summary className="flex cursor-pointer list-none items-center gap-2 rounded-xl bg-surface px-4 py-3 ring-1 ring-white/5 [&::-webkit-details-marker]:hidden">
+      <summary className="flex cursor-pointer list-none items-center gap-2 rounded-xl bg-surface px-4 py-3 ring-1 ring-border [&::-webkit-details-marker]:hidden">
         <span className="text-sm font-medium">{title}</span>
         {status && (
           <span className="ml-auto truncate pl-2 text-[11px] opacity-50">{status}</span>
@@ -104,7 +105,9 @@ export default async function SettingsPage({
 
   // 상태 요약 한 줄들
   const mainConn = conns.find((c) => c.id === s?.activeConnectionId) ?? conns[0];
+  const THEME_LABEL: Record<string, string> = { lantern: "등불", dawn: "새벽", paper: "종이" };
   const sum = {
+    theme: (THEME_LABEL[s?.theme ?? "lantern"] ?? "등불") + (s?.customCss ? " · 커스텀 CSS" : ""),
     profile: profile.nickname.trim() || "닉네임 미설정",
     noti: initial.proactiveEnabled ? "선제 톡 켜짐" : "선제 톡 꺼짐",
     reminder: diaryReminder.enabled ? `켜짐 · ${diaryReminder.time}` : "꺼짐",
@@ -122,7 +125,7 @@ export default async function SettingsPage({
 
   return (
     <main className="mx-auto max-w-md p-5">
-      <h1 className="mb-5 text-lg font-semibold">설정</h1>
+      <h1 className="font-display mb-5 text-lg font-semibold">설정</h1>
 
       {user.mustChangePassword && (
         <div className="mb-5">
@@ -131,6 +134,12 @@ export default async function SettingsPage({
       )}
 
       <div className="flex flex-col gap-2">
+        <Section title="화면" status={sum.theme}>
+          <AppearanceSection
+            initialTheme={s?.theme ?? "lantern"}
+            initialCss={s?.customCss ?? ""}
+          />
+        </Section>
         <Section title="프로필" status={sum.profile}>
           <ProfileSection initial={profile} />
         </Section>

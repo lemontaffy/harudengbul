@@ -44,9 +44,9 @@ export default function GoogleCalendarSection({ initial }: { initial: GoogleInit
   }
 
   return (
-    <section className="rounded-2xl bg-surface p-5">
+    <section className="rounded-card bg-surface p-5">
       <div className="mb-1 flex items-center justify-between">
-        <h2 className="text-sm font-semibold">Google 캘린더</h2>
+        <h2 className="font-display text-sm font-semibold">Google 캘린더</h2>
         {status && <span className="text-[11px] opacity-60">{status}</span>}
       </div>
       <p className="mb-4 text-[11px] opacity-50">
@@ -72,14 +72,14 @@ export default function GoogleCalendarSection({ initial }: { initial: GoogleInit
             <button
               onClick={sync}
               disabled={busy}
-              className="rounded-lg bg-accent px-4 py-2 text-sm font-medium text-black disabled:opacity-50"
+              className="rounded-control bg-accent px-4 py-2 text-sm font-medium text-black disabled:opacity-50"
             >
               지금 동기화
             </button>
             <button
               onClick={disconnect}
               disabled={busy}
-              className="rounded-lg px-4 py-2 text-sm opacity-60 ring-1 ring-white/10 hover:text-red-400"
+              className="rounded-control px-4 py-2 text-sm opacity-60 ring-1 ring-border hover:text-red-400"
             >
               연결 해제
             </button>
@@ -88,7 +88,7 @@ export default function GoogleCalendarSection({ initial }: { initial: GoogleInit
       ) : (
         <a
           href="/api/google/connect"
-          className="inline-block rounded-lg bg-accent px-5 py-2 text-sm font-medium text-black"
+          className="inline-block rounded-control bg-accent px-5 py-2 text-sm font-medium text-black"
         >
           Google 캘린더 연결
         </a>

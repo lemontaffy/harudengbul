@@ -73,7 +73,7 @@ export default function AvatarCropper({
 
   return (
     <div className="fixed inset-0 z-50 flex flex-col bg-black/85 p-4">
-      <p className="mb-2 text-center text-xs text-white/70">
+      <p className="mb-2 text-center text-xs text-text-dim">
         드래그로 위치, 슬라이더로 확대해 사각형을 맞춰 주세요.
       </p>
       <div className="relative flex-1 overflow-hidden rounded-xl">
@@ -92,7 +92,7 @@ export default function AvatarCropper({
         )}
       </div>
       <div className="mt-3 flex items-center gap-3">
-        <span className="text-xs text-white/50">축소</span>
+        <span className="text-xs text-text-dim">축소</span>
         <input
           type="range"
           min={1}
@@ -102,21 +102,21 @@ export default function AvatarCropper({
           onChange={(e) => setZoom(Number(e.target.value))}
           className="flex-1 accent-accent"
         />
-        <span className="text-xs text-white/50">확대</span>
+        <span className="text-xs text-text-dim">확대</span>
       </div>
       {err && <p className="mt-2 text-center text-xs text-red-400">{err}</p>}
       <div className="mt-3 flex justify-end gap-2">
         <button
           onClick={onCancel}
           disabled={busy}
-          className="rounded-lg px-4 py-2 text-sm text-white/70 ring-1 ring-white/20 disabled:opacity-50"
+          className="rounded-control px-4 py-2 text-sm text-text-dim ring-1 ring-border disabled:opacity-50"
         >
           취소
         </button>
         <button
           onClick={apply}
           disabled={busy || !area}
-          className="rounded-lg bg-accent px-5 py-2 text-sm font-medium text-black disabled:opacity-50"
+          className="rounded-control bg-accent px-5 py-2 text-sm font-medium text-black disabled:opacity-50"
         >
           {busy ? "처리 중…" : "적용"}
         </button>

@@ -30,7 +30,7 @@ const MOODS: { key: Mood; emoji: string; label: string; color: string }[] = [
 const moodOf = (m: Mood | null) => MOODS.find((x) => x.key === m);
 
 const inputCls =
-  "w-full rounded-lg bg-bg px-3 py-2 text-sm outline-none ring-1 ring-white/10 focus:ring-accent";
+  "w-full rounded-control bg-bg px-3 py-2 text-sm outline-none ring-1 ring-border focus:ring-accent";
 
 export default function DiaryView({
   today,
@@ -139,19 +139,19 @@ export default function DiaryView({
   return (
     <div className="flex flex-col gap-6">
       {/* 오늘 일기 */}
-      <section className="rounded-2xl bg-surface p-5">
+      <section className="rounded-card bg-surface p-5">
         <div className="mb-3 flex items-center justify-between">
-          <h2 className="text-sm font-semibold">오늘 일기</h2>
+          <h2 className="font-display text-sm font-semibold">오늘 일기</h2>
           <span className="text-[11px] opacity-50">{today}</span>
         </div>
 
         {/* 한 줄+사진 모드 — 낮은 문턱 폴백 */}
-        <div className="mb-4 rounded-xl bg-bg/60 p-3 ring-1 ring-white/10">
+        <div className="mb-4 rounded-xl bg-surface-2 p-3 ring-1 ring-border">
           <p className="mb-2 text-[11px] opacity-60">
             글 쓸 힘이 없는 날엔, 사진 한 장 + 한 줄이면 그날 일기로 충분해요.
           </p>
           {!mainSupportsVision && (
-            <p className="mb-2 rounded-lg bg-amber-400/10 px-2 py-1.5 text-[11px] text-amber-300/90">
+            <p className="mb-2 rounded-control bg-amber-400/10 px-2 py-1.5 text-[11px] text-amber-300/90">
               ⚠️ 지금 메인 모델은 사진을 읽지 못해요(예: DeepSeek). 사진은 기록으로
               저장되지만, 답장·주간 편지엔 사진 내용이 빠져요. 사진을 읽히려면 설정 →
               AI 연결에서 ‘이미지 인식(비전) 지원’을 켠 모델을 메인으로 쓰세요.
@@ -160,7 +160,7 @@ export default function DiaryView({
           {photoPath ? (
             <div className="relative">
               {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={photoPath} alt="오늘 사진" className="max-h-60 w-full rounded-lg object-cover" />
+              <img src={photoPath} alt="오늘 사진" className="max-h-60 w-full rounded-control object-cover" />
               <button
                 type="button"
                 onClick={removePhoto}
@@ -174,7 +174,7 @@ export default function DiaryView({
               type="button"
               onClick={() => fileRef.current?.click()}
               disabled={uploadingPhoto}
-              className="w-full rounded-lg border border-dashed border-white/15 py-3 text-sm opacity-70 hover:opacity-100 disabled:opacity-40"
+              className="w-full rounded-control border border-dashed border-border py-3 text-sm opacity-70 hover:opacity-100 disabled:opacity-40"
             >
               {uploadingPhoto ? "올리는 중…" : "📷 사진 추가"}
             </button>
@@ -196,8 +196,8 @@ export default function DiaryView({
               key={m.key}
               type="button"
               onClick={() => setMood((cur) => (cur === m.key ? null : m.key))}
-              className={`flex flex-1 flex-col items-center rounded-lg py-2 text-xs ${
-                mood === m.key ? "bg-accent text-black" : "bg-bg ring-1 ring-white/10"
+              className={`flex flex-1 flex-col items-center rounded-control py-2 text-xs ${
+                mood === m.key ? "bg-accent text-black" : "bg-bg ring-1 ring-border"
               }`}
               title={m.label}
             >
@@ -212,7 +212,7 @@ export default function DiaryView({
           <button
             type="button"
             onClick={() => bodyRef.current?.focus()}
-            className="mb-3 flex w-full items-center justify-between rounded-xl bg-bg/60 px-3 py-2.5 text-left text-xs text-accent/90 ring-1 ring-white/10 hover:text-accent"
+            className="mb-3 flex w-full items-center justify-between rounded-xl bg-surface-2 px-3 py-2.5 text-left text-xs text-accent ring-1 ring-border hover:text-accent"
           >
             <span>오늘은 한 줄이면 충분해요. 지금 써볼까요?</span>
             <span aria-hidden>→</span>
@@ -282,7 +282,7 @@ export default function DiaryView({
           <button
             onClick={save}
             disabled={saving}
-            className="rounded-lg bg-accent px-5 py-2 text-sm font-medium text-black disabled:opacity-50"
+            className="rounded-control bg-accent px-5 py-2 text-sm font-medium text-black disabled:opacity-50"
           >
             {saving ? "저장 중…" : "저장하고 답장 받기"}
           </button>
@@ -291,7 +291,7 @@ export default function DiaryView({
 
         {/* 답장 */}
         {reply && (
-          <div className="mt-4 rounded-xl bg-bg p-3 ring-1 ring-white/10">
+          <div className="mt-4 rounded-xl bg-bg p-3 ring-1 ring-border">
             <div className="mb-1 text-[11px] text-accent">
               {replyPersona ?? "상담가"}의 답장
             </div>
@@ -302,13 +302,13 @@ export default function DiaryView({
 
       {/* 지난 일기 */}
       {entries.length > 0 && (
-        <section className="rounded-2xl bg-surface p-5">
-          <h2 className="mb-3 text-sm font-semibold">지난 일기</h2>
+        <section className="rounded-card bg-surface p-5">
+          <h2 className="font-display mb-3 text-sm font-semibold">지난 일기</h2>
           <ul className="flex flex-col gap-3">
             {entries.map((e) => {
               const m = moodOf(e.mood);
               return (
-                <li key={e.id} className="rounded-xl bg-bg p-3 ring-1 ring-white/10">
+                <li key={e.id} className="rounded-xl bg-bg p-3 ring-1 ring-border">
                   <div className="mb-1 flex items-center gap-2 text-xs">
                     <span
                       className="inline-block h-2.5 w-2.5 rounded-full"
@@ -323,7 +323,7 @@ export default function DiaryView({
                     <img
                       src={e.photoPath}
                       alt=""
-                      className="mb-1.5 max-h-52 w-full rounded-lg object-cover"
+                      className="mb-1.5 max-h-52 w-full rounded-control object-cover"
                     />
                   )}
                   {e.body && (
@@ -340,7 +340,7 @@ export default function DiaryView({
                     </p>
                   )}
                   {e.aiReply && (
-                    <div className="mt-2 rounded-lg bg-surface/60 p-2">
+                    <div className="mt-2 rounded-control bg-surface-2 p-2">
                       <div className="mb-0.5 text-[11px] text-accent">
                         {e.aiPersona ?? "상담가"}
                       </div>

@@ -32,7 +32,7 @@ export default function GenerateLetterButton() {
       <button
         onClick={gen}
         disabled={busy}
-        className="rounded-lg bg-accent px-4 py-2 text-sm font-medium text-black disabled:opacity-50"
+        className="rounded-control bg-accent px-4 py-2 text-sm font-medium text-black disabled:opacity-50"
       >
         {busy ? "쓰는 중…" : "이번 주 편지 받기"}
       </button>

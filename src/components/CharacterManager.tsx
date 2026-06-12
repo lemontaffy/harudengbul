@@ -37,7 +37,7 @@ const ROLE_LABEL: Record<Role, string> = {
 const rolesLabel = (roles: Role[]) => roles.map((r) => ROLE_LABEL[r]).join(" · ");
 
 const inputCls =
-  "w-full rounded-lg bg-bg px-3 py-2 text-sm outline-none ring-1 ring-white/10 focus:ring-accent";
+  "w-full rounded-control bg-bg px-3 py-2 text-sm outline-none ring-1 ring-border focus:ring-accent";
 
 function dn(name: string | null): string {
   return name?.trim() || "이름 없는 캐릭터";
@@ -107,9 +107,9 @@ export default function CharacterManager({
   }
 
   return (
-    <section className="rounded-2xl bg-surface p-5">
+    <section className="rounded-card bg-surface p-5">
       <div className="mb-3 flex items-center justify-between">
-        <h2 className="text-sm font-semibold">캐릭터</h2>
+        <h2 className="font-display text-sm font-semibold">캐릭터</h2>
         {status && <span className="text-[11px] opacity-60">{status}</span>}
       </div>
       <p className="mb-4 text-[11px] opacity-50">
@@ -136,7 +136,7 @@ export default function CharacterManager({
           ) : (
             <li
               key={c.id}
-              className="flex items-center gap-3 rounded-xl bg-bg p-3 ring-1 ring-white/10"
+              className="flex items-center gap-3 rounded-xl bg-bg p-3 ring-1 ring-border"
             >
               <AvatarPicker
                 src={c.avatarPath}
@@ -158,13 +158,13 @@ export default function CharacterManager({
                   setEditingId(c.id);
                   setAdding(false);
                 }}
-                className="rounded-lg bg-surface px-3 py-1.5 text-xs ring-1 ring-white/10"
+                className="rounded-control bg-surface px-3 py-1.5 text-xs ring-1 ring-border"
               >
                 편집
               </button>
               <button
                 onClick={() => archive(c)}
-                className="rounded-lg px-2 py-1.5 text-xs opacity-60 hover:text-red-400"
+                className="rounded-control px-2 py-1.5 text-xs opacity-60 hover:text-red-400"
               >
                 보관
               </button>
@@ -192,14 +192,14 @@ export default function CharacterManager({
             setAdding(true);
             setEditingId(null);
           }}
-          className="mt-3 w-full rounded-xl border border-dashed border-white/15 py-2 text-sm opacity-70 hover:opacity-100"
+          className="mt-3 w-full rounded-xl border border-dashed border-border py-2 text-sm opacity-70 hover:opacity-100"
         >
           + 캐릭터 추가
         </button>
       )}
 
       {/* 트리거 담당 */}
-      <div className="mt-6 border-t border-white/10 pt-4">
+      <div className="mt-6 border-t border-border pt-4">
         <h3 className="mb-1 text-sm font-semibold">담당 지정</h3>
         <p className="mb-3 text-[11px] opacity-50">
           일기 답장과 아침/저녁 먼저 말 걸기를 어떤 캐릭터가 맡을지 정해요.
@@ -232,7 +232,7 @@ export default function CharacterManager({
 
 function Avatar({ path }: { path: string | null }) {
   if (!path) {
-    return <div className="h-9 w-9 shrink-0 rounded-full bg-white/10" />;
+    return <div className="h-9 w-9 shrink-0 rounded-full bg-surface-2" />;
   }
   return (
     // eslint-disable-next-line @next/next/no-img-element
@@ -334,7 +334,7 @@ function CharacterForm({
   }
 
   return (
-    <div className="rounded-xl bg-bg p-4 ring-1 ring-white/10">
+    <div className="rounded-xl bg-bg p-4 ring-1 ring-border">
       <div className="flex items-center gap-3">
         {initial ? (
           <AvatarPicker
@@ -380,8 +380,8 @@ function CharacterForm({
               type="button"
               onClick={() => toggleRole(r)}
               disabled={disabled}
-              className={`flex items-center gap-1 rounded-lg px-4 py-2 text-sm ${
-                selected ? "bg-accent text-black" : "bg-surface ring-1 ring-white/10"
+              className={`flex items-center gap-1 rounded-control px-4 py-2 text-sm ${
+                selected ? "bg-accent text-black" : "bg-surface ring-1 ring-border"
               } ${disabled ? "opacity-30" : ""}`}
             >
               {selected && (
@@ -414,13 +414,13 @@ function CharacterForm({
         <button
           onClick={save}
           disabled={saving}
-          className="rounded-lg bg-accent px-4 py-2 text-sm font-medium text-black disabled:opacity-50"
+          className="rounded-control bg-accent px-4 py-2 text-sm font-medium text-black disabled:opacity-50"
         >
           {saving ? "저장 중…" : "저장"}
         </button>
         <button
           onClick={onCancel}
-          className="rounded-lg px-4 py-2 text-sm opacity-60 ring-1 ring-white/10"
+          className="rounded-control px-4 py-2 text-sm opacity-60 ring-1 ring-border"
         >
           취소
         </button>

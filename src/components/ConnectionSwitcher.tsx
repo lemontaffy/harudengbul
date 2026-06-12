@@ -45,7 +45,7 @@ export default function ConnectionSwitcher({
   }
 
   if (!ready) {
-    return <div className="h-9 w-9 shrink-0 rounded-full bg-surface ring-1 ring-white/10" />;
+    return <div className="h-9 w-9 shrink-0 rounded-full bg-surface ring-1 ring-border" />;
   }
   // 연결 0개 — 설정 안내(아이콘만).
   if (conns.length === 0) {
@@ -53,7 +53,7 @@ export default function ConnectionSwitcher({
       <a
         href="/settings"
         title="AI 연결 설정"
-        className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-surface text-[10px] opacity-70 ring-1 ring-white/10"
+        className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-surface text-[10px] opacity-70 ring-1 ring-border"
       >
         AI
       </a>
@@ -69,7 +69,7 @@ export default function ConnectionSwitcher({
         onClick={() => setOpen(true)}
         title={`메인 연결: ${active?.name ?? ""}`}
         aria-label={`메인 AI 연결 (${active?.name ?? ""}) — 전환`}
-        className="grid h-9 w-9 shrink-0 place-items-center rounded-full text-[10px] font-bold text-black ring-1 ring-white/15 disabled:opacity-40"
+        className="grid h-9 w-9 shrink-0 place-items-center rounded-full text-[10px] font-bold text-black ring-1 ring-border disabled:opacity-40"
         style={{ background: active ? colorFor(active.id) : "#888" }}
       >
         {active ? initials(active.name) : "AI"}
@@ -78,10 +78,10 @@ export default function ConnectionSwitcher({
       {open && (
         <div className="fixed inset-0 z-40 bg-black/50" onClick={() => setOpen(false)}>
           <div
-            className="absolute inset-x-0 bottom-0 mx-auto max-w-md rounded-t-2xl bg-surface p-3 pb-[calc(1rem+env(safe-area-inset-bottom))] shadow-2xl ring-1 ring-white/10"
+            className="absolute inset-x-0 bottom-0 mx-auto max-w-md rounded-t-card bg-surface p-3 pb-[calc(1rem+env(safe-area-inset-bottom))] ring-1 ring-border"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="mx-auto mb-2 h-1 w-10 rounded-full bg-white/20" />
+            <div className="mx-auto mb-2 h-1 w-10 rounded-full bg-border" />
             <p className="mb-2 px-1 text-xs opacity-50">메인 AI 연결</p>
             <ul className="flex flex-col gap-1">
               {conns.map((c) => (
@@ -89,7 +89,7 @@ export default function ConnectionSwitcher({
                   <button
                     onClick={() => pick(c.id)}
                     className={`flex w-full items-center gap-2.5 rounded-xl px-3 py-2.5 text-sm ${
-                      c.id === activeId ? "bg-accent/15 text-accent" : "hover:bg-white/5"
+                      c.id === activeId ? "bg-accent-soft text-accent" : "hover:bg-surface-2"
                     }`}
                   >
                     <span

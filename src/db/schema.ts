@@ -123,6 +123,9 @@ export const settings = pgTable("settings", {
   llmBaseUrl: text("llm_base_url"),
   llmModel: text("llm_model"),
   llmEmbeddingModel: text("llm_embedding_model"),
+  // 화면 — 프리셋 테마(lantern/dawn/paper) + 고급 커스텀 CSS(본인 세션에만 주입).
+  theme: text("theme").default("lantern"),
+  customCss: text("custom_css"),
 });
 
 // 사용자별 다중 LLM 연결. 같은 공급사도 여러 개 가능. 사용자가 이름을 붙인다.

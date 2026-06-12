@@ -291,7 +291,7 @@ export default function ChatView({
             <button
               onClick={loadMore}
               disabled={loadingMore}
-              className="rounded-full bg-surface px-3 py-1 text-[11px] opacity-70 ring-1 ring-white/10 disabled:opacity-40"
+              className="rounded-full bg-surface px-3 py-1 text-[11px] opacity-70 ring-1 ring-border disabled:opacity-40"
             >
               {loadingMore ? "불러오는 중…" : "이전 메시지 더 보기"}
             </button>
@@ -313,9 +313,9 @@ export default function ChatView({
             <Fragment key={m.id ?? `tmp-${i}`}>
               {showDivider && (
                 <div className="flex items-center gap-2 py-1.5 text-[10px] opacity-40">
-                  <div className="h-px flex-1 bg-white/10" />
+                  <div className="h-px flex-1 bg-surface-2" />
                   <span>{dayLabel(m.createdAt)}</span>
-                  <div className="h-px flex-1 bg-white/10" />
+                  <div className="h-px flex-1 bg-surface-2" />
                 </div>
               )}
               <div className="group flex flex-col">
@@ -325,11 +325,11 @@ export default function ChatView({
                       // eslint-disable-next-line @next/next/no-img-element
                       <img src={avatar} alt="" className="h-6 w-6 shrink-0 rounded-full object-cover" />
                     ) : (
-                      <div className="h-6 w-6 shrink-0 rounded-full bg-white/10" />
+                      <div className="h-6 w-6 shrink-0 rounded-full bg-surface-2" />
                     ))}
                   <div
-                    className={`max-w-[78%] overflow-hidden rounded-2xl text-sm ${
-                      mine ? "bg-accent text-black" : "bg-surface ring-1 ring-white/10"
+                    className={`max-w-[78%] overflow-hidden rounded-card text-sm ${
+                      mine ? "bg-accent text-black" : "bg-surface ring-1 ring-border"
                     }`}
                   >
                     {m.attachmentPath && (
@@ -375,7 +375,7 @@ export default function ChatView({
                     {showRegen && (
                       <button
                         onClick={() => regenerate(i)}
-                        className="rounded-lg bg-bg px-2 py-1 ring-1 ring-white/10 hover:text-accent"
+                        className="rounded-control bg-bg px-2 py-1 ring-1 ring-border hover:text-accent"
                       >
                         재생성
                       </button>
@@ -383,14 +383,14 @@ export default function ChatView({
                     {m.role === "assistant" && (
                       <button
                         onClick={() => continueWrite(i)}
-                        className="rounded-lg bg-bg px-2 py-1 ring-1 ring-white/10 hover:text-accent"
+                        className="rounded-control bg-bg px-2 py-1 ring-1 ring-border hover:text-accent"
                       >
                         이어쓰기
                       </button>
                     )}
                     <button
                       onClick={() => del(i)}
-                      className="rounded-lg bg-bg px-2 py-1 ring-1 ring-white/10 hover:text-red-400"
+                      className="rounded-control bg-bg px-2 py-1 ring-1 ring-border hover:text-red-400"
                     >
                       삭제
                     </button>
@@ -404,17 +404,17 @@ export default function ChatView({
 
       {/* 입력 */}
       {configured ? (
-        <div className="border-t border-white/10 pt-2 pb-[env(safe-area-inset-bottom)]">
+        <div className="border-t border-border pt-2 pb-[env(safe-area-inset-bottom)]">
           {/* 선택한 사진 미리보기(제거 가능) */}
           {pendingPhoto && (
             <div className="mb-2 inline-block relative">
               {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={pendingPhoto} alt="" className="h-16 w-16 rounded-lg object-cover ring-1 ring-white/15" />
+              <img src={pendingPhoto} alt="" className="h-16 w-16 rounded-control object-cover ring-1 ring-border" />
               <button
                 type="button"
                 onClick={() => setPendingPhoto(null)}
                 aria-label="사진 제거"
-                className="absolute -right-1.5 -top-1.5 grid h-5 w-5 place-items-center rounded-full bg-black/75 text-xs text-white ring-1 ring-white/25"
+                className="absolute -right-1.5 -top-1.5 grid h-5 w-5 place-items-center rounded-full bg-black/75 text-xs text-white ring-1 ring-border"
               >
                 ×
               </button>
@@ -436,7 +436,7 @@ export default function ChatView({
               }}
               aria-label="사진 첨부"
               title={supportsVision ? "사진 첨부" : "이 연결은 사진을 볼 수 없어요"}
-              className={`grid h-9 w-9 shrink-0 place-items-center rounded-full ring-1 ring-white/15 disabled:opacity-40 ${supportsVision ? "" : "opacity-40"}`}
+              className={`grid h-9 w-9 shrink-0 place-items-center rounded-full ring-1 ring-border disabled:opacity-40 ${supportsVision ? "" : "opacity-40"}`}
             >
               <ImagePlus size={18} />
             </button>
@@ -453,7 +453,7 @@ export default function ChatView({
               onKeyDown={onKeyDown}
               rows={1}
               placeholder={uploadingPhoto ? "사진 올리는 중…" : "메시지…"}
-              className="max-h-32 flex-1 resize-none rounded-xl bg-surface px-3 py-2 text-sm outline-none ring-1 ring-white/10 focus:ring-accent"
+              className="max-h-32 flex-1 resize-none rounded-xl bg-surface px-3 py-2 text-sm outline-none ring-1 ring-border focus:ring-accent"
             />
             <button
               onClick={send}
@@ -476,7 +476,7 @@ export default function ChatView({
 
       {/* 토스트 */}
       {toast && (
-        <div className="pointer-events-none fixed inset-x-0 bottom-28 z-50 mx-auto w-fit rounded-full bg-black/80 px-4 py-2 text-xs text-white shadow-lg">
+        <div className="pointer-events-none fixed inset-x-0 bottom-28 z-50 mx-auto w-fit rounded-full bg-black/80 px-4 py-2 text-xs text-white">
           {toast}
         </div>
       )}

@@ -44,6 +44,9 @@ const bodySchema = z.object({
   diaryReminderTime: z.string().regex(timeRe).optional(),
   // 보조 모델(사진 캡션 등 배경 작업) — 연결 id 또는 null(없음).
   auxConnectionId: z.number().int().nullable().optional(),
+  // 화면 — 프리셋 테마 + 커스텀 CSS(20KB).
+  theme: z.enum(["lantern", "dawn", "paper"]).optional(),
+  customCss: z.string().max(20480).nullable().optional(),
 });
 
 async function snapshot(userId: number) {
@@ -116,6 +119,10 @@ export async function POST(req: Request) {
 
   if (typeof d.nickname === "string") set.nickname = d.nickname.trim() || null;
   if (typeof d.about === "string") set.about = d.about.trim() || null;
+
+  // 화면: 테마 프리셋 / 커스텀 CSS(원문 저장, 렌더 시 sanitize).
+  if (typeof d.theme === "string") set.theme = d.theme;
+  if (d.customCss !== undefined) set.customCss = d.customCss?.trim() || null;
 
   // 보조 모델 연결: null=해제, 숫자=본인 소유 연결만.
   if (d.auxConnectionId !== undefined) {

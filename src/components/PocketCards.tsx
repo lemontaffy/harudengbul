@@ -40,7 +40,7 @@ export default function PocketCards({ initial }: { initial: Card[] }) {
   return (
     <section>
       <div className="mb-2 flex items-center justify-between">
-        <h2 className="text-sm font-semibold">괜찮은 날의 내가 남긴 말</h2>
+        <h2 className="font-display text-sm font-semibold">괜찮은 날의 내가 남긴 말</h2>
         <button
           onClick={() => setAdding((v) => !v)}
           className="text-[11px] text-accent"
@@ -50,7 +50,7 @@ export default function PocketCards({ initial }: { initial: Card[] }) {
       </div>
 
       {adding && (
-        <div className="mb-3 rounded-2xl bg-surface p-4">
+        <div className="mb-3 rounded-card bg-surface p-4">
           <p className="mb-2 text-[11px] opacity-50">
             지금 괜찮은 너가, 무너진 날의 너에게. 짧아도 괜찮아.
           </p>
@@ -60,12 +60,12 @@ export default function PocketCards({ initial }: { initial: Card[] }) {
             rows={3}
             maxLength={500}
             placeholder="예: 이건 지나가. 너는 생각보다 잘 버텨왔어."
-            className="w-full resize-none rounded-lg bg-bg px-3 py-2 text-sm outline-none ring-1 ring-white/10 focus:ring-accent"
+            className="w-full resize-none rounded-control bg-bg px-3 py-2 text-sm outline-none ring-1 ring-border focus:ring-accent"
           />
           <button
             onClick={add}
             disabled={busy || !text.trim()}
-            className="mt-2 rounded-lg bg-accent px-4 py-1.5 text-xs font-medium text-black disabled:opacity-50"
+            className="mt-2 rounded-control bg-accent px-4 py-1.5 text-xs font-medium text-black disabled:opacity-50"
           >
             저장
           </button>
@@ -73,7 +73,7 @@ export default function PocketCards({ initial }: { initial: Card[] }) {
       )}
 
       {cards.length === 0 ? (
-        <p className="rounded-2xl bg-surface p-4 text-sm leading-relaxed opacity-50">
+        <p className="rounded-card bg-surface p-4 text-sm leading-relaxed opacity-50">
           아직 적어둔 카드가 없어요. 마음이 괜찮은 날, 무너질 너에게 한 줄 남겨두면
           그날의 네가 큰 힘이 돼요.
         </p>
@@ -82,9 +82,9 @@ export default function PocketCards({ initial }: { initial: Card[] }) {
           {cards.map((c) => (
             <li
               key={c.id}
-              className="group flex items-start gap-2 rounded-2xl bg-gradient-to-br from-[#2a2531] to-[#23212c] p-4 ring-1 ring-accent/10"
+              className="group flex items-start gap-2 rounded-card bg-gradient-to-br from-[#2a2531] to-[#23212c] p-4 ring-1 ring-accent"
             >
-              <span className="mt-0.5 shrink-0 text-accent/70">“</span>
+              <span className="mt-0.5 shrink-0 text-accent">“</span>
               <p className="flex-1 whitespace-pre-wrap font-serif text-[15px] leading-relaxed text-[#ece4d8]">
                 {c.body}
               </p>

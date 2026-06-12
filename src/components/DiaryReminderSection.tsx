@@ -9,7 +9,7 @@ export interface DiaryReminderInitial {
 }
 
 const input =
-  "rounded-lg bg-bg px-3 py-2 text-sm outline-none ring-1 ring-white/10 focus:ring-accent";
+  "rounded-control bg-bg px-3 py-2 text-sm outline-none ring-1 ring-border focus:ring-accent";
 
 export default function DiaryReminderSection({
   initial,
@@ -50,13 +50,13 @@ export default function DiaryReminderSection({
   }
 
   return (
-    <section className="rounded-2xl bg-surface p-5">
+    <section className="rounded-card bg-surface p-5">
       <div className="mb-2 flex items-center justify-between">
-        <h2 className="text-sm font-semibold">일기 리마인드</h2>
+        <h2 className="font-display text-sm font-semibold">일기 리마인드</h2>
         <button
           type="button"
           onClick={() => setEnabled((v) => !v)}
-          className={`h-6 w-11 rounded-full transition ${enabled ? "bg-accent" : "bg-white/15"}`}
+          className={`h-6 w-11 rounded-full transition ${enabled ? "bg-accent" : "bg-border"}`}
         >
           <span
             className={`block h-5 w-5 rounded-full bg-white transition ${
@@ -104,7 +104,7 @@ export default function DiaryReminderSection({
         <button
           onClick={save}
           disabled={saving}
-          className="rounded-lg bg-accent px-5 py-2 text-sm font-medium text-black disabled:opacity-50"
+          className="rounded-control bg-accent px-5 py-2 text-sm font-medium text-black disabled:opacity-50"
         >
           {saving ? "저장 중…" : "저장"}
         </button>

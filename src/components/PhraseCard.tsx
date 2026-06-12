@@ -20,7 +20,7 @@ export default function PhraseCard({ initial }: { initial: string }) {
   }, []);
 
   return (
-    <section className="rounded-2xl bg-gradient-to-br from-accent/15 to-surface p-5 text-center">
+    <section className="rounded-card bg-gradient-to-br from-accent-soft to-surface p-5 text-center">
       <p className="text-sm leading-relaxed">{phrase}</p>
     </section>
   );

@@ -46,17 +46,17 @@ export default function PasswordChange({ forced }: { forced: boolean }) {
   }
 
   const input =
-    "w-full rounded-lg bg-bg px-3 py-2 text-sm outline-none ring-1 ring-white/10 focus:ring-accent";
+    "w-full rounded-control bg-bg px-3 py-2 text-sm outline-none ring-1 ring-border focus:ring-accent";
 
   return (
     <section
-      className={`rounded-2xl bg-surface p-5 ${
+      className={`rounded-card bg-surface p-5 ${
         forced ? "ring-1 ring-accent" : ""
       }`}
     >
-      <h2 className="mb-1 text-sm font-semibold">비밀번호 변경</h2>
+      <h2 className="font-display mb-1 text-sm font-semibold">비밀번호 변경</h2>
       {forced && (
-        <p className="mb-3 rounded-lg bg-accent/10 p-2 text-[11px] text-accent">
+        <p className="mb-3 rounded-control bg-accent-soft p-2 text-[11px] text-accent">
           임시 비밀번호로 로그인했습니다. 새 비밀번호를 설정해야 계속할 수 있어요.
         </p>
       )}
@@ -90,7 +90,7 @@ export default function PasswordChange({ forced }: { forced: boolean }) {
         <button
           onClick={submit}
           disabled={saving || !cur || !next || !confirm}
-          className="rounded-lg bg-accent px-5 py-2 text-sm font-medium text-black disabled:opacity-50"
+          className="rounded-control bg-accent px-5 py-2 text-sm font-medium text-black disabled:opacity-50"
         >
           {saving ? "변경 중…" : "비밀번호 변경"}
         </button>

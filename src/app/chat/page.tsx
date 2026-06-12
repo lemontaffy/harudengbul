@@ -51,7 +51,7 @@ export default async function ChatListPage({
   return (
     <main className="mx-auto max-w-md p-4">
       <div className="mb-3 flex items-center justify-between">
-        <h1 className="text-base font-semibold text-accent">대화</h1>
+        <h1 className="font-display text-base font-semibold text-accent">대화</h1>
         <Link
           href="/characters"
           className="flex items-center gap-1 text-[11px] text-accent"
@@ -63,7 +63,7 @@ export default async function ChatListPage({
       {cards.length === 0 ? (
         <Link
           href="/characters"
-          className="flex items-center justify-center gap-1 rounded-2xl bg-surface p-6 text-center text-sm text-accent/90 ring-1 ring-white/5 hover:text-accent"
+          className="flex items-center justify-center gap-1 rounded-card bg-surface p-6 text-center text-sm text-accent ring-1 ring-border hover:text-accent"
         >
           첫 캐릭터를 만들어 보세요 <span aria-hidden>→</span>
         </Link>
@@ -79,13 +79,13 @@ export default async function ChatListPage({
               <li key={p.id}>
                 <Link
                   href={`/chat/${p.id}`}
-                  className="flex items-center gap-3 rounded-2xl bg-surface p-3 ring-1 ring-white/5 hover:ring-accent/40"
+                  className="flex items-center gap-3 rounded-card bg-surface p-3 ring-1 ring-border hover:ring-accent"
                 >
                   {p.avatarPath ? (
                     // eslint-disable-next-line @next/next/no-img-element
                     <img src={p.avatarPath} alt="" className="h-12 w-12 shrink-0 rounded-full object-cover" />
                   ) : (
-                    <div className="h-12 w-12 shrink-0 rounded-full bg-white/10" />
+                    <div className="h-12 w-12 shrink-0 rounded-full bg-surface-2" />
                   )}
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2">

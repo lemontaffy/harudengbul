@@ -94,17 +94,17 @@ export default function TabBar() {
           onClick={() => setMoreOpen(false)}
         >
           <div
-            className="absolute inset-x-0 bottom-0 mx-auto max-w-md rounded-t-2xl bg-surface p-3 pb-[calc(1rem+env(safe-area-inset-bottom))] shadow-2xl ring-1 ring-white/10"
+            className="absolute inset-x-0 bottom-0 mx-auto max-w-md rounded-t-card bg-surface p-3 pb-[calc(1rem+env(safe-area-inset-bottom))] ring-1 ring-border"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="mx-auto mb-2 h-1 w-10 rounded-full bg-white/20" />
+            <div className="mx-auto mb-2 h-1 w-10 rounded-full bg-border" />
             <div className="grid grid-cols-3 gap-2">
               {MORE.filter((m) => !m.admin || isAdmin).map((m) => (
                 <Link
                   key={m.href}
                   href={m.href}
                   onClick={() => setMoreOpen(false)}
-                  className="flex flex-col items-center gap-1.5 rounded-xl py-3 text-xs hover:bg-white/5"
+                  className="flex flex-col items-center gap-1.5 rounded-xl py-3 text-xs hover:bg-surface-2"
                 >
                   <m.Icon size={22} strokeWidth={1.75} className="opacity-80" />
                   <span>{m.label}</span>
@@ -115,7 +115,7 @@ export default function TabBar() {
         </div>
       )}
 
-      <nav className="fixed inset-x-0 bottom-0 z-30 border-t border-white/10 bg-bg/95 pb-[env(safe-area-inset-bottom)] backdrop-blur">
+      <nav className="fixed inset-x-0 bottom-0 z-30 border-t border-border bg-bg pb-[env(safe-area-inset-bottom)] backdrop-blur">
         <div className="mx-auto flex max-w-md items-stretch">
           {TABS.map((t) => {
             const on = active(t.href);

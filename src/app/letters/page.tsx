@@ -22,7 +22,7 @@ export default async function LettersPage() {
   return (
     <main className="mx-auto max-w-md p-5">
       <div className="mb-5 flex items-center justify-between">
-        <h1 className="text-lg font-semibold">편지함</h1>
+        <h1 className="font-display text-lg font-semibold">편지함</h1>
       </div>
 
       <GenerateLetterButton />
@@ -39,7 +39,7 @@ export default async function LettersPage() {
             <li key={l.id}>
               <Link
                 href={`/letters/${l.id}`}
-                className="block rounded-2xl bg-surface p-4 ring-1 ring-white/10 transition hover:ring-accent/40"
+                className="block rounded-card bg-surface p-4 ring-1 ring-border transition hover:ring-accent"
               >
                 <div className="flex items-center gap-1.5 text-xs text-accent">
                   <span>📮</span>
