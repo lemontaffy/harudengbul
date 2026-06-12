@@ -6,7 +6,12 @@
       "Bash(curl -s localhost:3100/api/health)",
       "Bash(curl -s localhost:3100/)",
       "Bash(kill %1)",
-      "Bash(git commit -q -m '@ *)"
+      "Bash(git commit -q -m '@ *)",
+      "Bash(cd /tmp)",
+      "Bash(nohup node /tmp/mockllm.mjs)",
+      "Bash(echo \"mock $!\")",
+      "Bash(curl -s localhost:9099/ -o /dev/null -w \"mock up:%{http_code}\\\\n\")",
+      "Bash(curl -s -N -b a.txt -X POST localhost:3200/api/chat -H 'content-type: application/json' -d '{\"personaId\":2,\"message\":\"그 회의 삭제해줘\"}')"
     ]
   }
 }
