@@ -1,0 +1,18 @@
+# SearxNG — 하루등불 웹검색(web_search) 백엔드. 내부 전용.
+# use_default_settings: true → 기본값에 아래만 덮어쓴다.
+use_default_settings: true
+
+server:
+  # 엔트리포인트가 첫 기동 시 'ultrasecretkey' 를 임의값으로 치환한다.
+  secret_key: "ultrasecretkey"
+  # 내부 네트워크(app)만 호출하므로 레이트리미터/봇탐지 비활성 — API 차단 방지.
+  limiter: false
+  image_proxy: false
+
+search:
+  # JSON 미허용이 기본값 → API 사용 위해 명시적으로 활성화.
+  formats:
+    - html
+    - json
+  # 한국어 우선(클라이언트가 language=ko 로 호출).
+  default_lang: "ko"

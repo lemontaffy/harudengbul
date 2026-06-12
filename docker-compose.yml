@@ -42,6 +42,8 @@ services:
       - NODE_ENV=production
       - AVATARS_DIR=/data/avatars
       - DIARY_PHOTOS_DIR=/data/diary-photos
+      # 웹검색(영양사·스터디) — 내부 SearxNG. 다운돼도 대화는 graceful 처리.
+      - SEARXNG_URL=http://searxng:8080
     volumes:
       # 캐릭터 아바타 영속 저장(업로드/서빙). app 은 nextjs 비루트 유저로 실행되므로
       # host의 ./data/avatars 가 쓰기 가능해야 한다(첫 업로드 시 자동 생성, 권한 확인 권장).
@@ -56,6 +58,8 @@ services:
         condition: service_healthy
       migrate:
         condition: service_completed_successfully
+      searxng:
+        condition: service_started
     restart: unless-stopped
 
   worker:
@@ -74,6 +78,17 @@ services:
         condition: service_healthy
       migrate:
         condition: service_completed_successfully
+    restart: unless-stopped
+
+  # 자가호스팅 메타검색 — 웹검색 도구(web_search)의 백엔드.
+  # 내부 네트워크 전용(포트 publish 금지 — app 만 docker 내부망으로 접근).
+  # JSON 응답은 기본 비활성이라 settings.yml 의 search.formats 에서 켜야 함(./searxng).
+  searxng:
+    image: searxng/searxng:latest
+    environment:
+      - SEARXNG_BASE_URL=http://searxng:8080/
+    volumes:
+      - ./searxng:/etc/searxng:rw
     restart: unless-stopped
 
   db:

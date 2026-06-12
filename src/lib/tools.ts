@@ -7,6 +7,7 @@ import * as handoffsRepo from "@/db/repo/handoffs";
 import * as messagesRepo from "@/db/repo/messages";
 import * as personasRepo from "@/db/repo/personas";
 import { pushCreate, pushUpdate, pushDelete } from "@/lib/googlesync";
+import { searchWeb } from "@/lib/websearch";
 import type { Role } from "@/lib/persona";
 
 // SPEC §7 — 비서 도구. OpenAI 호환 tool-use 스펙.
@@ -207,11 +208,29 @@ export const SEARCH_TOOL: ToolDef = {
   },
 };
 
+// 웹검색(SearxNG) — 영양사·스터디 메이트 전용. 상담가엔 바인딩 금지(상담 흐름이 깨짐).
+export const WEB_SEARCH_TOOL: ToolDef = {
+  type: "function",
+  function: {
+    name: "web_search",
+    description:
+      "최신·사실 확인이 필요한 정보를 웹에서 검색한다. 확실하지 않은 의학·영양·사실 정보는 추측하지 말고 먼저 검색한다. 검색 기반으로 답할 땐 출처(사이트명)를 한 번 언급한다.",
+    parameters: {
+      type: "object",
+      properties: {
+        query: { type: "string", description: "검색어(핵심 키워드)" },
+      },
+      required: ["query"],
+    },
+  },
+};
+
 /**
  * 복수 역할(roles)의 도구 합집합.
  * - search_past_messages: 항상.
  * - roles 에 'secretary' 포함 → 비서 등록 도구 일체. 핸드오프 도구는 제외(직접 등록 가능).
- * - 'secretary' 미포함 → 핸드오프(handoff_enabled 일 때만). + 영양사/스터디면 save_memory.
+ * - 'secretary' 미포함 → 핸드오프(handoff_enabled 일 때만).
+ * - 영양사/스터디(어떤 조합이든) → save_memory + web_search. 상담가엔 web_search 미바인딩.
  * 신규 3종(영양사/스터디/친구)에 비서 등록 도구(add_event 등)는 절대 바인딩하지 않는다.
  */
 export function toolsForRoles(roles: Role[], handoffEnabled: boolean): ToolDef[] | undefined {
@@ -220,14 +239,20 @@ export function toolsForRoles(roles: Role[], handoffEnabled: boolean): ToolDef[]
   add(SEARCH_TOOL);
   if (roles.includes("secretary")) {
     for (const t of SECRETARY_TOOLS) add(t); // add_event/add_transaction/save_memory…
-  } else {
-    if (handoffEnabled) add(HANDOFF_TOOL);
-    if (roles.includes("nutritionist") || roles.includes("study_mate"))
-      add(SAVE_MEMORY_TOOL);
+  } else if (handoffEnabled) {
+    add(HANDOFF_TOOL);
+  }
+  // 영양사·스터디는 어떤 조합이든 장기기억 + 웹검색을 가진다(상담가는 단독이라 해당 없음).
+  if (roles.includes("nutritionist") || roles.includes("study_mate")) {
+    add(SAVE_MEMORY_TOOL);
+    add(WEB_SEARCH_TOOL);
   }
   return [...byName.values()];
 }
 
+const webSearchArgs = z.object({
+  query: z.string().trim().min(1).max(200),
+});
 const searchArgs = z.object({
   query: z.string().trim().min(1).max(200),
   limit: z.number().int().min(1).max(10).nullish(),
@@ -305,6 +330,23 @@ export async function executeTool(
     return "ERROR: 도구 인자 JSON 파싱 실패";
   }
   try {
+    if (name === "web_search") {
+      const a = webSearchArgs.parse(args);
+      const r = await searchWeb(a.query, 5);
+      if (!r.ok) {
+        // 검색 실패 — 대화는 죽지 않게, 단정 금지로 받도록 안내.
+        return `웹 검색이 지금은 안 돼요(${r.reason}). 확실하지 않은 내용은 단정하지 말고, 필요하면 전문가 확인을 권해줘.`;
+      }
+      if (r.results.length === 0) {
+        return "검색 결과 없음. 추측하지 말고 불명확하다고 솔직히 말해줘.";
+      }
+      return r.results
+        .map(
+          (x, i) =>
+            `${i + 1}. ${x.title} (출처: ${x.site || "알 수 없음"})\n   ${x.snippet}`,
+        )
+        .join("\n");
+    }
     if (name === "search_past_messages") {
       const a = searchArgs.parse(args);
       const limit = a.limit ?? 5;
