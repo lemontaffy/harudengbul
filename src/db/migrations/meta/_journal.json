@@ -71,6 +71,13 @@
       "when": 1781229049888,
       "tag": "0009_yielding_imperial_guard",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1781230331420,
+      "tag": "0010_small_sasquatch",
+      "breakpoints": true
     }
   ]
 }

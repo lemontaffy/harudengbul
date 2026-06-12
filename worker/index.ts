@@ -17,6 +17,7 @@ import * as usageRepo from "../src/db/repo/usage";
 import { runBackup } from "../src/lib/backup";
 import { googleConfigured } from "../src/lib/google";
 import { syncUser } from "../src/lib/googlesync";
+import { generateWeeklyLetter } from "../src/lib/letter";
 import { sendToUser, pushConfigured } from "../src/lib/push";
 import { getWeather, weatherSourceConfigured } from "../src/lib/weather";
 import { getLlmConfig, getEmbedConfig, type EmbedConfig } from "../src/lib/config";
@@ -175,11 +176,29 @@ async function proactiveJob() {
         await sendProactive(s.userId, s.morningPersonaId, "morning", conn, weatherLine);
       }
 
-      // 저녁 (상담가 담당)
+      // 저녁 (상담가 담당). 일요일이면 주간 회고 편지로 대체.
       const eTime = toHHMM(s.eveningTime);
       if (s.eveningPersonaId && eTime && isSlotDue(now, eTime, s.lastEveningSent ?? null, today)) {
-        await settingsRepo.updateByUser(s.userId, { lastEveningSent: today });
-        await sendProactive(s.userId, s.eveningPersonaId, "evening", conn);
+        await settingsRepo.updateByUser(s.userId, { lastEveningSent: today }); // 먼저 청구
+        const isSunday = new Date(today + "T00:00:00Z").getUTCDay() === 0;
+        if (isSunday) {
+          const r = await generateWeeklyLetter(s.userId);
+          if ("id" in r) {
+            const sent = await sendToUser(s.userId, {
+              title: "📮 주간 회고 편지",
+              body: "이번 주를 담은 편지가 도착했어요.",
+              url: `/letters/${r.id}`,
+              tag: `letter-${r.weekStart}`,
+            });
+            await usageRepo.log(s.userId, "proactive");
+            log(`  weekly letter → user#${s.userId} letter#${r.id} (push ${sent})`);
+          } else {
+            log(`  weekly letter skip user#${s.userId}: ${r.skipped}`);
+            await sendProactive(s.userId, s.eveningPersonaId, "evening", conn); // 데이터 없으면 일반 저녁톡
+          }
+        } else {
+          await sendProactive(s.userId, s.eveningPersonaId, "evening", conn);
+        }
       }
     }
   } catch (err) {

@@ -235,6 +235,25 @@ export const transactions = pgTable(
   (t) => [index("tx_user_date_idx").on(t.userId, t.txDate)],
 );
 
+// 주간 회고 편지 — 상담사가 한 주의 일기·기분·달성을 묶어 보내는 짧은 편지(아카이브).
+export const letters = pgTable(
+  "letters",
+  {
+    id: bigint("id", { mode: "number" })
+      .primaryKey()
+      .generatedAlwaysAsIdentity(),
+    userId: bigint("user_id", { mode: "number" })
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    weekStart: date("week_start").notNull(), // 그 주 월요일
+    weekEnd: date("week_end").notNull(), // 그 주 일요일
+    personaName: text("persona_name"), // 보낸 상담사 캐릭터 이름(서명)
+    body: text("body").notNull(), // 편지 본문(프로즈)
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
+  },
+  (t) => [uniqueIndex("letters_user_week_idx").on(t.userId, t.weekStart)],
+);
+
 export const memories = pgTable(
   "memories",
   {

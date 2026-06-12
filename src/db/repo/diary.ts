@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, gt } from "drizzle-orm";
+import { and, asc, desc, eq, gt, gte, lte } from "drizzle-orm";
 import { db } from "../client";
 import { diaryEntries, diaryItems } from "../schema";
 
@@ -119,6 +119,21 @@ export async function listSinceId(userId: number, sinceId: number, limit = 50) {
     .where(and(eq(diaryEntries.userId, userId), gt(diaryEntries.id, sinceId)))
     .orderBy(asc(diaryEntries.id))
     .limit(limit);
+}
+
+/** 기간 내 일기(오래된→최신) — 주간 회고 편지용. */
+export async function listBetween(userId: number, from: string, to: string) {
+  return db
+    .select()
+    .from(diaryEntries)
+    .where(
+      and(
+        eq(diaryEntries.userId, userId),
+        gte(diaryEntries.entryDate, from),
+        lte(diaryEntries.entryDate, to),
+      ),
+    )
+    .orderBy(asc(diaryEntries.entryDate));
 }
 
 /** 최신순 일기 목록(엔트리만). items 는 필요 시 getItems 로 별도 조회. */
