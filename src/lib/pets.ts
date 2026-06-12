@@ -23,6 +23,11 @@ export const DEFAULT_LINES: Record<Stage, string[]> = {
 const DEATH_SELFHARM = /죽(어|여|을|음|고\s*싶|자|이)|자살|자해|목\s*매|손목\s*긋|뒤져|뒈져|죽여/;
 const PROFANITY = /씨\s*발|시\s*발|씨\s*바|존\s*나|좆|병\s*신|지\s*랄|개\s*새끼|썅|엿\s*같|엿\s*먹/;
 
+/** 관계 라벨이 '연인' 결인지(탭 시 love 이펙트 트리거). 자유 텍스트라 키워드 매칭. */
+export function isLoveLabel(label: string): boolean {
+  return /연인|사랑|커플|love|연애/i.test(label);
+}
+
 /** 자동 생성 대사가 금지(죽음/자해·비속어)에 걸리면 true → 제외. */
 export function forbiddenLine(s: string): boolean {
   const t = s.normalize("NFC");
@@ -32,4 +37,29 @@ export function forbiddenLine(s: string): boolean {
 /** 두 펫 id 를 a<b 로 정규화(관계 unique pair). */
 export function normalizePair(p1: number, p2: number): { a: number; b: number } {
   return p1 < p2 ? { a: p1, b: p2 } : { a: p2, b: p1 };
+}
+
+/**
+ * 폴백 2축으로 스프라이트 경로 선택:
+ *  ① (stage,kind) 정확 → ② 같은 스테이지 idle → ③ 현재 이하 가장 최근 스테이지의 idle→any.
+ * 아무 것도 없으면 null(플레이스홀더 렌더).
+ */
+export function pickSpritePath(
+  sprites: { stage: string; kind: string; path: string }[],
+  stage: Stage,
+  kind: SpriteKind,
+): string | null {
+  const find = (st: string, kd: string) =>
+    sprites.find((s) => s.stage === st && s.kind === kd)?.path ?? null;
+  const exact = find(stage, kind);
+  if (exact) return exact;
+  const ladder: Stage[] = ["baby", "teen", "adult"];
+  for (let i = ladder.indexOf(stage); i >= 0; i--) {
+    const st = ladder[i];
+    const idle = find(st, "idle");
+    if (idle) return idle;
+    const any = sprites.find((s) => s.stage === st);
+    if (any) return any.path;
+  }
+  return null;
 }

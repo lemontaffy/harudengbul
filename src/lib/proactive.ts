@@ -45,7 +45,11 @@ export const TRIGGER_ROLE: Record<Trigger, Role> = {
 };
 
 /** SPEC §3.3 선제 톡 지시문. system(캐릭터 프롬프트) 뒤 user 턴으로 붙인다. */
-export function proactiveInstruction(trigger: Trigger, weatherLine?: string): string {
+export function proactiveInstruction(
+  trigger: Trigger,
+  weatherLine?: string,
+  petsLine?: string,
+): string {
   const common =
     "사용자가 앱을 열지 않은 상태에서 네가 먼저 보내는 한 통의 메시지를 작성해. " +
     "2~4문장, 답장을 강요하는 말투는 금지.";
@@ -54,7 +58,10 @@ export function proactiveInstruction(trigger: Trigger, weatherLine?: string): st
       `지금은 아침이야. ${common}\n` +
       `오늘 날씨와 일정을 가볍게 브리핑하고 안부를 전해. ` +
       `비나 눈 예보가 있으면 우산·옷차림을 먼저 챙겨줘.` +
-      (weatherLine ? `\n참고 — 오늘 날씨: ${weatherLine}` : "")
+      (weatherLine ? `\n참고 — 오늘 날씨: ${weatherLine}` : "") +
+      (petsLine
+        ? `\n참고 — 사용자의 펫: ${petsLine}. 가끔(매번은 금지) 한 줄 가볍게 언급해도 좋아. 의무는 아니야.`
+        : "")
     );
   }
   return (

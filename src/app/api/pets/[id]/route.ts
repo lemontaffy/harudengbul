@@ -2,11 +2,46 @@ import { z } from "zod";
 import { getCurrentUser } from "@/lib/currentUser";
 import * as petsRepo from "@/db/repo/pets";
 import * as roomsRepo from "@/db/repo/petRooms";
+import * as spritesRepo from "@/db/repo/petSprites";
+import * as linesRepo from "@/db/repo/petLines";
+import * as relationsRepo from "@/db/repo/petRelations";
 import { stageFor } from "@/lib/pets";
 import { regenerateLines } from "@/lib/petLines";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+
+// 편집 시트 상세 — 스프라이트 슬롯·대사 풀·관계.
+export async function GET(_req: Request, { params }: { params: Promise<{ id: string }> }) {
+  const user = await getCurrentUser();
+  if (!user) return Response.json({ error: "unauthorized" }, { status: 401 });
+  const id = Number((await params).id);
+  if (!Number.isInteger(id)) return Response.json({ error: "잘못된 입력" }, { status: 400 });
+  const pet = await petsRepo.getOne(user.id, id);
+  if (!pet) return Response.json({ error: "없는 펫" }, { status: 404 });
+  const [sprites, lines, relations] = await Promise.all([
+    spritesRepo.listForPet(user.id, id),
+    linesRepo.listForPet(user.id, id),
+    relationsRepo.listForPet(user.id, id),
+  ]);
+  const stage = stageFor(pet.growthPoints, pet.teenThreshold, pet.adultThreshold);
+  return Response.json({
+    pet: {
+      id: pet.id,
+      name: pet.name,
+      personality: pet.personality,
+      pixelRender: pet.pixelRender,
+      roomId: pet.roomId,
+      growthPoints: pet.growthPoints,
+      teenThreshold: pet.teenThreshold,
+      adultThreshold: pet.adultThreshold,
+      stage,
+    },
+    sprites,
+    lines,
+    relations,
+  });
+}
 
 const patchSchema = z.object({
   name: z.string().trim().min(1).max(30).optional(),

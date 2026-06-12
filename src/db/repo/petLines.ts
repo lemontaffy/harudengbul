@@ -29,6 +29,15 @@ export async function listForPet(userId: number, petId: number, stage?: string) 
     );
 }
 
+/** 한 방의 모든 펫 대사(탭 말풍선용). */
+export async function listForRoom(userId: number, roomId: number) {
+  return db
+    .select(COLS)
+    .from(petLines)
+    .innerJoin(pets, eq(pets.id, petLines.petId))
+    .where(and(eq(pets.userId, userId), eq(pets.roomId, roomId)));
+}
+
 export async function addManual(
   petId: number,
   stage: string,

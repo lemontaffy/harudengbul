@@ -40,7 +40,13 @@ export async function create(
 ) {
   const [row] = await db
     .insert(pets)
-    .values({ userId, roomId: input.roomId, name: input.name, personality: input.personality ?? null })
+    .values({
+      userId,
+      roomId: input.roomId,
+      name: input.name,
+      personality: input.personality ?? null,
+      lastStageSeen: "baby", // 생성 직후엔 baby '봤음'으로 — 진화 연출은 변화 시에만
+    })
     .returning();
   return row;
 }

@@ -6,8 +6,13 @@ import * as eventsRepo from "@/db/repo/events";
 import * as diaryRepo from "@/db/repo/diary";
 import * as messagesRepo from "@/db/repo/messages";
 import * as handoffsRepo from "@/db/repo/handoffs";
+import * as petsRepo from "@/db/repo/pets";
+import * as spritesRepo from "@/db/repo/petSprites";
 import { phraseForDate } from "@/lib/phrases";
 import { findSecretary } from "@/lib/cta";
+import { stageFor, pickSpritePath } from "@/lib/pets";
+import { isSleeping } from "@/lib/growth";
+import PetMiniWidget from "@/components/pets/PetMiniWidget";
 import ConnectionSwitcher from "@/components/ConnectionSwitcher";
 import LiveClock from "@/components/LiveClock";
 import MoodChips from "@/components/MoodChips";
@@ -54,6 +59,28 @@ export default async function DashboardPage() {
     suggestedText: h.suggestedText,
     personaName: h.personaName,
   }));
+
+  // 홈 펫 미니 위젯 — 마지막 본 방(없으면 첫 방)의 펫. 펫 0마리면 미표시.
+  let petMini: { roomId: number; items: { name: string; avatar: string | null; asleep: boolean }[] } | null = null;
+  const allPets = await petsRepo.listByUser(user.id);
+  if (allPets.length > 0) {
+    const lastRoomId = s?.petLastRoomId ?? null;
+    const roomId = lastRoomId && allPets.some((p) => p.roomId === lastRoomId) ? lastRoomId : allPets[0].roomId;
+    const inRoom = allPets.filter((p) => p.roomId === roomId);
+    const petSprites = await spritesRepo.listForRoom(user.id, roomId);
+    const asleep = isSleeping(s?.lastActivityAt);
+    petMini = {
+      roomId,
+      items: inRoom.map((p) => {
+        const stage = stageFor(p.growthPoints, p.teenThreshold, p.adultThreshold);
+        return {
+          name: p.name,
+          avatar: pickSpritePath(petSprites.filter((sp) => sp.petId === p.id), stage, "idle"),
+          asleep,
+        };
+      }),
+    };
+  }
 
   // 입구 카드는 "가장 최근 대화가 있었던 페르소나" 기준(활성 고정 아님).
   const lasts = await Promise.all(
@@ -126,6 +153,8 @@ export default async function DashboardPage() {
 
       {/* 핸드오프(상담가가 전달한 항목) — pending 있을 때만 */}
       <HandoffCard initial={handoffs} />
+
+      {petMini && <PetMiniWidget roomId={petMini.roomId} items={petMini.items} />}
 
       {/* 오늘 일정 미니 */}
       <section className="rounded-card bg-surface p-4">
