@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { getCurrentUser } from "@/lib/currentUser";
-import type { Role } from "@/lib/persona";
+import { ROLE_LABEL, REQUIRED_ROLES, type Role } from "@/lib/persona";
 import * as personasRepo from "@/db/repo/personas";
 
 export const runtime = "nodejs";
@@ -8,7 +8,9 @@ export const dynamic = "force-dynamic";
 
 const patchSchema = z.object({
   name: z.string().trim().min(1).max(40).optional(),
-  role: z.enum(["counselor", "secretary"]).optional(),
+  role: z
+    .enum(["counselor", "secretary", "nutritionist", "study_mate", "friend"])
+    .optional(),
   traits: z.string().max(2000).nullable().optional(),
 });
 
@@ -36,16 +38,21 @@ export async function PATCH(
   }
   const d = parsed.data;
 
-  // 역할 변경이 해당 역할의 마지막 활성 캐릭터를 0명으로 만들면 차단.
-  if (d.role && d.role !== persona.role && persona.isActive) {
+  // 역할 변경이 (시스템 의존) 역할의 마지막 활성 캐릭터를 0명으로 만들면 차단.
+  // 신규 3종(영양사/스터디/친구)은 선택적이라 최소 인원 제약 없음.
+  if (
+    d.role &&
+    d.role !== persona.role &&
+    persona.isActive &&
+    REQUIRED_ROLES.includes(persona.role as Role)
+  ) {
     const remaining = await personasRepo.countActiveByRole(
       user.id,
       persona.role as Role,
     );
     if (remaining <= 1) {
-      const label = persona.role === "counselor" ? "상담가" : "비서";
       return Response.json(
-        { error: `${label} 역할 캐릭터가 최소 1명은 있어야 해요.` },
+        { error: `${ROLE_LABEL[persona.role as Role]} 역할 캐릭터가 최소 1명은 있어야 해요.` },
         { status: 400 },
       );
     }
@@ -73,16 +80,15 @@ export async function DELETE(
   const persona = await loadOwned(user.id, id);
   if (!persona) return Response.json({ error: "없는 캐릭터" }, { status: 404 });
 
-  // 역할별 최소 1명 유지: 이 캐릭터가 해당 역할의 마지막 활성이면 보관 차단.
-  if (persona.isActive) {
+  // (시스템 의존) 역할별 최소 1명 유지: 마지막 활성이면 보관 차단. 신규 3종은 제약 없음.
+  if (persona.isActive && REQUIRED_ROLES.includes(persona.role as Role)) {
     const remaining = await personasRepo.countActiveByRole(
       user.id,
       persona.role as Role,
     );
     if (remaining <= 1) {
-      const label = persona.role === "counselor" ? "상담가" : "비서";
       return Response.json(
-        { error: `${label} 역할 캐릭터가 최소 1명은 있어야 해요.` },
+        { error: `${ROLE_LABEL[persona.role as Role]} 역할 캐릭터가 최소 1명은 있어야 해요.` },
         { status: 400 },
       );
     }

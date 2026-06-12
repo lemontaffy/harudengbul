@@ -3,7 +3,14 @@
 import { useState } from "react";
 import AvatarCropper from "@/components/AvatarCropper";
 
-type Role = "counselor" | "secretary";
+type Role = "counselor" | "secretary" | "nutritionist" | "study_mate" | "friend";
+const ALL_ROLES: Role[] = [
+  "counselor",
+  "secretary",
+  "nutritionist",
+  "study_mate",
+  "friend",
+];
 
 export interface Character {
   id: number;
@@ -23,6 +30,9 @@ export interface TriggerAssignments {
 const ROLE_LABEL: Record<Role, string> = {
   counselor: "상담가",
   secretary: "비서",
+  nutritionist: "영양사",
+  study_mate: "스터디 메이트",
+  friend: "친구",
 };
 
 const inputCls =
@@ -102,8 +112,8 @@ export default function CharacterManager({
         {status && <span className="text-[11px] opacity-60">{status}</span>}
       </div>
       <p className="mb-4 text-[11px] opacity-50">
-        역할(상담가/비서)별로 캐릭터를 자유롭게 추가·편집·보관할 수 있어요. 역할마다
-        최소 1명은 있어야 합니다.
+        역할(상담가·비서·영양사·스터디 메이트·친구)별로 캐릭터를 자유롭게 추가·편집·보관할
+        수 있어요. 상담가·비서는 최소 1명씩 있어야 하고, 나머지 역할은 선택입니다.
       </p>
 
       {/* 목록 */}
@@ -371,8 +381,8 @@ function CharacterForm({
       />
 
       <label className="mb-1 mt-3 block text-xs opacity-60">역할</label>
-      <div className="flex gap-2">
-        {(["counselor", "secretary"] as const).map((r) => (
+      <div className="flex flex-wrap gap-2">
+        {ALL_ROLES.map((r) => (
           <button
             key={r}
             type="button"

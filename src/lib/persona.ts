@@ -20,16 +20,36 @@ const CONDITION_LABEL: Record<string, string> = {
   energetic: "쌩쌩",
 };
 
-// 역할은 고정 2종. 캐릭터(이름·성격)는 사용자 소유 데이터(personas 테이블).
-export type Role = "counselor" | "secretary";
+// 역할은 고정 5종. 캐릭터(이름·성격)는 사용자 소유 데이터(personas 테이블).
+// role 은 text 컬럼이라 enum 마이그레이션 없이 값만 추가하면 된다.
+export type Role =
+  | "counselor"
+  | "secretary"
+  | "nutritionist"
+  | "study_mate"
+  | "friend";
+
+export const ROLES: Role[] = [
+  "counselor",
+  "secretary",
+  "nutritionist",
+  "study_mate",
+  "friend",
+];
+
+// 시스템이 의존하는(트리거 담당·최소 1명 보장이 필요한) 역할. 신규 3종은 선택적.
+export const REQUIRED_ROLES: Role[] = ["counselor", "secretary"];
 
 export function isRole(v: unknown): v is Role {
-  return v === "counselor" || v === "secretary";
+  return typeof v === "string" && (ROLES as string[]).includes(v);
 }
 
 export const ROLE_LABEL: Record<Role, string> = {
   counselor: "상담가",
   secretary: "비서",
+  nutritionist: "영양사",
+  study_mate: "스터디 메이트",
+  friend: "친구",
 };
 
 // 프롬프트 조립은 lib/prompt.ts 로 3층 분리. 기존 import 경로 호환을 위해 re-export.

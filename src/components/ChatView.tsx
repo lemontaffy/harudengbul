@@ -3,7 +3,7 @@
 import { Fragment, useEffect, useRef, useState, useCallback } from "react";
 import ConnectionSwitcher from "@/components/ConnectionSwitcher";
 
-type Role = "counselor" | "secretary";
+type Role = "counselor" | "secretary" | "nutritionist" | "study_mate" | "friend";
 export interface ChatPersona {
   id: number;
   name: string | null;
@@ -21,6 +21,9 @@ interface Msg {
 const ROLE_LABEL: Record<Role, string> = {
   counselor: "상담가",
   secretary: "비서",
+  nutritionist: "영양사",
+  study_mate: "스터디 메이트",
+  friend: "친구",
 };
 
 function displayName(p: ChatPersona): string {

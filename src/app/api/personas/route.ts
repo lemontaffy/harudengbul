@@ -7,7 +7,7 @@ export const dynamic = "force-dynamic";
 
 const createSchema = z.object({
   name: z.string().trim().min(1).max(40),
-  role: z.enum(["counselor", "secretary"]),
+  role: z.enum(["counselor", "secretary", "nutritionist", "study_mate", "friend"]),
   traits: z.string().max(2000).optional(),
 });
 

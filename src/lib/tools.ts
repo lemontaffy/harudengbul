@@ -15,6 +15,23 @@ export interface ToolDef {
   function: { name: string; description: string; parameters: object };
 }
 
+// 장기기억 저장 — 비서 외에 영양사·스터디 메이트도 사용(역할 공통은 아님, 친구는 제외).
+export const SAVE_MEMORY_TOOL: ToolDef = {
+  type: "function",
+  function: {
+    name: "save_memory",
+    description: "앞으로 기억해 두면 좋을 사용자 정보를 장기기억에 저장한다.",
+    parameters: {
+      type: "object",
+      properties: {
+        content: { type: "string", description: "기억할 내용(한 문장)" },
+        importance: { type: "integer", description: "1(사소)~5(매우 중요)" },
+      },
+      required: ["content"],
+    },
+  },
+};
+
 export const SECRETARY_TOOLS: ToolDef[] = [
   {
     type: "function",
@@ -147,21 +164,7 @@ export const SECRETARY_TOOLS: ToolDef[] = [
       },
     },
   },
-  {
-    type: "function",
-    function: {
-      name: "save_memory",
-      description: "앞으로 기억해 두면 좋을 사용자 정보를 장기기억에 저장한다.",
-      parameters: {
-        type: "object",
-        properties: {
-          content: { type: "string", description: "기억할 내용(한 문장)" },
-          importance: { type: "integer", description: "1(사소)~5(매우 중요)" },
-        },
-        required: ["content"],
-      },
-    },
-  },
+  SAVE_MEMORY_TOOL,
 ];
 
 // 상담가 전용 도구 — 직접 등록(add_event 등)은 안 되고, 동의받은 할 일만 비서에게 "전달".
@@ -204,11 +207,20 @@ export const SEARCH_TOOL: ToolDef = {
   },
 };
 
-/** 역할·설정에 따른 도구 목록. search_past_messages 는 모든 역할 공통. */
+/**
+ * 역할·설정에 따른 도구 목록.
+ * - search_past_messages: 모든 역할 공통.
+ * - 비서: 등록 도구 일체(add_event/add_transaction/save_memory…).
+ * - 비서 외 모든 역할: 핸드오프(suggest_handoff)는 handoff_enabled 일 때만.
+ * - 영양사·스터디 메이트: save_memory 추가(친구는 제외).
+ * 신규 3종에 비서 등록 도구(add_event 등)는 절대 바인딩하지 않는다.
+ */
 export function toolsForRole(role: Role, handoffEnabled: boolean): ToolDef[] | undefined {
   if (role === "secretary") return [...SECRETARY_TOOLS, SEARCH_TOOL];
-  if (role === "counselor" && handoffEnabled) return [HANDOFF_TOOL, SEARCH_TOOL];
-  return [SEARCH_TOOL];
+  const tools: ToolDef[] = [SEARCH_TOOL];
+  if (handoffEnabled) tools.push(HANDOFF_TOOL);
+  if (role === "nutritionist" || role === "study_mate") tools.push(SAVE_MEMORY_TOOL);
+  return tools;
 }
 
 const searchArgs = z.object({
