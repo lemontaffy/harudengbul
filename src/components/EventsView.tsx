@@ -30,6 +30,14 @@ function toLocalInput(iso: string): string {
 function fromLocalInput(v: string): string {
   return new Date(v).toISOString(); // 브라우저 로컬 → 절대 시각(UTC)
 }
+// 추가 시 기본 시작값 = 다음 정시(분/초 0). 예: 12:10 → 13:00
+function nextHourLocalInput(): string {
+  const d = new Date();
+  d.setMinutes(0, 0, 0);
+  d.setHours(d.getHours() + 1);
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
 function fmt(iso: string): string {
   return new Date(iso).toLocaleString("ko-KR", {
     month: "long",
@@ -181,7 +189,7 @@ function EventForm({
 }) {
   const [title, setTitle] = useState(initial?.title ?? "");
   const [startsAt, setStartsAt] = useState(
-    initial ? toLocalInput(initial.startsAt) : "",
+    initial ? toLocalInput(initial.startsAt) : nextHourLocalInput(),
   );
   const [endsAt, setEndsAt] = useState(
     initial?.endsAt ? toLocalInput(initial.endsAt) : "",
@@ -255,21 +263,44 @@ function EventForm({
           />
         </label>
       </div>
-      <label className="mb-1 mt-3 block text-xs opacity-60">알람</label>
-      <select
-        value={alarm ?? ""}
-        onChange={(e) =>
-          setAlarm(e.target.value === "" ? null : Number(e.target.value))
-        }
-        className={inputCls}
-      >
+      <label className="mb-1 mt-3 block text-xs opacity-60">알람 (몇 분 전)</label>
+      <div className="flex items-center gap-2">
+        <input
+          type="number"
+          min={0}
+          max={10080}
+          step={1}
+          inputMode="numeric"
+          value={alarm ?? ""}
+          onChange={(e) =>
+            setAlarm(
+              e.target.value === "" ? null : Math.max(0, Math.floor(Number(e.target.value))),
+            )
+          }
+          placeholder="없음"
+          className={`${inputCls} flex-1`}
+        />
+        <span className="shrink-0 text-xs opacity-50">분 전</span>
+      </div>
+      <div className="mt-2 flex flex-wrap gap-1.5">
         {ALARM_OPTIONS.map((o) => (
-          <option key={o.label} value={o.value ?? ""}>
+          <button
+            key={o.label}
+            type="button"
+            onClick={() => setAlarm(o.value)}
+            className={`rounded-lg px-2.5 py-1 text-[11px] ${
+              (o.value ?? null) === (alarm ?? null)
+                ? "bg-accent text-black"
+                : "bg-bg ring-1 ring-white/10"
+            }`}
+          >
             {o.label}
-          </option>
+          </button>
         ))}
-      </select>
-      <p className="mt-1 text-[11px] opacity-40">알람은 알림(웹푸시)을 켠 기기로 와요.</p>
+      </div>
+      <p className="mt-1 text-[11px] opacity-40">
+        직접 입력하거나 칩을 누르세요. 알람은 알림(웹푸시)을 켠 기기로 와요.
+      </p>
 
       <div className="mt-3 flex gap-2">
         <button
