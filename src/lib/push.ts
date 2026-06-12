@@ -57,6 +57,7 @@ export async function sendToUser(
         await webpush.sendNotification(
           { endpoint: s.endpoint, keys: s.keys as { p256dh: string; auth: string } },
           body,
+          { urgency: "high" }, // 즉시 전달 + Android heads-up(상단 배너) 우선순위
         );
         sent++;
       } catch (err: unknown) {

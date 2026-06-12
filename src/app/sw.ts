@@ -34,15 +34,22 @@ self.addEventListener("push", (event) => {
     data = { body: event.data?.text() };
   }
   const title = data.title || "하루등불";
-  event.waitUntil(
-    self.registration.showNotification(title, {
-      body: data.body ?? "",
-      icon: "/icons/icon-192.png",
-      badge: "/icons/icon-192.png",
-      tag: data.tag,
-      data: { url: data.url || "/" },
-    }),
-  );
+  // icon = 알림 본문의 큰 앱 아이콘(컬러). badge = 상태바 작은 아이콘(단색 실루엣).
+  //   badge에 컬러 아이콘을 주면 Android가 흰 네모로 마스킹하므로 전용 실루엣을 쓴다.
+  // vibrate + renotify = Android heads-up(상단 배너) 유도.
+  const options: NotificationOptions & {
+    vibrate?: number[];
+    renotify?: boolean;
+  } = {
+    body: data.body ?? "",
+    icon: "/icons/icon-192.png",
+    badge: "/icons/badge.png",
+    tag: data.tag,
+    renotify: !!data.tag,
+    vibrate: [200, 100, 200],
+    data: { url: data.url || "/" },
+  };
+  event.waitUntil(self.registration.showNotification(title, options));
 });
 
 // 알림 클릭 → 열린 탭이 있으면 포커스(해당 URL로 이동), 없으면 새 창.
