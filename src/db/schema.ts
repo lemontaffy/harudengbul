@@ -204,6 +204,7 @@ export const diaryEntries = pgTable(
     mood: text("mood"), // storm|rain|cloud|haze|sun
     bodyCondition: text("body_condition"), // sick|tired|normal|energetic — 기분 보정 해석용
     body: text("body"),
+    photoPath: text("photo_path"), // 한 줄+사진 모드 — 사진 한 장만으로도 그날 일기 성립
     aiReply: text("ai_reply"),
     aiPersona: text("ai_persona"),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),

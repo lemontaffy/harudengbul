@@ -22,6 +22,7 @@ export default async function DiaryPage() {
       entryDate: e.entryDate,
       mood: (e.mood as DiaryEntry["mood"]) ?? null,
       body: e.body,
+      photoPath: e.photoPath ?? null,
       aiReply: e.aiReply,
       aiPersona: e.aiPersona,
       items: (await diaryRepo.getItems(e.id)).map((it) => ({

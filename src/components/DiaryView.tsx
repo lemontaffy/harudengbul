@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 
 type Mood = "storm" | "rain" | "cloud" | "haze" | "sun";
 interface DiaryItem {
@@ -14,6 +14,7 @@ export interface DiaryEntry {
   entryDate: string;
   mood: Mood | null;
   body: string | null;
+  photoPath: string | null;
   aiReply: string | null;
   aiPersona: string | null;
   items: DiaryItem[];
@@ -43,6 +44,9 @@ export default function DiaryView({
 
   const [mood, setMood] = useState<Mood | null>(todays?.mood ?? null);
   const [body, setBody] = useState(todays?.body ?? "");
+  const [photoPath, setPhotoPath] = useState<string | null>(todays?.photoPath ?? null);
+  const [uploadingPhoto, setUploadingPhoto] = useState(false);
+  const fileRef = useRef<HTMLInputElement>(null);
   const [items, setItems] = useState<DiaryItem[]>(todays?.items ?? []);
   const [reply, setReply] = useState<string | null>(todays?.aiReply ?? null);
   const [replyPersona, setReplyPersona] = useState<string | null>(
@@ -62,9 +66,34 @@ export default function DiaryView({
     setItems((xs) => xs.filter((_, j) => j !== i));
   }
 
+  async function onPickPhoto(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploadingPhoto(true);
+    setStatus("");
+    try {
+      const fd = new FormData();
+      fd.append("photo", file);
+      fd.append("date", today);
+      const res = await fetch("/api/diary/photo", { method: "POST", body: fd });
+      const data = await res.json();
+      if (res.ok) setPhotoPath(data.photoPath);
+      else setStatus(data.error ?? "사진 업로드 실패");
+    } catch {
+      setStatus("네트워크 오류");
+    } finally {
+      setUploadingPhoto(false);
+      if (fileRef.current) fileRef.current.value = "";
+    }
+  }
+  async function removePhoto() {
+    await fetch(`/api/diary/photo?date=${today}`, { method: "DELETE" });
+    setPhotoPath(null);
+  }
+
   async function save() {
-    if (!body.trim() && !mood && items.length === 0) {
-      setStatus("내용을 입력하세요.");
+    if (!body.trim() && !mood && items.length === 0 && !photoPath) {
+      setStatus("사진 한 장이나 한 줄이면 충분해요.");
       return;
     }
     setSaving(true);
@@ -113,6 +142,42 @@ export default function DiaryView({
           <span className="text-[11px] opacity-50">{today}</span>
         </div>
 
+        {/* 한 줄+사진 모드 — 낮은 문턱 폴백 */}
+        <div className="mb-4 rounded-xl bg-bg/60 p-3 ring-1 ring-white/10">
+          <p className="mb-2 text-[11px] opacity-60">
+            글 쓸 힘이 없는 날엔, 사진 한 장 + 한 줄이면 그날 일기로 충분해요.
+          </p>
+          {photoPath ? (
+            <div className="relative">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={photoPath} alt="오늘 사진" className="max-h-60 w-full rounded-lg object-cover" />
+              <button
+                type="button"
+                onClick={removePhoto}
+                className="absolute right-2 top-2 rounded-full bg-black/60 px-2 py-0.5 text-[11px] text-white"
+              >
+                사진 제거
+              </button>
+            </div>
+          ) : (
+            <button
+              type="button"
+              onClick={() => fileRef.current?.click()}
+              disabled={uploadingPhoto}
+              className="w-full rounded-lg border border-dashed border-white/15 py-3 text-sm opacity-70 hover:opacity-100 disabled:opacity-40"
+            >
+              {uploadingPhoto ? "올리는 중…" : "📷 사진 추가"}
+            </button>
+          )}
+          <input
+            ref={fileRef}
+            type="file"
+            accept="image/png,image/jpeg,image/webp"
+            className="hidden"
+            onChange={onPickPhoto}
+          />
+        </div>
+
         {/* 기분 */}
         <label className="mb-1 block text-xs opacity-60">오늘 기분</label>
         <div className="mb-4 flex gap-2">
@@ -133,12 +198,12 @@ export default function DiaryView({
         </div>
 
         {/* 본문 */}
-        <label className="mb-1 block text-xs opacity-60">오늘 하루</label>
+        <label className="mb-1 block text-xs opacity-60">오늘 하루 (한 줄도 괜찮아요)</label>
         <textarea
           value={body}
           onChange={(e) => setBody(e.target.value)}
           rows={5}
-          placeholder="오늘 있었던 일, 마음에 남은 것들…"
+          placeholder="한 줄이어도, 사진만 남겨도 괜찮아요."
           className={`${inputCls} resize-none`}
         />
 
@@ -231,6 +296,14 @@ export default function DiaryView({
                     <span className="opacity-60">{e.entryDate}</span>
                     {m && <span className="opacity-40">{m.emoji} {m.label}</span>}
                   </div>
+                  {e.photoPath && (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={e.photoPath}
+                      alt=""
+                      className="mb-1.5 max-h-52 w-full rounded-lg object-cover"
+                    />
+                  )}
                   {e.body && (
                     <p className="whitespace-pre-wrap text-sm opacity-90">{e.body}</p>
                   )}

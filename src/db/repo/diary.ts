@@ -16,12 +16,18 @@ export type DiaryItemInput = {
 export async function upsertEntry(
   userId: number,
   entryDate: string,
-  patch: { mood?: string | null; bodyCondition?: string | null; body?: string | null },
+  patch: {
+    mood?: string | null;
+    bodyCondition?: string | null;
+    body?: string | null;
+    photoPath?: string | null;
+  },
 ) {
   const set: Partial<typeof diaryEntries.$inferInsert> = {};
   if (patch.mood !== undefined) set.mood = patch.mood;
   if (patch.bodyCondition !== undefined) set.bodyCondition = patch.bodyCondition;
   if (patch.body !== undefined) set.body = patch.body;
+  if (patch.photoPath !== undefined) set.photoPath = patch.photoPath;
 
   // 제공된 키가 없으면 쓰기 없이 현재 행 반환(없으면 빈 행 생성).
   if (Object.keys(set).length === 0) {
@@ -46,6 +52,7 @@ export async function upsertEntry(
       mood: patch.mood ?? null,
       bodyCondition: patch.bodyCondition ?? null,
       body: patch.body ?? null,
+      photoPath: patch.photoPath ?? null,
     })
     .onConflictDoUpdate({
       target: [diaryEntries.userId, diaryEntries.entryDate],
@@ -53,6 +60,16 @@ export async function upsertEntry(
     })
     .returning();
   return row;
+}
+
+/** 서빙 화이트리스트 — 이 URL이 어떤 일기 사진으로 등록돼 있는지. */
+export async function photoExists(url: string): Promise<boolean> {
+  const [r] = await db
+    .select({ id: diaryEntries.id })
+    .from(diaryEntries)
+    .where(eq(diaryEntries.photoPath, url))
+    .limit(1);
+  return !!r;
 }
 
 export async function getByDate(userId: number, entryDate: string) {

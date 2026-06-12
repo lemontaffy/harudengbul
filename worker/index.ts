@@ -207,13 +207,17 @@ async function proactiveJob() {
   }
 }
 
-// 일기/체크인 기록이 하나라도 있으면 "작성한 날"로 본다.
+// 일기/체크인 기록(사진 포함)이 하나라도 있으면 "작성한 날"로 본다.
 function hasDiaryActivity(e: {
   mood: string | null;
   bodyCondition: string | null;
   body: string | null;
+  photoPath: string | null;
 } | undefined): boolean {
-  return !!e && (!!e.mood || !!e.bodyCondition || !!(e.body && e.body.trim()));
+  return (
+    !!e &&
+    (!!e.mood || !!e.bodyCondition || !!(e.body && e.body.trim()) || !!e.photoPath)
+  );
 }
 
 // 일기 리마인드 — 담당 캐릭터의 선제 톡으로 생성(대화방 + 푸시). askReduce면 "줄여줄까?" 포함.

@@ -110,6 +110,7 @@ export async function POST(req: Request) {
       const userTurn =
         `오늘 일기를 썼어.\n기분: ${d.mood ? MOOD_LABEL[d.mood] : "(미기록)"}\n` +
         `컨디션: ${condForReply ? CONDITION_LABEL[condForReply] : "(미기록)"}\n` +
+        (entry.photoPath ? "오늘은 사진도 한 장 남겼어(내용은 안 보여줘도 돼).\n" : "") +
         `오늘 한 일:\n${itemsText}\n\n[일기]\n${d.body!.trim()}\n\n` +
         `— 위 일기에 1~5문장으로 따뜻하게, 상담가로서 답장해줘. ` +
         `몸이 안 좋은 날(아픔/피곤)이면 기분이 낮은 걸 너무 무겁게 받지 않도록 부드럽게 짚어줘.`;
