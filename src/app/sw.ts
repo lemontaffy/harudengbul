@@ -53,7 +53,7 @@ self.addEventListener("push", (event) => {
     timestamp?: number;
   } = {
     body: data.body ?? "",
-    icon: "/icons/icon-192.png",
+    icon: "/icons/icon-push.png",
     badge: "/icons/badge.png",
     tag: data.tag,
     renotify: !!data.tag,
