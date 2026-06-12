@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { requireUser } from "@/lib/currentUser";
 import * as lettersRepo from "@/db/repo/letters";
+import NavMenu from "@/components/NavMenu";
 
 export const dynamic = "force-dynamic";
 
@@ -36,9 +37,12 @@ export default async function LetterPage({
 
   return (
     <main className="mx-auto max-w-md p-5">
-      <Link href="/letters" className="text-sm opacity-60 hover:opacity-100">
-        ← 편지함
-      </Link>
+      <div className="flex items-center justify-between">
+        <Link href="/letters" className="text-sm opacity-60 hover:opacity-100">
+          ← 편지함
+        </Link>
+        <NavMenu isAdmin={user.role === "admin"} username={user.username} />
+      </div>
 
       <article className="mt-4 overflow-hidden rounded-[28px] bg-gradient-to-b from-[#2b2433] to-[#211f2b] p-7 shadow-xl ring-1 ring-accent/20">
         <header className="mb-6 text-center">

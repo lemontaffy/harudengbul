@@ -1,4 +1,4 @@
-import Link from "next/link";
+import NavMenu from "@/components/NavMenu";
 import { requireUser } from "@/lib/currentUser";
 import * as settingsRepo from "@/db/repo/settings";
 import * as diaryRepo from "@/db/repo/diary";
@@ -36,11 +36,8 @@ export default async function DiaryPage() {
   return (
     <main className="mx-auto max-w-md p-5">
       <div className="mb-5 flex items-center justify-between">
-        <Link href="/" className="text-sm opacity-60 hover:opacity-100">
-          ← 홈
-        </Link>
         <h1 className="text-lg font-semibold">일기</h1>
-        <span className="w-8" />
+        <NavMenu isAdmin={user.role === "admin"} username={user.username} />
       </div>
       <DiaryView today={today} initialEntries={entries} />
     </main>

@@ -1,4 +1,4 @@
-import Link from "next/link";
+import NavMenu from "@/components/NavMenu";
 import { requireUser } from "@/lib/currentUser";
 import * as pocketRepo from "@/db/repo/pocket";
 import * as personasRepo from "@/db/repo/personas";
@@ -27,11 +27,8 @@ export default async function PocketPage() {
   return (
     <main className="mx-auto flex max-w-md flex-col gap-5 p-5">
       <div className="flex items-center justify-between">
-        <Link href="/" className="text-sm opacity-60 hover:opacity-100">
-          ← 홈
-        </Link>
         <h1 className="text-lg font-semibold">비상 주머니</h1>
-        <span className="w-8" />
+        <NavMenu isAdmin={user.role === "admin"} username={user.username} />
       </div>
 
       <p className="rounded-2xl bg-surface p-4 text-sm leading-relaxed opacity-80">

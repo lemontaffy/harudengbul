@@ -1,4 +1,4 @@
-import Link from "next/link";
+import NavMenu from "@/components/NavMenu";
 import { requireUser } from "@/lib/currentUser";
 import * as eventsRepo from "@/db/repo/events";
 import EventsView, { type EventItem } from "@/components/EventsView";
@@ -22,11 +22,8 @@ export default async function EventsPage() {
   return (
     <main className="mx-auto max-w-md p-5">
       <div className="mb-5 flex items-center justify-between">
-        <Link href="/" className="text-sm opacity-60 hover:opacity-100">
-          ← 홈
-        </Link>
         <h1 className="text-lg font-semibold">일정</h1>
-        <span className="w-8" />
+        <NavMenu isAdmin={user.role === "admin"} username={user.username} />
       </div>
       <EventsView initial={initial} />
     </main>
