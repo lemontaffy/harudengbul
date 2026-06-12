@@ -35,6 +35,9 @@ self.addEventListener("push", (event) => {
     requireInteraction?: boolean;
     timestamp?: number;
     eventId?: number;
+    image?: string;
+    actions?: { action: string; title: string }[];
+    snoozeToken?: string;
   } = {};
   try {
     data = event.data?.json() ?? {};
@@ -51,6 +54,8 @@ self.addEventListener("push", (event) => {
     vibrate?: number[];
     renotify?: boolean;
     timestamp?: number;
+    image?: string;
+    actions?: { action: string; title: string }[];
   } = {
     body: data.body ?? "",
     icon: "/icons/icon-push.png",
@@ -60,19 +65,57 @@ self.addEventListener("push", (event) => {
     vibrate: [200, 100, 200],
     requireInteraction: data.requireInteraction ?? false,
     timestamp: data.timestamp ?? Date.now(),
-    data: { url: data.url || "/", eventId: data.eventId },
+    // 큰 이미지(2:1) — 지원 환경만 표시, iOS 등은 무시.
+    ...(data.image ? { image: data.image } : {}),
+    // 액션 버튼 최대 2개.
+    ...(data.actions?.length ? { actions: data.actions.slice(0, 2) } : {}),
+    data: {
+      url: data.url || "/",
+      eventId: data.eventId,
+      snoozeToken: data.snoozeToken,
+    },
   };
   event.waitUntil(self.registration.showNotification(title, options));
 });
 
-// 알림 클릭 → 열린 탭이 있으면 포커스(해당 URL로 이동), 없으면 새 창.
+// 알림 클릭/액션:
+//  - "snooze" 액션: /api/alarms/snooze 호출(앱 안 염, 백그라운드).
+//  - "ack"(확인) 액션: 반복 알림 중단(앱 안 염).
+//  - 본문 탭(액션 없음): 알람이면 ack 후, 해당 URL로 포커스/새 창.
 self.addEventListener("notificationclick", (event) => {
   event.notification.close();
-  const nd = (event.notification.data as { url?: string; eventId?: number }) ?? {};
+  const nd =
+    (event.notification.data as {
+      url?: string;
+      eventId?: number;
+      snoozeToken?: string;
+    }) ?? {};
+  const action = event.action;
+
+  // 액션 버튼 → 백그라운드 처리만(창 열지 않음).
+  if (action === "snooze") {
+    event.waitUntil(
+      fetch("/api/alarms/snooze", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ token: nd.snoozeToken }),
+      }).catch(() => {}),
+    );
+    return;
+  }
+  if (action === "ack") {
+    event.waitUntil(
+      typeof nd.eventId === "number"
+        ? fetch(`/api/events/${nd.eventId}/ack`, { method: "POST" }).catch(() => {})
+        : Promise.resolve(),
+    );
+    return;
+  }
+
+  // 본문 탭 → ack(알람) 후 앱 열기.
   const url = nd.url || "/";
   event.waitUntil(
     (async () => {
-      // 일정 알람이면 확인 처리 → 반복 알림 중단(best-effort).
       if (typeof nd.eventId === "number") {
         await fetch(`/api/events/${nd.eventId}/ack`, { method: "POST" }).catch(() => {});
       }

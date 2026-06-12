@@ -21,6 +21,7 @@ import {
   introInstruction,
   resolveDeliveryPersona,
 } from "../src/lib/timecapsule";
+import { issueSnoozeToken } from "../src/lib/snoozeToken";
 import { runBackup } from "../src/lib/backup";
 import { googleConfigured } from "../src/lib/google";
 import { syncUser } from "../src/lib/googlesync";
@@ -69,6 +70,11 @@ async function notifyAlarm(e: {
     tag: `event-${e.id}`,
     requireInteraction: true, // 알람은 놓치지 않게 화면에 유지
     eventId: e.id, // 탭 시 반복 알림 ack
+    actions: [
+      { action: "ack", title: "확인" },
+      { action: "snooze", title: "10분 뒤 다시" },
+    ],
+    snoozeToken: issueSnoozeToken(e.id), // 세션 없는 sw 에서 스누즈 인증(1회용·30분)
   });
   log(`  event#${e.id} "${e.title}" → ${sent}건 발송`);
 }
@@ -78,9 +84,10 @@ async function alarmJob() {
   try {
     const due = await eventsRepo.claimDueAlarms();
     const repeats = await eventsRepo.claimDueRepeats(ALARM_REPEAT_MIN);
-    const all = [...due, ...repeats];
+    const snoozes = await eventsRepo.claimDueSnoozes();
+    const all = [...due, ...repeats, ...snoozes];
     if (all.length === 0) return;
-    log(`alarmJob: 신규 ${due.length} + 반복 ${repeats.length}건 발송`);
+    log(`alarmJob: 신규 ${due.length} + 반복 ${repeats.length} + 스누즈 ${snoozes.length}건 발송`);
     for (const e of all) await notifyAlarm(e);
   } catch (err) {
     log(`alarmJob 오류: ${(err as Error)?.message}`);
@@ -137,9 +144,12 @@ async function sendProactive(
   if (!text) return;
 
   await messagesRepo.add(userId, personaId, "proactive", text);
+  // 아침 브리핑은 요약 2~3줄을 그대로 실어 잠금화면에서 자동 펼침(BigText) 유도. 그 외는 짧게.
+  const cap = trigger === "morning" ? 300 : 120;
+  const body = text.length > cap ? text.slice(0, cap - 1) + "…" : text;
   const sent = await sendToUser(userId, {
     title: persona.name?.trim() || "하루등불",
-    body: text.length > 120 ? text.slice(0, 117) + "…" : text,
+    body,
     url: `/chat/${personaId}`,
     tag: `proactive-${trigger}`,
   });
@@ -203,9 +213,10 @@ async function deliverDueCapsules() {
 
       const full = composeDelivery(intro, cap.content); // 원문 그대로 결합(코드에서)
       await messagesRepo.add(cap.userId, persona.id, "proactive", full);
+      // 잠금화면에 편지 내용 미노출(사적) — 도착 사실만, 탭하면 대화방에서 열림.
       const sent = await sendToUser(cap.userId, {
-        title: persona.name?.trim() || "하루등불",
-        body: "📮 타임캡슐이 도착했어요.",
+        title: "📮 편지가 도착했어요",
+        body: `${persona.name?.trim() || "캐릭터"}이(가) 맡아둔 편지를 전해요. 탭해서 열어보세요.`,
         url: `/chat/${persona.id}`,
         tag: `capsule-${cap.id}`,
       });

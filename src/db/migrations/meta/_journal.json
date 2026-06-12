@@ -162,6 +162,13 @@
       "when": 1781265621332,
       "tag": "0022_time_capsule",
       "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "7",
+      "when": 1781267694400,
+      "tag": "0023_rich_push_snooze",
+      "breakpoints": true
     }
   ]
 }

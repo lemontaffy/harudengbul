@@ -111,6 +111,7 @@ export async function claimDueRepeats(repeatIntervalMin: number) {
       and(
         eq(events.alarmSent, true),
         eq(events.alarmAcked, false),
+        isNull(events.alarmSnoozeUntil), // 스누즈 중엔 일반 반복 억제
         isNotNull(events.alarmMinutesBefore),
         isNotNull(events.alarmKeepMinutes),
         isNotNull(events.alarmLastNotifiedAt),
@@ -133,6 +134,39 @@ export async function ackAlarm(userId: number, id: number) {
     .update(events)
     .set({ alarmAcked: true })
     .where(and(eq(events.id, id), eq(events.userId, userId)));
+}
+
+/**
+ * 스누즈('10분 뒤 다시') — until 까지 반복 억제. 토큰 인증이라 user 스코프 없음(eventId 한정).
+ * 미발송·ack 된 건은 무의미하니 alarm_sent & !ack 인 것만. 성공 시 true.
+ */
+export async function snoozeAlarm(id: number, until: Date): Promise<boolean> {
+  const r = await db
+    .update(events)
+    .set({ alarmSnoozeUntil: until })
+    .where(and(eq(events.id, id), eq(events.alarmSent, true), eq(events.alarmAcked, false)))
+    .returning({ id: events.id });
+  return r.length > 0;
+}
+
+/** 스누즈 도래분 청구 — snooze_until 지난 미ack 건을 1회 재푸시. 청구하며 snooze 해제. */
+export async function claimDueSnoozes() {
+  return db
+    .update(events)
+    .set({ alarmLastNotifiedAt: sql`now()`, alarmSnoozeUntil: null })
+    .where(
+      and(
+        isNotNull(events.alarmSnoozeUntil),
+        eq(events.alarmAcked, false),
+        sql`${events.alarmSnoozeUntil} <= now()`,
+      ),
+    )
+    .returning({
+      id: events.id,
+      userId: events.userId,
+      title: events.title,
+      startsAt: events.startsAt,
+    });
 }
 
 /** 컨텍스트/대시보드용 — 기간 내 사용자 일정(시간순). */

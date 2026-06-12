@@ -258,6 +258,8 @@ export const events = pgTable(
     alarmKeepMinutes: integer("alarm_keep_minutes"), // null/0 = 단발(반복 없음)
     alarmLastNotifiedAt: timestamp("alarm_last_notified_at", { withTimezone: true }),
     alarmAcked: boolean("alarm_acked").default(false), // 사용자가 확인(탭)하면 중단
+    // '10분 뒤 다시'(스누즈) — 이 시각까지 반복 억제, 도래 시 1회 재푸시.
+    alarmSnoozeUntil: timestamp("alarm_snooze_until", { withTimezone: true }),
     source: text("source").default("local"), // 'local' | 'google'
     googleEventId: text("google_event_id"), // Google 캘린더 이벤트 연결(양방향 매핑)
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
@@ -331,6 +333,12 @@ export const timeCapsules = pgTable(
     index("time_capsules_due_idx").on(t.deliverOn, t.deliveredAt),
   ],
 );
+
+// 스누즈 1회용 토큰 소비 기록 — 같은 토큰 재사용 거부용(서비스워커는 세션이 없어 서명 토큰으로 인증).
+export const snoozeTokens = pgTable("snooze_tokens", {
+  jti: text("jti").primaryKey(),
+  usedAt: timestamp("used_at", { withTimezone: true }).defaultNow(),
+});
 
 // 비상 주머니 — 괜찮은 날의 내가 무너진 날의 나에게 미리 써두는 카드.
 export const pocketCards = pgTable(

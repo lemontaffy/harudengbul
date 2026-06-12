@@ -32,6 +32,11 @@ export function pushConfigured(): boolean {
   return ensureConfigured();
 }
 
+export interface PushAction {
+  action: string; // 머신용 id (예: "ack", "snooze")
+  title: string; // 버튼 라벨
+}
+
 export interface PushPayload {
   title: string;
   body: string;
@@ -40,6 +45,9 @@ export interface PushPayload {
   requireInteraction?: boolean; // true면 자동 사라지지 않고 화면에 유지(알람용)
   timestamp?: number; // 알림 표시 시각(ms). 없으면 수신 시각
   eventId?: number; // 일정 알람이면 event id — 탭 시 반복 알림 ack 용
+  image?: string; // 큰 이미지(2:1, ~1024x512). iOS/일부 브라우저는 무시 → 기본형 표시.
+  actions?: PushAction[]; // 액션 버튼(최대 2개). 미지원 환경은 무시.
+  snoozeToken?: string; // 알람 스누즈 1회용 서명 토큰(sw가 /api/alarms/snooze 로 전달)
 }
 
 /**
