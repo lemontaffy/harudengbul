@@ -4,6 +4,7 @@ import * as transactionsRepo from "@/db/repo/transactions";
 import * as memoriesRepo from "@/db/repo/memories";
 import * as settingsRepo from "@/db/repo/settings";
 import * as handoffsRepo from "@/db/repo/handoffs";
+import { pushCreate } from "@/lib/googlesync";
 import type { Role } from "@/lib/persona";
 
 // SPEC §7 — 비서 도구. OpenAI 호환 tool-use 스펙.
@@ -178,6 +179,15 @@ export async function executeTool(
         title: a.title,
         startsAt: when,
         alarmMinutesBefore: a.alarm_minutes_before ?? null,
+      });
+      // Google 연결돼 있으면 미러링(best-effort, 미연동이면 no-op).
+      // await 금지 — 도구 응답을 막지 않는다. 실패는 다음 동기화의 미동기분 보정이 줍는다.
+      void pushCreate(userId, {
+        id: row.id,
+        title: row.title,
+        startsAt: row.startsAt as Date,
+        endsAt: row.endsAt as Date | null,
+        alarmMinutesBefore: row.alarmMinutesBefore,
       });
       const label = when.toLocaleString("ko-KR", { timeZone: tz, dateStyle: "medium", timeStyle: "short" });
       return `OK: 일정 "${a.title}" ${label} 등록(id=${row.id})${a.alarm_minutes_before ? `, ${a.alarm_minutes_before}분 전 알람` : ""}`;

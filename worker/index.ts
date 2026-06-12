@@ -141,6 +141,15 @@ async function proactiveJob() {
       const mTime = toHHMM(s.morningTime);
       if (s.morningPersonaId && mTime && isSlotDue(now, mTime, s.lastMorningSent ?? null, today)) {
         await settingsRepo.updateByUser(s.userId, { lastMorningSent: today }); // 먼저 청구
+        // 브리핑이 구글 쪽 최신 일정을 반영하도록, 생성 직전 동기화(best-effort).
+        // 실패는 로깅만 — 사용자에게 노출 금지, 다음 주기에 재시도된다.
+        if (googleConfigured()) {
+          try {
+            await syncUser(s.userId);
+          } catch (err) {
+            console.error(`[worker] proactive presync user#${s.userId} 실패:`, (err as Error)?.message);
+          }
+        }
         let weatherLine: string | undefined;
         if (s.kmaNx != null && s.kmaNy != null) {
           const w = await weatherRepo.getByGrid(s.kmaNx, s.kmaNy);
