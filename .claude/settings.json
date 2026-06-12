@@ -5,7 +5,8 @@
       "Bash(PORT=3100 HOSTNAME=127.0.0.1 node .next/standalone/server.js)",
       "Bash(curl -s localhost:3100/api/health)",
       "Bash(curl -s localhost:3100/)",
-      "Bash(kill %1)"
+      "Bash(kill %1)",
+      "Bash(git commit -q -m '@ *)"
     ]
   }
 }
