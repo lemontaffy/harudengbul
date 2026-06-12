@@ -57,6 +57,7 @@ async function alarmJob() {
         body: `${e.title} · ${timeLabel(e.startsAt as Date)}`,
         url: "/events",
         tag: `event-${e.id}`,
+        requireInteraction: true, // 알람은 놓치지 않게 화면에 유지
       });
       log(`  event#${e.id} "${e.title}" → ${sent}건 발송`);
     }

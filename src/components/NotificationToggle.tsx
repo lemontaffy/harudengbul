@@ -16,10 +16,18 @@ export default function NotificationToggle() {
   const [subscribed, setSubscribed] = useState(false);
   const [busy, setBusy] = useState(false);
   const [status, setStatus] = useState("");
+  const [installed, setInstalled] = useState(false);
+  const [isIOS, setIsIOS] = useState(false);
 
   const refresh = useCallback(async () => {
+    if (typeof window === "undefined") return;
+    const standalone =
+      window.matchMedia?.("(display-mode: standalone)").matches ||
+      (window.navigator as Navigator & { standalone?: boolean }).standalone === true;
+    setInstalled(standalone);
+    setIsIOS(/iphone|ipad|ipod/i.test(navigator.userAgent));
+
     if (
-      typeof window === "undefined" ||
       !("serviceWorker" in navigator) ||
       !("PushManager" in window) ||
       !("Notification" in window)
@@ -122,39 +130,69 @@ export default function NotificationToggle() {
       </p>
 
       {supported === false ? (
-        <p className="text-xs opacity-50">
-          이 브라우저/환경에선 사용할 수 없어요. HTTPS에서 앱을 설치(또는 새로고침) 후 다시
-          시도해 주세요.
-        </p>
+        isIOS && !installed ? (
+          <div className="rounded-lg bg-bg p-3 text-xs leading-relaxed ring-1 ring-accent/30">
+            <p className="mb-1 font-medium text-accent">먼저 홈 화면에 설치하세요</p>
+            <p className="opacity-70">
+              iOS는 <b>홈 화면에 추가된 앱</b>에서만 알림이 옵니다.
+              <br />
+              Safari 하단 <b>공유</b> → <b>홈 화면에 추가</b> → 추가된 아이콘으로 실행한 뒤
+              이 화면에서 다시 켜 주세요.
+            </p>
+          </div>
+        ) : (
+          <p className="text-xs opacity-50">
+            이 브라우저/환경에선 사용할 수 없어요. HTTPS에서 앱을 설치(또는 새로고침) 후 다시
+            시도해 주세요.
+          </p>
+        )
       ) : (
-        <div className="flex items-center gap-2">
-          {subscribed ? (
-            <>
+        <>
+          <div className="flex items-center gap-2">
+            {subscribed ? (
+              <>
+                <button
+                  onClick={disable}
+                  disabled={busy}
+                  className="rounded-lg bg-bg px-4 py-2 text-sm ring-1 ring-white/10 disabled:opacity-50"
+                >
+                  알림 끄기
+                </button>
+                <button
+                  onClick={test}
+                  disabled={busy}
+                  className="rounded-lg px-4 py-2 text-sm text-accent disabled:opacity-50"
+                >
+                  테스트 발송
+                </button>
+              </>
+            ) : (
               <button
-                onClick={disable}
-                disabled={busy}
-                className="rounded-lg bg-bg px-4 py-2 text-sm ring-1 ring-white/10 disabled:opacity-50"
+                onClick={enable}
+                disabled={busy || supported === null}
+                className="rounded-lg bg-accent px-5 py-2 text-sm font-medium text-black disabled:opacity-50"
               >
-                알림 끄기
+                {busy ? "처리 중…" : "알림 켜기"}
               </button>
-              <button
-                onClick={test}
-                disabled={busy}
-                className="rounded-lg px-4 py-2 text-sm text-accent disabled:opacity-50"
-              >
-                테스트 발송
-              </button>
-            </>
-          ) : (
-            <button
-              onClick={enable}
-              disabled={busy || supported === null}
-              className="rounded-lg bg-accent px-5 py-2 text-sm font-medium text-black disabled:opacity-50"
-            >
-              {busy ? "처리 중…" : "알림 켜기"}
-            </button>
+            )}
+          </div>
+
+          {subscribed && (
+            <p className="mt-3 rounded-lg bg-bg p-3 text-[11px] leading-relaxed opacity-70">
+              잠금화면·배너로 받으려면 휴대폰 <b>설정 → 알림 → 하루등불</b>에서{" "}
+              {isIOS ? (
+                <>
+                  <b>잠금 화면</b>·<b>배너</b>를 켜고, 배너 스타일을 <b>유지</b>로 두세요.
+                </>
+              ) : (
+                <>
+                  <b>알림 표시</b>를 켜고 중요도를 <b>높음</b>(소리·배너 켜짐)으로 올리세요.
+                </>
+              )}{" "}
+              그 뒤 <b>테스트 발송</b>으로 확인해 보세요.
+            </p>
           )}
-        </div>
+        </>
       )}
     </section>
   );
