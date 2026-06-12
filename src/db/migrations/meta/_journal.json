@@ -85,6 +85,13 @@
       "when": 1781231100009,
       "tag": "0011_chemical_shaman",
       "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1781231835294,
+      "tag": "0012_woozy_thaddeus_ross",
+      "breakpoints": true
     }
   ]
 }

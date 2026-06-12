@@ -1,0 +1,1 @@
+ALTER TABLE "messages" ADD COLUMN "had_tool_call" boolean DEFAULT false NOT NULL;

@@ -2,8 +2,9 @@ import { z } from "zod";
 import { getCurrentUser } from "@/lib/currentUser";
 import { getLlmConfig } from "@/lib/config";
 import { buildContext, buildSystemPrompt, type Role } from "@/lib/persona";
-import { streamCompletion, type LlmMessage } from "@/lib/llm";
-import { toolsForRole, executeTool } from "@/lib/tools";
+import { type LlmMessage } from "@/lib/llm";
+import { toolsForRole } from "@/lib/tools";
+import { runAssistantStream } from "@/lib/assistant";
 import * as messagesRepo from "@/db/repo/messages";
 import * as settingsRepo from "@/db/repo/settings";
 import * as personasRepo from "@/db/repo/personas";
@@ -85,65 +86,17 @@ export async function POST(req: Request) {
 
   const personaId = persona.id;
   const userId = user.id;
-  const encoder = new TextEncoder();
-  const stream = new ReadableStream<Uint8Array>({
-    async start(controller) {
-      let visible = ""; // 사용자에게 보인(=저장할) 전체 텍스트
-      try {
-        // 도구 루프: tool_calls 가 나오면 실행 → 결과 추가 → 다시 스트림. 최대 5회.
-        for (let guard = 0; guard < 5; guard++) {
-          let roundText = "";
-          let toolCalls: { id: string; name: string; arguments: string }[] | null = null;
-          for await (const ev of streamCompletion(
-            conn,
-            llmMessages,
-            tools ? { tools } : undefined,
-            req.signal,
-          )) {
-            if (ev.type === "text") {
-              roundText += ev.value;
-              visible += ev.value;
-              controller.enqueue(encoder.encode(ev.value));
-            } else {
-              toolCalls = ev.calls;
-            }
-          }
-          if (!toolCalls || toolCalls.length === 0) break;
-
-          // id 정규화(스트리밍에서 빈 id 대비) — assistant/tool 메시지 매칭에 사용
-          const normalized = toolCalls.map((c, i) => ({
-            ...c,
-            id: c.id || `call_${guard}_${i}`,
-          }));
-          llmMessages.push({
-            role: "assistant",
-            content: roundText || null,
-            tool_calls: normalized.map((c) => ({
-              id: c.id,
-              type: "function",
-              function: { name: c.name, arguments: c.arguments },
-            })),
-          });
-          for (const c of normalized) {
-            const result = await executeTool(userId, c.name, c.arguments, {
-              personaId,
-            });
-            llmMessages.push({ role: "tool", tool_call_id: c.id, content: result });
-          }
-        }
-      } catch (err) {
-        if (!visible) {
-          controller.enqueue(
-            encoder.encode("⚠️ 응답 생성에 실패했어요. 연결 설정을 확인해 주세요."),
-          );
-        }
-        console.error("[chat] stream error:", err);
-      } finally {
-        if (visible.trim()) {
-          await messagesRepo.add(userId, personaId, "assistant", visible);
-          await usageRepo.log(userId, "chat");
-        }
-        controller.close();
+  const stream = runAssistantStream({
+    conn,
+    llmMessages,
+    tools,
+    userId,
+    personaId,
+    signal: req.signal,
+    onDone: async (visible, usedTools) => {
+      if (visible.trim()) {
+        await messagesRepo.add(userId, personaId, "assistant", visible, usedTools);
+        await usageRepo.log(userId, "chat");
       }
     },
   });

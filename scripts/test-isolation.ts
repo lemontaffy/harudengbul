@@ -9,6 +9,7 @@ import * as settingsRepo from "../src/db/repo/settings";
 import * as personasRepo from "../src/db/repo/personas";
 import * as memoriesRepo from "../src/db/repo/memories";
 import * as diaryRepo from "../src/db/repo/diary";
+import * as messagesRepo from "../src/db/repo/messages";
 import { buildContext, buildSystemPrompt, type Role } from "../src/lib/persona";
 
 let failed = 0;
@@ -101,6 +102,18 @@ async function main() {
   check("A 프롬프트엔 A traits 주입됨", promptA.includes(A_TRAITS));
   check("A 프롬프트엔 A 기억 주입됨", promptA.includes("A의 비밀 기억"));
   check("A 프롬프트에도 LLM 키는 미포함(키는 헤더 전용)", !promptA.includes(A_KEY));
+
+  // ── 메시지 소유 검증(재생성/삭제 라우트의 스코프) ──
+  const aMsg = await messagesRepo.add(A.id, aSecretary.id, "assistant", "A의 비밀 답장");
+  check("B는 A 메시지를 조회 못 함", (await messagesRepo.getOne(B.id, aMsg.id)) === undefined);
+  await messagesRepo.remove(B.id, aMsg.id); // 타인 스코프 → no-op
+  check("B의 remove로 A 메시지 안 지워짐", !!(await messagesRepo.getOne(A.id, aMsg.id)));
+  const aUser = await messagesRepo.add(A.id, aSecretary.id, "user", "A의 질문");
+  check(
+    "B의 쌍삭제 거부(소유 아님)",
+    (await messagesRepo.removeUserWithResponses(B.id, aUser.id)) === false,
+  );
+  check("A user 메시지 여전히 존재", !!(await messagesRepo.getOne(A.id, aUser.id)));
 
   console.log(failed === 0 ? "\n격리 테스트 통과 ✅" : `\n${failed}건 실패 ❌`);
   process.exit(failed === 0 ? 0 : 1);

@@ -26,6 +26,7 @@ export async function GET(req: Request) {
       id: m.id,
       role: m.role,
       content: m.content,
+      hadToolCall: m.hadToolCall,
       createdAt: m.createdAt,
     })),
   });

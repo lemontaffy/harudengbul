@@ -147,6 +147,8 @@ export const messages = pgTable(
       .references(() => personas.id),
     role: text("role").notNull(), // 'user' | 'assistant' | 'proactive'
     content: text("content").notNull(),
+    // 응답 생성 중 도구(add_event 등)를 실제로 호출했는지 — 재생성 차단/삭제 경고용.
+    hadToolCall: boolean("had_tool_call").notNull().default(false),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
   },
   (t) => [
