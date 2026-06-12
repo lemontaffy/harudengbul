@@ -19,6 +19,13 @@ const MOOD_LABEL: Record<string, string> = {
   haze: "옅은 해(보통)",
   sun: "맑음(좋음)",
 };
+const CONDITIONS = ["sick", "tired", "normal", "energetic"] as const;
+const CONDITION_LABEL: Record<string, string> = {
+  sick: "아픔",
+  tired: "피곤",
+  normal: "보통",
+  energetic: "쌩쌩",
+};
 
 const itemSchema = z.object({
   label: z.string().trim().min(1).max(100),
@@ -29,6 +36,7 @@ const itemSchema = z.object({
 const bodySchema = z.object({
   date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
   mood: z.enum(MOODS).nullable().optional(),
+  bodyCondition: z.enum(CONDITIONS).nullable().optional(),
   body: z.string().max(8000).optional(),
   items: z.array(itemSchema).max(20).optional(),
 });
@@ -68,8 +76,9 @@ export async function POST(req: Request) {
   const date = d.date ?? todayInTz(tz);
 
   // 1) 일기 저장(upsert) — 제공된 필드만(mood-only 호출이 본문을 지우지 않게).
-  const patch: { mood?: string | null; body?: string | null } = {};
+  const patch: { mood?: string | null; bodyCondition?: string | null; body?: string | null } = {};
   if (d.mood !== undefined) patch.mood = d.mood;
+  if (d.bodyCondition !== undefined) patch.bodyCondition = d.bodyCondition;
   if (d.body !== undefined) patch.body = d.body.trim() || null;
   const entry = await diaryRepo.upsertEntry(user.id, date, patch);
   if (d.items) await diaryRepo.setItems(user.id, entry.id, d.items);
@@ -97,10 +106,13 @@ export async function POST(req: Request) {
             )
             .join("\n")
         : "(없음)";
+      const condForReply = d.bodyCondition ?? entry.bodyCondition;
       const userTurn =
         `오늘 일기를 썼어.\n기분: ${d.mood ? MOOD_LABEL[d.mood] : "(미기록)"}\n` +
+        `컨디션: ${condForReply ? CONDITION_LABEL[condForReply] : "(미기록)"}\n` +
         `오늘 한 일:\n${itemsText}\n\n[일기]\n${d.body!.trim()}\n\n` +
-        `— 위 일기에 1~5문장으로 따뜻하게, 상담가로서 답장해줘.`;
+        `— 위 일기에 1~5문장으로 따뜻하게, 상담가로서 답장해줘. ` +
+        `몸이 안 좋은 날(아픔/피곤)이면 기분이 낮은 걸 너무 무겁게 받지 않도록 부드럽게 짚어줘.`;
       const messages: ChatMessage[] = [
         {
           role: "system",

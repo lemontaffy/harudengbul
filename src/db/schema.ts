@@ -194,6 +194,7 @@ export const diaryEntries = pgTable(
       .references(() => users.id, { onDelete: "cascade" }),
     entryDate: date("entry_date").notNull(),
     mood: text("mood"), // storm|rain|cloud|haze|sun
+    bodyCondition: text("body_condition"), // sick|tired|normal|energetic — 기분 보정 해석용
     body: text("body"),
     aiReply: text("ai_reply"),
     aiPersona: text("ai_persona"),

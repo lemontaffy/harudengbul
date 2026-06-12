@@ -65,6 +65,8 @@ export interface PromptContext {
   now: string;
   memories: string;
   todayEvents: string;
+  todayMood?: string | null; // 오늘 기분(라벨)
+  todayCondition?: string | null; // 오늘 몸 상태(아픔/피곤/보통/쌩쌩)
   userNickname?: string | null;
   userAbout?: string | null;
   handoffEnabled?: boolean; // 상담가 핸드오프 단락/도구 주입 여부(기본 true)
@@ -109,5 +111,9 @@ ${ctx.memories || "(없음)"}
 날짜/시간: ${ctx.now}
 오늘 일정:
 ${ctx.todayEvents || "(없음)"}
-`;
+${ctx.todayMood ? `오늘 기분: ${ctx.todayMood}\n` : ""}${
+    ctx.todayCondition
+      ? `오늘 몸 상태: ${ctx.todayCondition}\n- 몸이 안 좋은 날(아픔/피곤)의 기분 기록은 보정해서 해석한다. 기분이 낮아도 컨디션 탓일 수 있음을 부드럽게 짚어("오늘은 몸도 아픈 날이니 그 기분 너무 믿지 마" 식), 자책으로 번지지 않게 돕는다.\n`
+      : ""
+  }`;
 }

@@ -16,10 +16,11 @@ export type DiaryItemInput = {
 export async function upsertEntry(
   userId: number,
   entryDate: string,
-  patch: { mood?: string | null; body?: string | null },
+  patch: { mood?: string | null; bodyCondition?: string | null; body?: string | null },
 ) {
   const set: Partial<typeof diaryEntries.$inferInsert> = {};
   if (patch.mood !== undefined) set.mood = patch.mood;
+  if (patch.bodyCondition !== undefined) set.bodyCondition = patch.bodyCondition;
   if (patch.body !== undefined) set.body = patch.body;
 
   // 제공된 키가 없으면 쓰기 없이 현재 행 반환(없으면 빈 행 생성).
@@ -43,6 +44,7 @@ export async function upsertEntry(
       userId,
       entryDate,
       mood: patch.mood ?? null,
+      bodyCondition: patch.bodyCondition ?? null,
       body: patch.body ?? null,
     })
     .onConflictDoUpdate({

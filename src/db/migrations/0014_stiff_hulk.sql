@@ -1,0 +1,1 @@
+ALTER TABLE "diary_entries" ADD COLUMN "body_condition" text;

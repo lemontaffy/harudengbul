@@ -2,8 +2,23 @@
 import * as memoriesRepo from "../db/repo/memories";
 import * as eventsRepo from "../db/repo/events";
 import * as settingsRepo from "../db/repo/settings";
+import * as diaryRepo from "../db/repo/diary";
 import { getEmbedConfig } from "./config";
 import { embed } from "./embeddings";
+
+const MOOD_LABEL: Record<string, string> = {
+  storm: "폭풍",
+  rain: "비",
+  cloud: "흐림",
+  haze: "옅은 해",
+  sun: "맑음",
+};
+const CONDITION_LABEL: Record<string, string> = {
+  sick: "아픔",
+  tired: "피곤",
+  normal: "보통",
+  energetic: "쌩쌩",
+};
 
 // 역할은 고정 2종. 캐릭터(이름·성격)는 사용자 소유 데이터(personas 테이블).
 export type Role = "counselor" | "secretary";
@@ -56,10 +71,12 @@ export async function buildContext(userId: number, query?: string) {
   const s = await settingsRepo.getByUser(userId);
   const tz = s?.timezone ?? "Asia/Seoul";
   const { start, end, nowLabel } = startEndOfDay(tz);
+  const todayStr = new Intl.DateTimeFormat("en-CA", { timeZone: tz }).format(new Date());
 
-  const [mems, todays] = await Promise.all([
+  const [mems, todays, todayEntry] = await Promise.all([
     recallMemories(userId, query),
     eventsRepo.getBetween(userId, start, end),
+    diaryRepo.getByDate(userId, todayStr),
   ]);
 
   const memories = mems.map((m) => `- ${m.content}`).join("\n");
@@ -80,6 +97,10 @@ export async function buildContext(userId: number, query?: string) {
     now: nowLabel,
     memories,
     todayEvents,
+    todayMood: todayEntry?.mood ? (MOOD_LABEL[todayEntry.mood] ?? todayEntry.mood) : null,
+    todayCondition: todayEntry?.bodyCondition
+      ? (CONDITION_LABEL[todayEntry.bodyCondition] ?? todayEntry.bodyCondition)
+      : null,
     userNickname: s?.nickname ?? null,
     userAbout: s?.about ?? null,
     handoffEnabled: s?.handoffEnabled ?? true,

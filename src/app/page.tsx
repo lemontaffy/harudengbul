@@ -18,6 +18,7 @@ import HandoffCard, { type HandoffItem } from "@/components/HandoffCard";
 export const dynamic = "force-dynamic";
 
 type Mood = "storm" | "rain" | "cloud" | "haze" | "sun";
+type Condition = "sick" | "tired" | "normal" | "energetic";
 
 function todayInTz(tz: string): string {
   return new Intl.DateTimeFormat("en-CA", { timeZone: tz }).format(new Date());
@@ -146,7 +147,11 @@ export default async function DashboardPage() {
       </section>
 
       {/* 기분 체크인 칩 */}
-      <MoodChips today={today} initialMood={(todayDiary?.mood as Mood) ?? null} />
+      <MoodChips
+        today={today}
+        initialMood={(todayDiary?.mood as Mood) ?? null}
+        initialCondition={(todayDiary?.bodyCondition as Condition) ?? null}
+      />
 
       {/* 한마디 카드 (정적 즉시 → 생성형 교체) */}
       <PhraseCard initial={phrase} />
