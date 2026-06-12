@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, useCallback } from "react";
+import { Fragment, useEffect, useRef, useState, useCallback } from "react";
 import ConnectionSwitcher from "@/components/ConnectionSwitcher";
 
 type Role = "counselor" | "secretary";
@@ -15,6 +15,7 @@ interface Msg {
   role: "user" | "assistant" | "proactive";
   content: string;
   hadToolCall?: boolean;
+  createdAt?: string;
 }
 
 const ROLE_LABEL: Record<Role, string> = {
@@ -24,6 +25,31 @@ const ROLE_LABEL: Record<Role, string> = {
 
 function displayName(p: ChatPersona): string {
   return p.name?.trim() || "이름 없는 캐릭터";
+}
+
+// 날짜 경계/표시 — 로컬 기준. "오늘"은 렌더 시점 기준이라 날이 지나면 그 날짜로 바뀐다.
+function dayKey(iso?: string): string {
+  const d = iso ? new Date(iso) : new Date();
+  return `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
+}
+function dayLabel(iso?: string): string {
+  const d = iso ? new Date(iso) : new Date();
+  const midnight = (x: Date) => new Date(x.getFullYear(), x.getMonth(), x.getDate()).getTime();
+  const diff = Math.round((midnight(new Date()) - midnight(d)) / 86400000);
+  if (diff === 0) return "오늘";
+  if (diff === 1) return "어제";
+  return d.toLocaleDateString("ko-KR", {
+    year: "numeric",
+    month: "long",
+    day: "numeric",
+    weekday: "short",
+  });
+}
+function timeLabel(iso?: string): string {
+  return (iso ? new Date(iso) : new Date()).toLocaleTimeString("ko-KR", {
+    hour: "2-digit",
+    minute: "2-digit",
+  });
 }
 
 export default function ChatView({
@@ -44,6 +70,8 @@ export default function ChatView({
       : firstId,
   );
   const [messages, setMessages] = useState<Msg[]>([]);
+  const [hasMore, setHasMore] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [input, setInput] = useState("");
   const [streaming, setStreaming] = useState(false);
   const [menuFor, setMenuFor] = useState<number | null>(null);
@@ -61,7 +89,9 @@ export default function ChatView({
     async (id: number) => {
       const res = await fetch(`/api/messages?personaId=${id}`);
       if (res.ok) {
-        setMessages((await res.json()).messages);
+        const d = await res.json();
+        setMessages(d.messages);
+        setHasMore(!!d.hasMore);
         setMenuFor(null);
         scrollToBottom();
         fetch(`/api/personas/${id}/read`, { method: "POST" }).catch(() => {});
@@ -69,6 +99,29 @@ export default function ChatView({
     },
     [scrollToBottom],
   );
+
+  // 이전(과거) 페이지를 위로 붙임 — 스크롤 위치 보존.
+  async function loadMore() {
+    if (loadingMore || personaId == null) return;
+    const oldestId = messages.find((m) => m.id != null)?.id;
+    if (oldestId == null) return;
+    setLoadingMore(true);
+    const el = scrollRef.current;
+    const prevHeight = el?.scrollHeight ?? 0;
+    try {
+      const res = await fetch(`/api/messages?personaId=${personaId}&before=${oldestId}`);
+      if (res.ok) {
+        const d = await res.json();
+        setMessages((m) => [...d.messages, ...m]);
+        setHasMore(!!d.hasMore);
+        requestAnimationFrame(() => {
+          if (el) el.scrollTop += el.scrollHeight - prevHeight;
+        });
+      }
+    } finally {
+      setLoadingMore(false);
+    }
+  }
 
   useEffect(() => {
     if (personaId != null) loadHistory(personaId);
@@ -107,7 +160,12 @@ export default function ChatView({
     if (!text || streaming || !configured || personaId == null) return;
     setInput("");
     setMenuFor(null);
-    setMessages((m) => [...m, { role: "user", content: text }, { role: "assistant", content: "" }]);
+    const nowIso = new Date().toISOString();
+    setMessages((m) => [
+      ...m,
+      { role: "user", content: text, createdAt: nowIso },
+      { role: "assistant", content: "", createdAt: nowIso },
+    ]);
     setStreaming(true);
     scrollToBottom();
     try {
@@ -251,79 +309,105 @@ export default function ChatView({
 
       {/* 메시지 */}
       <div ref={scrollRef} className="flex-1 space-y-2 overflow-y-auto pb-2">
+        {hasMore && (
+          <div className="flex justify-center py-1">
+            <button
+              onClick={loadMore}
+              disabled={loadingMore}
+              className="rounded-full bg-surface px-3 py-1 text-[11px] opacity-70 ring-1 ring-white/10 disabled:opacity-40"
+            >
+              {loadingMore ? "불러오는 중…" : "이전 메시지 더 보기"}
+            </button>
+          </div>
+        )}
         {messages.length === 0 && current && (
           <p className="mt-10 text-center text-xs opacity-40">
             {displayName(current)}와 대화를 시작해 보세요.
           </p>
         )}
         {messages.map((m, i) => {
+          const prev = i > 0 ? messages[i - 1] : null;
+          const showDivider = !prev || dayKey(m.createdAt) !== dayKey(prev.createdAt);
           const mine = m.role === "user";
           const avatar = mine ? userAvatarPath : current?.avatarPath;
           const canMenu = m.id != null && !streaming;
           const showRegen = m.role === "assistant" && i === lastAssistantIdx && !m.hadToolCall;
           return (
-            <div key={m.id ?? `tmp-${i}`} className="group flex flex-col">
-              <div className={`flex items-end gap-1.5 ${mine ? "justify-end" : "justify-start"}`}>
-                {!mine &&
-                  (avatar ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img src={avatar} alt="" className="h-6 w-6 shrink-0 rounded-full object-cover" />
-                  ) : (
-                    <div className="h-6 w-6 shrink-0 rounded-full bg-white/10" />
-                  ))}
-                <div
-                  className={`max-w-[78%] whitespace-pre-wrap rounded-2xl px-3 py-2 text-sm ${
-                    mine ? "bg-accent text-black" : "bg-surface ring-1 ring-white/10"
-                  }`}
-                >
-                  {m.content || (streaming && !mine ? "…" : "")}
-                </div>
-                {canMenu && (
-                  <button
-                    onClick={() => setMenuFor((v) => (v === i ? null : i))}
-                    className="self-center px-1 text-xs opacity-40 transition group-hover:opacity-80"
-                    aria-label="메시지 메뉴"
-                  >
-                    ⋯
-                  </button>
-                )}
-                {mine && avatar && (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img src={avatar} alt="" className="h-6 w-6 shrink-0 rounded-full object-cover" />
-                )}
-              </div>
-
-              {menuFor === i && canMenu && (
-                <div
-                  className={`mt-1 flex gap-1.5 text-[11px] ${
-                    mine ? "justify-end" : "justify-start pl-7"
-                  }`}
-                >
-                  {showRegen && (
-                    <button
-                      onClick={() => regenerate(i)}
-                      className="rounded-lg bg-bg px-2 py-1 ring-1 ring-white/10 hover:text-accent"
-                    >
-                      재생성
-                    </button>
-                  )}
-                  {m.role === "assistant" && (
-                    <button
-                      onClick={() => continueWrite(i)}
-                      className="rounded-lg bg-bg px-2 py-1 ring-1 ring-white/10 hover:text-accent"
-                    >
-                      이어쓰기
-                    </button>
-                  )}
-                  <button
-                    onClick={() => del(i)}
-                    className="rounded-lg bg-bg px-2 py-1 ring-1 ring-white/10 hover:text-red-400"
-                  >
-                    삭제
-                  </button>
+            <Fragment key={m.id ?? `tmp-${i}`}>
+              {showDivider && (
+                <div className="flex items-center gap-2 py-1.5 text-[10px] opacity-40">
+                  <div className="h-px flex-1 bg-white/10" />
+                  <span>{dayLabel(m.createdAt)}</span>
+                  <div className="h-px flex-1 bg-white/10" />
                 </div>
               )}
-            </div>
+              <div className="group flex flex-col">
+                <div className={`flex items-end gap-1.5 ${mine ? "justify-end" : "justify-start"}`}>
+                  {!mine &&
+                    (avatar ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={avatar} alt="" className="h-6 w-6 shrink-0 rounded-full object-cover" />
+                    ) : (
+                      <div className="h-6 w-6 shrink-0 rounded-full bg-white/10" />
+                    ))}
+                  <div
+                    className={`max-w-[78%] whitespace-pre-wrap rounded-2xl px-3 py-2 text-sm ${
+                      mine ? "bg-accent text-black" : "bg-surface ring-1 ring-white/10"
+                    }`}
+                  >
+                    {m.content || (streaming && !mine ? "…" : "")}
+                  </div>
+                  {canMenu && (
+                    <button
+                      onClick={() => setMenuFor((v) => (v === i ? null : i))}
+                      className="self-center px-1 text-xs opacity-40 transition group-hover:opacity-80"
+                      aria-label="메시지 메뉴"
+                    >
+                      ⋯
+                    </button>
+                  )}
+                  {mine && avatar && (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={avatar} alt="" className="h-6 w-6 shrink-0 rounded-full object-cover" />
+                  )}
+                </div>
+
+                <div className={`mt-0.5 px-1 text-[10px] opacity-30 ${mine ? "text-right" : "pl-8"}`}>
+                  {timeLabel(m.createdAt)}
+                </div>
+
+                {menuFor === i && canMenu && (
+                  <div
+                    className={`mt-1 flex gap-1.5 text-[11px] ${
+                      mine ? "justify-end" : "justify-start pl-7"
+                    }`}
+                  >
+                    {showRegen && (
+                      <button
+                        onClick={() => regenerate(i)}
+                        className="rounded-lg bg-bg px-2 py-1 ring-1 ring-white/10 hover:text-accent"
+                      >
+                        재생성
+                      </button>
+                    )}
+                    {m.role === "assistant" && (
+                      <button
+                        onClick={() => continueWrite(i)}
+                        className="rounded-lg bg-bg px-2 py-1 ring-1 ring-white/10 hover:text-accent"
+                      >
+                        이어쓰기
+                      </button>
+                    )}
+                    <button
+                      onClick={() => del(i)}
+                      className="rounded-lg bg-bg px-2 py-1 ring-1 ring-white/10 hover:text-red-400"
+                    >
+                      삭제
+                    </button>
+                  </div>
+                )}
+              </div>
+            </Fragment>
           );
         })}
       </div>

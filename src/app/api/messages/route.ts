@@ -20,7 +20,14 @@ export async function GET(req: Request) {
     return Response.json({ error: "없는 캐릭터" }, { status: 404 });
   }
 
-  const rows = await messagesRepo.listForView(user.id, personaId);
+  const beforeRaw = Number(new URL(req.url).searchParams.get("before"));
+  const beforeId = Number.isInteger(beforeRaw) && beforeRaw > 0 ? beforeRaw : null;
+  const { messages: rows, hasMore } = await messagesRepo.listViewPage(
+    user.id,
+    personaId,
+    beforeId,
+    40,
+  );
   return Response.json({
     messages: rows.map((m) => ({
       id: m.id,
@@ -29,5 +36,6 @@ export async function GET(req: Request) {
       hadToolCall: m.hadToolCall,
       createdAt: m.createdAt,
     })),
+    hasMore,
   });
 }

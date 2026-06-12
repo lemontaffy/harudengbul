@@ -1,4 +1,4 @@
-import { and, asc, count, desc, eq, gt, inArray, lte } from "drizzle-orm";
+import { and, asc, count, desc, eq, gt, inArray, lt, lte } from "drizzle-orm";
 import { db } from "../client";
 import { messages } from "../schema";
 
@@ -96,6 +96,29 @@ export async function listForPromptThrough(
     .orderBy(desc(messages.id))
     .limit(limit);
   return rows.reverse();
+}
+
+/**
+ * 화면용 페이지 — beforeId 없으면 최신 limit개, 있으면 그 id 이전 limit개(오래된→최신).
+ * hasMore = 더 과거 메시지가 있는지(렉 방지 "이전 더 보기").
+ */
+export async function listViewPage(
+  userId: number,
+  personaId: number,
+  beforeId: number | null,
+  limit = 40,
+) {
+  const conds = [eq(messages.userId, userId), eq(messages.personaId, personaId)];
+  if (beforeId) conds.push(lt(messages.id, beforeId));
+  const rows = await db
+    .select()
+    .from(messages)
+    .where(and(...conds))
+    .orderBy(desc(messages.id))
+    .limit(limit + 1);
+  const hasMore = rows.length > limit;
+  const page = (hasMore ? rows.slice(0, limit) : rows).reverse();
+  return { messages: page, hasMore };
 }
 
 /** 화면용 — 캐릭터별 스레드, 오래된→최신 순. */
