@@ -7,6 +7,8 @@ import * as diaryRepo from "@/db/repo/diary";
 import * as messagesRepo from "@/db/repo/messages";
 import * as handoffsRepo from "@/db/repo/handoffs";
 import { phraseForDate } from "@/lib/phrases";
+import { findSecretary } from "@/lib/cta";
+import ConnectionSwitcher from "@/components/ConnectionSwitcher";
 import LiveClock from "@/components/LiveClock";
 import MoodChips from "@/components/MoodChips";
 import WeatherSlot from "@/components/WeatherSlot";
@@ -75,12 +77,14 @@ export default async function DashboardPage() {
 
   const phrase = phraseForDate(today);
   const personaName = active?.name?.trim() || "캐릭터";
+  const sec = findSecretary(personaRows);
 
   return (
     <main className="mx-auto flex min-h-screen max-w-md flex-col gap-4 p-4">
-      {/* 헤더 */}
+      {/* 헤더 — 우측에 메인 연결 스위처(현 위치 유지) */}
       <header className="flex items-center justify-between">
         <h1 className="text-base font-semibold text-accent">하루등불</h1>
+        <ConnectionSwitcher />
       </header>
 
       {/* 시계 + 날씨 슬롯 */}
@@ -130,7 +134,17 @@ export default async function DashboardPage() {
           <Link href="/events" className="text-[11px] text-accent">전체 보기</Link>
         </div>
         {todayEvents.length === 0 ? (
-          <p className="text-xs opacity-40">오늘 일정이 없어요.</p>
+          <Link
+            href={sec.href}
+            className="flex items-center justify-between text-xs text-accent/90 hover:text-accent"
+          >
+            <span>
+              {sec.exists
+                ? `${sec.name}에게 말해서 등록해보세요`
+                : "비서 캐릭터를 만들어 일정을 맡겨보세요"}
+            </span>
+            <span aria-hidden>→</span>
+          </Link>
         ) : (
           <ul className="flex flex-col gap-1.5">
             {todayEvents.slice(0, 3).map((e) => (

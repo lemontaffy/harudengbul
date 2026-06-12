@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import AvatarCropper from "@/components/AvatarCropper";
+import AvatarPicker from "@/components/AvatarPicker";
 
 type Role = "counselor" | "secretary" | "nutritionist" | "study_mate" | "friend";
 const ALL_ROLES: Role[] = [
@@ -138,7 +138,17 @@ export default function CharacterManager({
               key={c.id}
               className="flex items-center gap-3 rounded-xl bg-bg p-3 ring-1 ring-white/10"
             >
-              <Avatar path={c.avatarPath} />
+              <AvatarPicker
+                src={c.avatarPath}
+                size={40}
+                uploadUrl={`/api/personas/${c.id}/avatar`}
+                onUploaded={(p) =>
+                  setChars((cs) =>
+                    cs.map((x) => (x.id === c.id ? { ...x, avatarPath: p } : x)),
+                  )
+                }
+                onError={setStatus}
+              />
               <div className="min-w-0 flex-1">
                 <div className="truncate text-sm">{dn(c.name)}</div>
                 <div className="text-[11px] opacity-50">{rolesLabel(c.roles)}</div>
@@ -294,8 +304,6 @@ function CharacterForm({
   }
   const [avatarPath, setAvatarPath] = useState(initial?.avatarPath ?? null);
   const [saving, setSaving] = useState(false);
-  const [uploading, setUploading] = useState(false);
-  const [cropFile, setCropFile] = useState<File | null>(null);
 
   async function save() {
     if (!name.trim()) {
@@ -325,66 +333,26 @@ function CharacterForm({
     }
   }
 
-  async function uploadAvatar(blob: Blob) {
-    if (!initial) return; // 새 캐릭터는 먼저 저장 후 편집에서 업로드
-    setUploading(true);
-    try {
-      const fd = new FormData();
-      fd.append("avatar", blob, "avatar.jpg");
-      const res = await fetch(`/api/personas/${initial.id}/avatar`, {
-        method: "POST",
-        body: fd,
-      });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) {
-        onError(data.error ?? "업로드 실패");
-        return;
-      }
-      setAvatarPath(data.avatarPath);
-    } catch {
-      onError("네트워크 오류");
-    } finally {
-      setUploading(false);
-    }
-  }
-
   return (
     <div className="rounded-xl bg-bg p-4 ring-1 ring-white/10">
       <div className="flex items-center gap-3">
-        <Avatar path={avatarPath} />
-        <div className="flex-1">
-          {initial ? (
-            <label className="text-xs text-accent">
-              {uploading ? "업로드 중…" : "아바타 변경"}
-              <input
-                type="file"
-                accept="image/png,image/jpeg,image/webp"
-                className="hidden"
-                onChange={(e) => {
-                  const f = e.target.files?.[0];
-                  if (f) setCropFile(f); // 크롭 UI 먼저
-                  e.target.value = "";
-                }}
-              />
-            </label>
-          ) : (
+        {initial ? (
+          <AvatarPicker
+            src={avatarPath}
+            size={44}
+            uploadUrl={`/api/personas/${initial.id}/avatar`}
+            onUploaded={setAvatarPath}
+            onError={onError}
+          />
+        ) : (
+          <>
+            <Avatar path={avatarPath} />
             <span className="text-[11px] opacity-40">
-              아바타는 저장 후 편집에서 올릴 수 있어요
+              아바타는 저장 후 눌러서 올릴 수 있어요
             </span>
-          )}
-        </div>
+          </>
+        )}
       </div>
-
-      {cropFile && (
-        <AvatarCropper
-          file={cropFile}
-          onCancel={() => setCropFile(null)}
-          onCropped={(blob) => {
-            setCropFile(null);
-            uploadAvatar(blob);
-          }}
-        />
-      )}
 
       <label className="mb-1 mt-3 block text-xs opacity-60">이름</label>
       <input

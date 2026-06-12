@@ -49,6 +49,7 @@ export default function DiaryView({
   const [photoPath, setPhotoPath] = useState<string | null>(todays?.photoPath ?? null);
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
+  const bodyRef = useRef<HTMLTextAreaElement>(null);
   const [items, setItems] = useState<DiaryItem[]>(todays?.items ?? []);
   const [reply, setReply] = useState<string | null>(todays?.aiReply ?? null);
   const [replyPersona, setReplyPersona] = useState<string | null>(
@@ -207,8 +208,20 @@ export default function DiaryView({
         </div>
 
         {/* 본문 */}
+        {entries.length === 0 && !todays && (
+          <button
+            type="button"
+            onClick={() => bodyRef.current?.focus()}
+            className="mb-3 flex w-full items-center justify-between rounded-xl bg-bg/60 px-3 py-2.5 text-left text-xs text-accent/90 ring-1 ring-white/10 hover:text-accent"
+          >
+            <span>오늘은 한 줄이면 충분해요. 지금 써볼까요?</span>
+            <span aria-hidden>→</span>
+          </button>
+        )}
+
         <label className="mb-1 block text-xs opacity-60">오늘 하루 (한 줄도 괜찮아요)</label>
         <textarea
+          ref={bodyRef}
           value={body}
           onChange={(e) => setBody(e.target.value)}
           rows={5}

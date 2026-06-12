@@ -1,6 +1,7 @@
 "use client";
 
 import { Fragment, useEffect, useRef, useState, useCallback } from "react";
+import ConnectionSwitcher from "@/components/ConnectionSwitcher";
 
 type Role = "counselor" | "secretary" | "nutritionist" | "study_mate" | "friend";
 export interface ChatPersona {
@@ -356,6 +357,8 @@ export default function ChatView({
       {/* 입력 */}
       {configured ? (
         <div className="flex items-end gap-2 border-t border-white/10 pt-2 pb-[env(safe-area-inset-bottom)]">
+          {/* 메인 연결 전환 — 입력줄 왼쪽 컴팩트 버튼(streaming 중 비활성). 텍스트는 유지. */}
+          <ConnectionSwitcher disabled={streaming} />
           <textarea
             value={input}
             onChange={(e) => setInput(e.target.value)}

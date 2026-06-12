@@ -1,5 +1,7 @@
 import { requireUser } from "@/lib/currentUser";
+import { findSecretary } from "@/lib/cta";
 import * as txRepo from "@/db/repo/transactions";
+import * as personasRepo from "@/db/repo/personas";
 import { summarize } from "@/lib/txparse";
 import LedgerView, { type Tx } from "@/components/LedgerView";
 
@@ -14,11 +16,21 @@ export default async function LedgerPage() {
   const month = todayKst().slice(0, 7);
   const [y, m] = month.split("-").map(Number);
   const last = new Date(Date.UTC(y, m, 0)).getUTCDate();
-  const rows = await txRepo.listBetween(
-    user.id,
-    `${month}-01`,
-    `${month}-${String(last).padStart(2, "0")}`,
-  );
+  const [rows, personas] = await Promise.all([
+    txRepo.listBetween(
+      user.id,
+      `${month}-01`,
+      `${month}-${String(last).padStart(2, "0")}`,
+    ),
+    personasRepo.listActiveByUser(user.id),
+  ]);
+  const sec = findSecretary(personas);
+  const emptyCta = {
+    text: sec.exists
+      ? `${sec.name}에게 '커피 5500원'이라고 말해보세요`
+      : "비서 캐릭터를 만들어 가계부를 맡겨보세요",
+    href: sec.href,
+  };
   const txs: Tx[] = rows.map((r) => ({
     id: r.id,
     txDate: r.txDate,
@@ -33,7 +45,12 @@ export default async function LedgerPage() {
       <div className="mb-5 flex items-center justify-between">
         <h1 className="text-lg font-semibold">가계부</h1>
       </div>
-      <LedgerView initialMonth={month} initialTxs={txs} initialSummary={summarize(rows)} />
+      <LedgerView
+        initialMonth={month}
+        initialTxs={txs}
+        initialSummary={summarize(rows)}
+        emptyCta={emptyCta}
+      />
     </main>
   );
 }

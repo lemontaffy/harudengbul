@@ -64,7 +64,13 @@ function dayKey(iso: string): string {
   });
 }
 
-export default function EventsView({ initial }: { initial: EventItem[] }) {
+export default function EventsView({
+  initial,
+  emptyCta,
+}: {
+  initial: EventItem[];
+  emptyCta?: { text: string; href: string };
+}) {
   const [events, setEvents] = useState<EventItem[]>(initial);
   const [adding, setAdding] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
@@ -123,7 +129,16 @@ export default function EventsView({ initial }: { initial: EventItem[] }) {
       )}
 
       {groups.length === 0 && !adding && (
-        <p className="py-8 text-center text-sm opacity-40">예정된 일정이 없어요.</p>
+        emptyCta ? (
+          <a
+            href={emptyCta.href}
+            className="flex items-center justify-center gap-1 py-8 text-center text-sm text-accent/90 hover:text-accent"
+          >
+            {emptyCta.text} <span aria-hidden>→</span>
+          </a>
+        ) : (
+          <p className="py-8 text-center text-sm opacity-40">예정된 일정이 없어요.</p>
+        )
       )}
 
       {groups.map((g) => (

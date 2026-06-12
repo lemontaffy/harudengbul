@@ -44,10 +44,12 @@ export default function LedgerView({
   initialMonth,
   initialTxs,
   initialSummary,
+  emptyCta,
 }: {
   initialMonth: string;
   initialTxs: Tx[];
   initialSummary: Summary;
+  emptyCta?: { text: string; href: string };
 }) {
   const [month, setMonth] = useState(initialMonth);
   const [txs, setTxs] = useState<Tx[]>(initialTxs);
@@ -180,7 +182,16 @@ export default function LedgerView({
       <section className="rounded-2xl bg-surface p-4">
         <h2 className="mb-2 text-sm font-semibold">내역</h2>
         {txs.length === 0 ? (
-          <p className="text-xs opacity-40">이 달 내역이 없어요.</p>
+          emptyCta ? (
+            <a
+              href={emptyCta.href}
+              className="flex items-center gap-1 py-1 text-xs text-accent/90 hover:text-accent"
+            >
+              {emptyCta.text} <span aria-hidden>→</span>
+            </a>
+          ) : (
+            <p className="text-xs opacity-40">이 달 내역이 없어요.</p>
+          )
         ) : (
           <ul className="flex flex-col gap-1.5">
             {txs.map((t) => (

@@ -1,12 +1,11 @@
-import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
-import { ChevronLeft } from "lucide-react";
 import { requireUser } from "@/lib/currentUser";
 import { getLlmConfig } from "@/lib/config";
 import { ROLE_LABEL, type Role } from "@/lib/persona";
 import * as settingsRepo from "@/db/repo/settings";
 import * as personasRepo from "@/db/repo/personas";
 import ChatView from "@/components/ChatView";
+import RoomHeader from "@/components/RoomHeader";
 
 export const dynamic = "force-dynamic";
 
@@ -32,21 +31,15 @@ export default async function ChatRoomPage({
 
   return (
     <main className="mx-auto flex h-[100dvh] max-w-md flex-col px-4">
-      <header className="flex items-center gap-2.5 border-b border-white/10 py-2.5">
-        <Link href="/chat" aria-label="뒤로" className="-ml-1.5 rounded-lg p-1 opacity-80 hover:bg-white/5">
-          <ChevronLeft size={22} />
-        </Link>
-        {persona.avatarPath ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img src={persona.avatarPath} alt="" className="h-8 w-8 rounded-full object-cover" />
-        ) : (
-          <div className="h-8 w-8 rounded-full bg-white/10" />
-        )}
-        <div className="min-w-0">
-          <div className="truncate text-sm font-semibold">{name}</div>
-          <div className="truncate text-[11px] opacity-50">{roleLabel}</div>
-        </div>
-      </header>
+      <RoomHeader
+        persona={{
+          id: persona.id,
+          name,
+          roleLabel,
+          avatarPath: persona.avatarPath,
+          traits: persona.traits,
+        }}
+      />
 
       <div className="min-h-0 flex-1">
         <ChatView

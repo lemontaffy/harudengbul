@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import AvatarCropper from "@/components/AvatarCropper";
+import AvatarPicker from "@/components/AvatarPicker";
 
 export interface ProfileInitial {
   nickname: string;
@@ -17,9 +17,7 @@ export default function ProfileSection({ initial }: { initial: ProfileInitial })
   const [about, setAbout] = useState(initial.about);
   const [avatar, setAvatar] = useState<string | null>(initial.userAvatarPath);
   const [saving, setSaving] = useState(false);
-  const [uploading, setUploading] = useState(false);
   const [status, setStatus] = useState("");
-  const [cropFile, setCropFile] = useState<File | null>(null);
 
   async function save() {
     setSaving(true);
@@ -39,27 +37,6 @@ export default function ProfileSection({ initial }: { initial: ProfileInitial })
     }
   }
 
-  async function uploadAvatar(blob: Blob) {
-    setUploading(true);
-    setStatus("");
-    try {
-      const fd = new FormData();
-      fd.append("avatar", blob, "avatar.jpg");
-      const res = await fetch("/api/profile/avatar", { method: "POST", body: fd });
-      const data = await res.json();
-      if (!res.ok) {
-        setStatus(data.error ?? "업로드 실패");
-        return;
-      }
-      setAvatar(data.avatarPath);
-      setStatus("아바타 변경됨 ✓");
-    } catch {
-      setStatus("네트워크 오류");
-    } finally {
-      setUploading(false);
-    }
-  }
-
   return (
     <section className="rounded-2xl bg-surface p-5">
       <div className="mb-1 flex items-center justify-between">
@@ -71,37 +48,18 @@ export default function ProfileSection({ initial }: { initial: ProfileInitial })
       </p>
 
       <div className="flex items-center gap-3">
-        {avatar ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img src={avatar} alt="" className="h-12 w-12 rounded-full object-cover" />
-        ) : (
-          <div className="h-12 w-12 rounded-full bg-white/10" />
-        )}
-        <label className="text-xs text-accent">
-          {uploading ? "업로드 중…" : "아바타 변경"}
-          <input
-            type="file"
-            accept="image/png,image/jpeg,image/webp"
-            className="hidden"
-            onChange={(e) => {
-              const f = e.target.files?.[0];
-              if (f) setCropFile(f); // 크롭 UI 먼저
-              e.target.value = ""; // 같은 파일 재선택 허용
-            }}
-          />
-        </label>
-      </div>
-
-      {cropFile && (
-        <AvatarCropper
-          file={cropFile}
-          onCancel={() => setCropFile(null)}
-          onCropped={(blob) => {
-            setCropFile(null);
-            uploadAvatar(blob);
+        <AvatarPicker
+          src={avatar}
+          size={56}
+          uploadUrl="/api/profile/avatar"
+          onUploaded={(p) => {
+            setAvatar(p);
+            setStatus("아바타 변경됨 ✓");
           }}
+          onError={setStatus}
         />
-      )}
+        <span className="text-[11px] opacity-40">아바타를 눌러 변경</span>
+      </div>
 
       <label className="mb-1 mt-4 block text-xs opacity-60">닉네임</label>
       <input

@@ -61,12 +61,12 @@ export default async function ChatListPage({
       </div>
 
       {cards.length === 0 ? (
-        <div className="rounded-2xl bg-surface p-6 text-center text-sm opacity-70">
-          아직 대화할 캐릭터가 없어요.
-          <Link href="/characters" className="mt-2 block text-accent">
-            캐릭터 추가하기
-          </Link>
-        </div>
+        <Link
+          href="/characters"
+          className="flex items-center justify-center gap-1 rounded-2xl bg-surface p-6 text-center text-sm text-accent/90 ring-1 ring-white/5 hover:text-accent"
+        >
+          첫 캐릭터를 만들어 보세요 <span aria-hidden>→</span>
+        </Link>
       ) : (
         <ul className="flex flex-col gap-2">
           {cards.map(({ p, last, unread }) => {
