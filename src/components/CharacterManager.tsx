@@ -402,11 +402,10 @@ function CharacterForm({
         {ALL_ROLES.map((r) => {
           const idx = roles.indexOf(r);
           const selected = idx >= 0;
-          // counselor 는 단독 전용 → 상호 배타로 비활성화.
-          const disabled =
-            (r === "counselor" && roles.some((x) => x !== "counselor")) ||
-            (r !== "counselor" && roles.includes("counselor")) ||
-            (!selected && roles.length >= 3 && r !== "counselor");
+          // 비활성화는 "최대 3개 초과" 뿐. counselor 단독 전용은 비활성화가 아니라
+          // toggleRole 의 교체로 처리한다(상담가↔다른 역할 클릭 시 서로 교체) — 안 그러면
+          // 상담가 선택 상태에서 빠져나갈 수 없어 다른 역할을 못 고르는 버그가 됨.
+          const disabled = !selected && r !== "counselor" && roles.length >= 3;
           return (
             <button
               key={r}
@@ -426,7 +425,8 @@ function CharacterForm({
         })}
       </div>
       <p className="mt-1 text-[11px] opacity-40">
-        상담가는 단독 전용이라 다른 역할과 조합할 수 없어요.
+        상담가는 단독 전용이에요 — 상담가를 고르면 다른 역할이 해제되고, 다른 역할을
+        고르면 상담가가 해제돼요.
       </p>
 
       <label className="mb-1 mt-3 block text-xs opacity-60">성격·말버릇 (traits)</label>
