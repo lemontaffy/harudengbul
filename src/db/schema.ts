@@ -202,6 +202,10 @@ export const events = pgTable(
     endsAt: timestamp("ends_at", { withTimezone: true }),
     alarmMinutesBefore: integer("alarm_minutes_before"),
     alarmSent: boolean("alarm_sent").default(false),
+    // 반복 알림(스누즈): keep 분 동안 ack 전까지 주기 재알림.
+    alarmKeepMinutes: integer("alarm_keep_minutes"), // null/0 = 단발(반복 없음)
+    alarmLastNotifiedAt: timestamp("alarm_last_notified_at", { withTimezone: true }),
+    alarmAcked: boolean("alarm_acked").default(false), // 사용자가 확인(탭)하면 중단
     source: text("source").default("local"), // 'local' | 'google'
     googleEventId: text("google_event_id"), // Google 캘린더 이벤트 연결(양방향 매핑)
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),

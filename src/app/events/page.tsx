@@ -16,6 +16,7 @@ export default async function EventsPage() {
     startsAt: (e.startsAt as Date).toISOString(),
     endsAt: e.endsAt ? (e.endsAt as Date).toISOString() : null,
     alarmMinutesBefore: e.alarmMinutesBefore,
+    alarmKeepMinutes: e.alarmKeepMinutes,
   }));
 
   return (

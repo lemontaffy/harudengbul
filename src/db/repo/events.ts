@@ -81,7 +81,7 @@ export async function listUnsynced(userId: number, limit = 100) {
 export async function claimDueAlarms() {
   return db
     .update(events)
-    .set({ alarmSent: true })
+    .set({ alarmSent: true, alarmLastNotifiedAt: sql`now()` })
     .where(
       and(
         isNotNull(events.alarmMinutesBefore),
@@ -96,6 +96,43 @@ export async function claimDueAlarms() {
       title: events.title,
       startsAt: events.startsAt,
     });
+}
+
+/**
+ * 반복 알림(스누즈) 청구 — 첫 알람이 발송됐고(alarm_sent) 아직 ack 안 했고,
+ * keep 창(알람시각 ~ 알람시각+keep분) 안이며 마지막 알림 후 repeatInterval분 경과한 건을
+ * 원자적으로 청구(alarm_last_notified_at=now)하고 반환. 청구-후-발송이라 틱 겹쳐도 중복 없음.
+ */
+export async function claimDueRepeats(repeatIntervalMin: number) {
+  return db
+    .update(events)
+    .set({ alarmLastNotifiedAt: sql`now()` })
+    .where(
+      and(
+        eq(events.alarmSent, true),
+        eq(events.alarmAcked, false),
+        isNotNull(events.alarmMinutesBefore),
+        isNotNull(events.alarmKeepMinutes),
+        isNotNull(events.alarmLastNotifiedAt),
+        sql`${events.alarmKeepMinutes} > 0`,
+        sql`now() <= ${events.startsAt} - make_interval(mins => ${events.alarmMinutesBefore}) + make_interval(mins => ${events.alarmKeepMinutes})`,
+        sql`now() >= ${events.alarmLastNotifiedAt} + make_interval(mins => ${repeatIntervalMin})`,
+      ),
+    )
+    .returning({
+      id: events.id,
+      userId: events.userId,
+      title: events.title,
+      startsAt: events.startsAt,
+    });
+}
+
+/** 사용자가 알림을 확인(탭) → 반복 중단. */
+export async function ackAlarm(userId: number, id: number) {
+  await db
+    .update(events)
+    .set({ alarmAcked: true })
+    .where(and(eq(events.id, id), eq(events.userId, userId)));
 }
 
 /** 컨텍스트/대시보드용 — 기간 내 사용자 일정(시간순). */
@@ -136,6 +173,7 @@ export async function create(
     startsAt: Date;
     endsAt?: Date | null;
     alarmMinutesBefore?: number | null;
+    alarmKeepMinutes?: number | null;
   },
 ) {
   const [row] = await db
@@ -146,6 +184,7 @@ export async function create(
       startsAt: input.startsAt,
       endsAt: input.endsAt ?? null,
       alarmMinutesBefore: input.alarmMinutesBefore ?? null,
+      alarmKeepMinutes: input.alarmKeepMinutes ?? null,
     })
     .returning();
   return row;
@@ -159,11 +198,21 @@ export async function update(
     startsAt?: Date;
     endsAt?: Date | null;
     alarmMinutesBefore?: number | null;
+    alarmKeepMinutes?: number | null;
   },
 ) {
+  // 알람 관련 필드가 바뀌면 알람 상태를 재무장(다시 울리도록).
+  const rearm =
+    patch.startsAt !== undefined ||
+    patch.alarmMinutesBefore !== undefined ||
+    patch.alarmKeepMinutes !== undefined;
   await db
     .update(events)
-    .set(patch)
+    .set(
+      rearm
+        ? { ...patch, alarmSent: false, alarmAcked: false, alarmLastNotifiedAt: null }
+        : patch,
+    )
     .where(and(eq(events.id, id), eq(events.userId, userId)));
 }
 

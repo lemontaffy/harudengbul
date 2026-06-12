@@ -39,6 +39,7 @@ export interface PushPayload {
   tag?: string;
   requireInteraction?: boolean; // true면 자동 사라지지 않고 화면에 유지(알람용)
   timestamp?: number; // 알림 표시 시각(ms). 없으면 수신 시각
+  eventId?: number; // 일정 알람이면 event id — 탭 시 반복 알림 ack 용
 }
 
 /**

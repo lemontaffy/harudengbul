@@ -45,22 +45,34 @@ function timeLabel(d: Date): string {
   });
 }
 
-/** 매 1분 — 알람 도달 일정을 원자적으로 청구하고 해당 사용자에게 푸시. */
+const ALARM_REPEAT_MIN = 5; // 반복 알림(스누즈) 간격(분)
+
+async function notifyAlarm(e: {
+  id: number;
+  userId: number;
+  title: string;
+  startsAt: Date | string;
+}) {
+  const sent = await sendToUser(e.userId, {
+    title: "🔔 일정 알림",
+    body: `${e.title} · ${timeLabel(e.startsAt as Date)}`,
+    url: "/events",
+    tag: `event-${e.id}`,
+    requireInteraction: true, // 알람은 놓치지 않게 화면에 유지
+    eventId: e.id, // 탭 시 반복 알림 ack
+  });
+  log(`  event#${e.id} "${e.title}" → ${sent}건 발송`);
+}
+
+/** 매 1분 — 신규 알람 청구 + 반복(스누즈) 청구 후 해당 사용자에게 푸시. */
 async function alarmJob() {
   try {
     const due = await eventsRepo.claimDueAlarms();
-    if (due.length === 0) return;
-    log(`alarmJob: ${due.length}건 알람 발송 시도`);
-    for (const e of due) {
-      const sent = await sendToUser(e.userId, {
-        title: "🔔 일정 알림",
-        body: `${e.title} · ${timeLabel(e.startsAt as Date)}`,
-        url: "/events",
-        tag: `event-${e.id}`,
-        requireInteraction: true, // 알람은 놓치지 않게 화면에 유지
-      });
-      log(`  event#${e.id} "${e.title}" → ${sent}건 발송`);
-    }
+    const repeats = await eventsRepo.claimDueRepeats(ALARM_REPEAT_MIN);
+    const all = [...due, ...repeats];
+    if (all.length === 0) return;
+    log(`alarmJob: 신규 ${due.length} + 반복 ${repeats.length}건 발송`);
+    for (const e of all) await notifyAlarm(e);
   } catch (err) {
     log(`alarmJob 오류: ${(err as Error)?.message}`);
   }

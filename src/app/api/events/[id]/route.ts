@@ -11,6 +11,7 @@ const patchSchema = z.object({
   startsAt: z.string().min(1).optional(),
   endsAt: z.string().min(1).nullable().optional(),
   alarmMinutesBefore: z.number().int().min(0).max(10080).nullable().optional(),
+  alarmKeepMinutes: z.number().int().min(0).max(1440).nullable().optional(),
 });
 
 function parseDate(v: string): Date | null {
@@ -49,6 +50,7 @@ export async function PATCH(
   }
   if (d.endsAt !== undefined) patch.endsAt = d.endsAt ? parseDate(d.endsAt) : null;
   if (d.alarmMinutesBefore !== undefined) patch.alarmMinutesBefore = d.alarmMinutesBefore;
+  if (d.alarmKeepMinutes !== undefined) patch.alarmKeepMinutes = d.alarmKeepMinutes;
 
   await eventsRepo.update(user.id, ev.id, patch);
   // Google에 미러링(연결+매핑돼 있을 때만). 갱신된 값으로.

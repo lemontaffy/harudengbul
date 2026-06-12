@@ -34,6 +34,7 @@ self.addEventListener("push", (event) => {
     tag?: string;
     requireInteraction?: boolean;
     timestamp?: number;
+    eventId?: number;
   } = {};
   try {
     data = event.data?.json() ?? {};
@@ -59,7 +60,7 @@ self.addEventListener("push", (event) => {
     vibrate: [200, 100, 200],
     requireInteraction: data.requireInteraction ?? false,
     timestamp: data.timestamp ?? Date.now(),
-    data: { url: data.url || "/" },
+    data: { url: data.url || "/", eventId: data.eventId },
   };
   event.waitUntil(self.registration.showNotification(title, options));
 });
@@ -67,9 +68,14 @@ self.addEventListener("push", (event) => {
 // 알림 클릭 → 열린 탭이 있으면 포커스(해당 URL로 이동), 없으면 새 창.
 self.addEventListener("notificationclick", (event) => {
   event.notification.close();
-  const url = (event.notification.data as { url?: string })?.url || "/";
+  const nd = (event.notification.data as { url?: string; eventId?: number }) ?? {};
+  const url = nd.url || "/";
   event.waitUntil(
     (async () => {
+      // 일정 알람이면 확인 처리 → 반복 알림 중단(best-effort).
+      if (typeof nd.eventId === "number") {
+        await fetch(`/api/events/${nd.eventId}/ack`, { method: "POST" }).catch(() => {});
+      }
       const wins = await self.clients.matchAll({
         type: "window",
         includeUncontrolled: true,

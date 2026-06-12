@@ -11,6 +11,7 @@ const createSchema = z.object({
   startsAt: z.string().min(1), // ISO instant (클라이언트가 toISOString 으로 전송)
   endsAt: z.string().min(1).nullable().optional(),
   alarmMinutesBefore: z.number().int().min(0).max(10080).nullable().optional(),
+  alarmKeepMinutes: z.number().int().min(0).max(1440).nullable().optional(),
 });
 
 function parseDate(v: string): Date | null {
@@ -25,6 +26,7 @@ function publicRow(e: eventsRepo.EventRow) {
     startsAt: e.startsAt,
     endsAt: e.endsAt,
     alarmMinutesBefore: e.alarmMinutesBefore,
+    alarmKeepMinutes: e.alarmKeepMinutes,
   };
 }
 
@@ -57,6 +59,7 @@ export async function POST(req: Request) {
     startsAt,
     endsAt,
     alarmMinutesBefore: d.alarmMinutesBefore ?? null,
+    alarmKeepMinutes: d.alarmKeepMinutes ?? null,
   });
   // Google 연결돼 있으면 미러링(best-effort, 연결 안 됐으면 no-op).
   void pushCreate(user.id, {

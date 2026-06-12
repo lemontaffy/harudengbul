@@ -8,6 +8,7 @@ export interface EventItem {
   startsAt: string;
   endsAt: string | null;
   alarmMinutesBefore: number | null;
+  alarmKeepMinutes: number | null;
 }
 
 const ALARM_OPTIONS: { label: string; value: number | null }[] = [
@@ -16,6 +17,14 @@ const ALARM_OPTIONS: { label: string; value: number | null }[] = [
   { label: "30분 전", value: 30 },
   { label: "1시간 전", value: 60 },
   { label: "1일 전", value: 1440 },
+];
+
+// 알람 유지(반복) 시간 프리셋
+const KEEP_OPTIONS: { label: string; value: number | null }[] = [
+  { label: "반복 없음", value: null },
+  { label: "30분", value: 30 },
+  { label: "1시간", value: 60 },
+  { label: "3시간", value: 180 },
 ];
 
 const inputCls =
@@ -197,6 +206,9 @@ function EventForm({
   const [alarm, setAlarm] = useState<number | null>(
     initial?.alarmMinutesBefore ?? null,
   );
+  const [keep, setKeep] = useState<number | null>(
+    initial?.alarmKeepMinutes ?? null,
+  );
   const [saving, setSaving] = useState(false);
 
   async function save() {
@@ -211,6 +223,7 @@ function EventForm({
         startsAt: fromLocalInput(startsAt),
         endsAt: endsAt ? fromLocalInput(endsAt) : null,
         alarmMinutesBefore: alarm,
+        alarmKeepMinutes: keep,
       };
       const res = await fetch(
         initial ? `/api/events/${initial.id}` : "/api/events",
@@ -300,6 +313,47 @@ function EventForm({
       </div>
       <p className="mt-1 text-[11px] opacity-40">
         직접 입력하거나 칩을 누르세요. 알람은 알림(웹푸시)을 켠 기기로 와요.
+      </p>
+
+      <label className="mb-1 mt-3 block text-xs opacity-60">
+        알람 유지(반복) — 확인할 때까지
+      </label>
+      <div className="flex items-center gap-2">
+        <input
+          type="number"
+          min={0}
+          max={1440}
+          step={1}
+          inputMode="numeric"
+          value={keep ?? ""}
+          onChange={(e) =>
+            setKeep(
+              e.target.value === "" ? null : Math.max(0, Math.floor(Number(e.target.value))),
+            )
+          }
+          placeholder="반복 없음"
+          className={`${inputCls} flex-1`}
+        />
+        <span className="shrink-0 text-xs opacity-50">분 동안</span>
+      </div>
+      <div className="mt-2 flex flex-wrap gap-1.5">
+        {KEEP_OPTIONS.map((o) => (
+          <button
+            key={o.label}
+            type="button"
+            onClick={() => setKeep(o.value)}
+            className={`rounded-lg px-2.5 py-1 text-[11px] ${
+              (o.value ?? null) === (keep ?? null)
+                ? "bg-accent text-black"
+                : "bg-bg ring-1 ring-white/10"
+            }`}
+          >
+            {o.label}
+          </button>
+        ))}
+      </div>
+      <p className="mt-1 text-[11px] opacity-40">
+        설정하면 알림을 확인(탭)할 때까지 그 시간 동안 5분 간격으로 다시 알려줘요.
       </p>
 
       <div className="mt-3 flex gap-2">
