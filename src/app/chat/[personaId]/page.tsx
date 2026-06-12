@@ -30,7 +30,7 @@ export default async function ChatRoomPage({
   const name = persona.name?.trim() || "이름 없는 캐릭터";
 
   return (
-    <main className="mx-auto flex h-[100dvh] max-w-md flex-col px-4">
+    <main className="mx-auto flex h-[100svh] max-w-md flex-col px-4">
       <RoomHeader
         persona={{
           id: persona.id,

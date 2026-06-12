@@ -404,7 +404,7 @@ export default function ChatView({
 
       {/* 입력 */}
       {configured ? (
-        <div className="border-t border-border pt-2 pb-[env(safe-area-inset-bottom)]">
+        <div className="border-t border-border pt-2 pb-[calc(env(safe-area-inset-bottom)+0.5rem)]">
           {/* 선택한 사진 미리보기(제거 가능) */}
           {pendingPhoto && (
             <div className="mb-2 inline-block relative">
