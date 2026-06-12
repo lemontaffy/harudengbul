@@ -4,6 +4,9 @@ import * as settingsRepo from "@/db/repo/settings";
 import * as personasRepo from "@/db/repo/personas";
 import SettingsForm, { type SettingsInitial } from "@/components/SettingsForm";
 import ConnectionsManager from "@/components/ConnectionsManager";
+import DiaryReminderSection, {
+  type DiaryReminderInitial,
+} from "@/components/DiaryReminderSection";
 import NavMenu from "@/components/NavMenu";
 import CharacterManager, {
   type Character,
@@ -81,6 +84,15 @@ export default async function SettingsPage({
     eveningTime: s?.eveningTime ?? "22:00",
   };
 
+  const counselors = personaRows
+    .filter((p) => p.role === "counselor")
+    .map((p) => ({ id: p.id, name: p.name?.trim() || "상담가" }));
+  const diaryReminder: DiaryReminderInitial = {
+    enabled: s?.diaryReminderEnabled ?? false,
+    time: s?.diaryReminderTime ?? "21:30",
+    personaId: s?.diaryReminderPersonaId ?? null,
+  };
+
   return (
     <main className="mx-auto max-w-md p-5">
       <div className="mb-5 flex items-center justify-between">
@@ -97,6 +109,7 @@ export default async function SettingsPage({
       <div className="flex flex-col gap-6">
         <ConnectionsManager />
         <SettingsForm initial={initial} />
+        <DiaryReminderSection initial={diaryReminder} counselors={counselors} />
         <ProfileSection initial={profile} />
         <LocationSetting initial={location} />
         <GoogleCalendarSection initial={google} />

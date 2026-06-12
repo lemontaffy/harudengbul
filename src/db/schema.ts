@@ -87,6 +87,14 @@ export const settings = pgTable("settings", {
   // proactive 선제 톡 일자별 중복 발송 방지(사용자 tz 기준 날짜)
   lastMorningSent: date("last_morning_sent"),
   lastEveningSent: date("last_evening_sent"),
+  // 일기 리마인드(선제 톡 재사용) — 기본 off, 21:30, 담당은 상담가 캐릭터
+  diaryReminderEnabled: boolean("diary_reminder_enabled").default(false),
+  diaryReminderTime: time("diary_reminder_time").default("21:30"),
+  diaryReminderPersonaId: bigint("diary_reminder_persona_id", {
+    mode: "number",
+  }).references(() => personas.id, { onDelete: "set null" }),
+  diaryReminderLastSent: date("diary_reminder_last_sent"), // 중복 방지
+  diaryReminderNoWriteStreak: integer("diary_reminder_no_write_streak").default(0), // 무응답 연속 횟수(자동 후퇴)
   // 생성형 "한마디" 하루 1회 캐시
   dailyPhrase: text("daily_phrase"),
   dailyPhraseDate: date("daily_phrase_date"),

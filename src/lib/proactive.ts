@@ -62,3 +62,19 @@ export function proactiveInstruction(trigger: Trigger, weatherLine?: string): st
     `오늘 하루가 어땠는지 따뜻하게 물어보고, 일기 쓰기를 가볍게 권유해.`
   );
 }
+
+/** 일기 리마인드 선제 톡 지시문(고정 규칙). askReduce면 "줄여줄까?" 1회 포함. */
+export function diaryReminderInstruction(askReduce: boolean): string {
+  const base =
+    "사용자가 앱을 열지 않은 저녁이야. 오늘 하루를 가볍게 묻는 한두 문장을 네 말투로 써서, 일기를 부담 없이 권해.\n" +
+    "- 한 줄이나 이모지 하나만으로도 충분하다고 덧붙인다.\n" +
+    "- 내키지 않으면 안 써도 된다는 뉘앙스를 담는다. 의무·압박·재촉 표현 금지.\n" +
+    "- 못 쓴 날을 지적하거나 연속 작성 일수(스트릭)를 언급하지 않는다.";
+  if (askReduce) {
+    return (
+      base +
+      "\n- 추가로, 이 알림이 부담되면 줄이거나 끌 수 있다는 걸 '계속 보낼까? 줄여줄까?'처럼 한 번만 가볍게 물어본다."
+    );
+  }
+  return base;
+}

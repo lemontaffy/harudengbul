@@ -28,6 +28,7 @@ import { buildContext, buildSystemPrompt, type Role } from "../src/lib/persona";
 import {
   isSlotDue,
   proactiveInstruction,
+  diaryReminderInstruction,
   todayInTz,
   nowHHMMInTz,
   toHHMM,
@@ -206,6 +207,90 @@ async function proactiveJob() {
   }
 }
 
+// 일기/체크인 기록이 하나라도 있으면 "작성한 날"로 본다.
+function hasDiaryActivity(e: {
+  mood: string | null;
+  bodyCondition: string | null;
+  body: string | null;
+} | undefined): boolean {
+  return !!e && (!!e.mood || !!e.bodyCondition || !!(e.body && e.body.trim()));
+}
+
+// 일기 리마인드 — 담당 캐릭터의 선제 톡으로 생성(대화방 + 푸시). askReduce면 "줄여줄까?" 포함.
+async function sendDiaryReminder(
+  userId: number,
+  personaId: number,
+  conn: Awaited<ReturnType<typeof getLlmConfig>>,
+  askReduce: boolean,
+) {
+  const persona = await personasRepo.getOne(userId, personaId);
+  if (!persona || !persona.isActive) return;
+  const ctx = await buildContext(userId);
+  const text = (
+    await completeChat(conn, [
+      {
+        role: "system",
+        content: buildSystemPrompt(
+          { name: persona.name, role: persona.role as Role, traits: persona.traits },
+          ctx,
+        ),
+      },
+      { role: "user", content: diaryReminderInstruction(askReduce) },
+    ])
+  ).trim();
+  if (!text) return;
+
+  await messagesRepo.add(userId, personaId, "proactive", text);
+  const sent = await sendToUser(userId, {
+    title: persona.name?.trim() || "하루등불",
+    body: text.length > 120 ? text.slice(0, 117) + "…" : text,
+    url: "/diary",
+    tag: "diary-reminder",
+  });
+  await usageRepo.log(userId, "proactive");
+  log(`  diaryReminder → user#${userId} persona#${personaId} ask=${askReduce} (push ${sent})`);
+}
+
+/** 매 5분 — 일기 리마인드 켠 사용자별. 시간 도래 + 당일 미작성이면 1회 발송. */
+async function diaryReminderJob() {
+  try {
+    const rows = await settingsRepo.listDiaryReminderEnabled();
+    for (const s of rows) {
+      const tz = s.timezone ?? "Asia/Seoul";
+      const today = todayInTz(tz);
+      const now = nowHHMMInTz(tz);
+      const rTime = toHHMM(s.diaryReminderTime);
+      if (!s.diaryReminderPersonaId || !rTime) continue;
+      if (!isSlotDue(now, rTime, s.diaryReminderLastSent ?? null, today)) continue;
+
+      // 당일 일기/체크인 있으면 스킵(청구도 안 함).
+      const todayEntry = await diaryRepo.getByDate(s.userId, today);
+      if (hasDiaryActivity(todayEntry)) continue;
+
+      const conn = await getLlmConfig(s.userId);
+      if (!conn.configured) continue;
+
+      // 자동 후퇴: 직전 리마인드 날 미작성이면 streak+1, 작성됐으면 0. 7 도달 시 질문 1회.
+      let streak = s.diaryReminderNoWriteStreak ?? 0;
+      const prev = s.diaryReminderLastSent;
+      if (prev && prev !== today) {
+        const prevEntry = await diaryRepo.getByDate(s.userId, prev);
+        streak = hasDiaryActivity(prevEntry) ? 0 : streak + 1;
+      }
+      const askReduce = streak >= 7;
+
+      // 먼저 청구(중복 방지) + 스트릭 저장(물어봤으면 리셋).
+      await settingsRepo.updateByUser(s.userId, {
+        diaryReminderLastSent: today,
+        diaryReminderNoWriteStreak: askReduce ? 0 : streak,
+      });
+      await sendDiaryReminder(s.userId, s.diaryReminderPersonaId, conn, askReduce);
+    }
+  } catch (err) {
+    log(`diaryReminderJob 오류: ${(err as Error)?.message}`);
+  }
+}
+
 const MEM_CHAT_THRESHOLD = 20; // 미처리 대화 20턴 이상이면 추출
 
 // 추출 후보를 중복 제거하며 저장 → 저장 건수 반환. 임베딩 가능하면 같이 생성(best-effort).
@@ -330,7 +415,7 @@ async function handoffExpiryJob() {
 }
 
 log(
-  "started — alarm(1분)+weather(매시)+proactive(5분)+memory(30분)+handoffExpiry(매일)+backup(04:00)+googleSync(15분) 등록",
+  "started — alarm(1분)+weather(매시)+proactive(5분)+diaryReminder(5분)+memory(30분)+handoffExpiry(매일)+backup(04:00)+googleSync(15분) 등록",
 );
 if (!pushConfigured()) {
   log("⚠️ VAPID 미설정 — 알람은 청구되나 푸시는 0건. .env 의 VAPID_* 확인.");
@@ -342,6 +427,7 @@ if (!weatherSourceConfigured()) {
 cron.schedule("* * * * *", alarmJob);
 cron.schedule("0 * * * *", weatherJob);
 cron.schedule("*/5 * * * *", proactiveJob);
+cron.schedule("*/5 * * * *", diaryReminderJob); // 일기 리마인드(선제 톡 재사용)
 cron.schedule("*/30 * * * *", memoryJob);
 cron.schedule("0 4 * * *", handoffExpiryJob); // 매일 04시
 cron.schedule("0 4 * * *", backupJob); // 매일 04:00 pg_dump

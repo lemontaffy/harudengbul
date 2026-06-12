@@ -106,6 +106,13 @@
       "when": 1781236851577,
       "tag": "0014_stiff_hulk",
       "breakpoints": true
+    },
+    {
+      "idx": 15,
+      "version": "7",
+      "when": 1781237565494,
+      "tag": "0015_slow_gateway",
+      "breakpoints": true
     }
   ]
 }

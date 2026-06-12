@@ -37,6 +37,10 @@ const bodySchema = z.object({
   diaryReplyPersonaId: z.number().int().optional(),
   morningPersonaId: z.number().int().optional(),
   eveningPersonaId: z.number().int().optional(),
+  diaryReminderPersonaId: z.number().int().optional(),
+  // 일기 리마인드
+  diaryReminderEnabled: z.boolean().optional(),
+  diaryReminderTime: z.string().regex(timeRe).optional(),
 });
 
 async function snapshot(userId: number) {
@@ -52,6 +56,9 @@ async function snapshot(userId: number) {
     diaryReplyPersonaId: s?.diaryReplyPersonaId ?? null,
     morningPersonaId: s?.morningPersonaId ?? null,
     eveningPersonaId: s?.eveningPersonaId ?? null,
+    diaryReminderPersonaId: s?.diaryReminderPersonaId ?? null,
+    diaryReminderEnabled: s?.diaryReminderEnabled ?? false,
+    diaryReminderTime: s?.diaryReminderTime ?? "21:30",
     proactiveEnabled: s?.proactiveEnabled ?? false,
     handoffEnabled: s?.handoffEnabled ?? true,
     morningTime: s?.morningTime ?? "08:00",
@@ -90,6 +97,8 @@ export async function POST(req: Request) {
   if (typeof d.handoffEnabled === "boolean") set.handoffEnabled = d.handoffEnabled;
   if (typeof d.morningTime === "string") set.morningTime = d.morningTime;
   if (typeof d.eveningTime === "string") set.eveningTime = d.eveningTime;
+  if (typeof d.diaryReminderEnabled === "boolean") set.diaryReminderEnabled = d.diaryReminderEnabled;
+  if (typeof d.diaryReminderTime === "string") set.diaryReminderTime = d.diaryReminderTime;
 
   if (d.clearLlmKey) {
     set.llmApiKey = null;
@@ -121,6 +130,7 @@ export async function POST(req: Request) {
     [d.diaryReplyPersonaId, "diaryReplyPersonaId", "counselor", "일기 답장"],
     [d.morningPersonaId, "morningPersonaId", "secretary", "아침"],
     [d.eveningPersonaId, "eveningPersonaId", "counselor", "저녁"],
+    [d.diaryReminderPersonaId, "diaryReminderPersonaId", "counselor", "일기 리마인드"],
   ];
   for (const [id, key, role, label] of assign) {
     if (id === undefined) continue;
