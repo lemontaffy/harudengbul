@@ -13,6 +13,7 @@ import {
   uniqueIndex,
   index,
   vector,
+  real,
 } from "drizzle-orm/pg-core";
 
 // DELTA-multiuser: 초대제 멀티유저. SPEC §4의 단일 사용자 전제를 대체한다.
@@ -126,6 +127,11 @@ export const settings = pgTable("settings", {
   // 화면 — 프리셋 테마(lantern/dawn/paper) + 고급 커스텀 CSS(본인 세션에만 주입).
   theme: text("theme").default("lantern"),
   customCss: text("custom_css"),
+  // 펫 성장 일일 상한(5pt) 추적 + 마지막 앱 활동(48h 잠 판정) + 홈 위젯용 마지막 본 방.
+  growthDate: date("growth_date"),
+  growthToday: integer("growth_today").default(0),
+  lastActivityAt: timestamp("last_activity_at", { withTimezone: true }),
+  petLastRoomId: bigint("pet_last_room_id", { mode: "number" }),
 });
 
 // 사용자별 다중 LLM 연결. 같은 공급사도 여러 개 가능. 사용자가 이름을 붙인다.
@@ -438,4 +444,94 @@ export const handoffSuggestions = pgTable(
     resolvedAt: timestamp("resolved_at", { withTimezone: true }),
   },
   (t) => [index("handoff_user_status_idx").on(t.userId, t.status)],
+);
+
+// ── 펫 룸 v1 ──────────────────────────────────────────────
+// 후퇴 없는 펫. 게이지·시듦 없음, 상태는 깨어있음/잠 둘뿐. 관계는 사용자 선언 설정.
+
+export const petRooms = pgTable("pet_rooms", {
+  id: bigint("id", { mode: "number" }).primaryKey().generatedAlwaysAsIdentity(),
+  userId: bigint("user_id", { mode: "number" })
+    .notNull()
+    .references(() => users.id, { onDelete: "cascade" }),
+  name: text("name").notNull(),
+  backgroundPath: text("background_path"), // null = 기본 배경
+  pixelRenderBg: boolean("pixel_render_bg").notNull().default(true),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
+});
+
+export const pets = pgTable(
+  "pets",
+  {
+    id: bigint("id", { mode: "number" }).primaryKey().generatedAlwaysAsIdentity(),
+    userId: bigint("user_id", { mode: "number" })
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    // 방 삭제는 펫이 있으면 앱에서 차단 + FK no action 으로 DB 도 보호(연쇄 삭제 금지).
+    roomId: bigint("room_id", { mode: "number" })
+      .notNull()
+      .references(() => petRooms.id),
+    name: text("name").notNull(),
+    personality: text("personality"),
+    posX: real("pos_x").notNull().default(50), // % (0~100)
+    posY: real("pos_y").notNull().default(70),
+    pixelRender: boolean("pixel_render").notNull().default(true),
+    growthPoints: integer("growth_points").notNull().default(0),
+    teenThreshold: integer("teen_threshold").notNull().default(30),
+    adultThreshold: integer("adult_threshold").notNull().default(90),
+    lastStageSeen: text("last_stage_seen"), // 진화 1회 연출 추적
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
+  },
+  (t) => [index("pets_user_room_idx").on(t.userId, t.roomId)],
+);
+
+export const petSprites = pgTable(
+  "pet_sprites",
+  {
+    id: bigint("id", { mode: "number" }).primaryKey().generatedAlwaysAsIdentity(),
+    petId: bigint("pet_id", { mode: "number" })
+      .notNull()
+      .references(() => pets.id, { onDelete: "cascade" }),
+    stage: text("stage").notNull(), // 'baby' | 'teen' | 'adult'
+    kind: text("kind").notNull(), // 'idle' | 'sleep' | 'walk' | 'love'
+    path: text("path").notNull(),
+  },
+  (t) => [uniqueIndex("pet_sprites_slot_idx").on(t.petId, t.stage, t.kind)],
+);
+
+export const petRelations = pgTable(
+  "pet_relations",
+  {
+    id: bigint("id", { mode: "number" }).primaryKey().generatedAlwaysAsIdentity(),
+    userId: bigint("user_id", { mode: "number" })
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    // a < b 정규화. 방 경계 무관(사용자 전역).
+    petAId: bigint("pet_a_id", { mode: "number" })
+      .notNull()
+      .references(() => pets.id, { onDelete: "cascade" }),
+    petBId: bigint("pet_b_id", { mode: "number" })
+      .notNull()
+      .references(() => pets.id, { onDelete: "cascade" }),
+    relationLabel: text("relation_label").notNull(), // 자유 텍스트(연인/라이벌/혐관 등)
+  },
+  (t) => [uniqueIndex("pet_relations_pair_idx").on(t.userId, t.petAId, t.petBId)],
+);
+
+export const petLines = pgTable(
+  "pet_lines",
+  {
+    id: bigint("id", { mode: "number" }).primaryKey().generatedAlwaysAsIdentity(),
+    petId: bigint("pet_id", { mode: "number" })
+      .notNull()
+      .references(() => pets.id, { onDelete: "cascade" }),
+    stage: text("stage").notNull(),
+    kind: text("kind").notNull(), // 'solo' | 'about_other'
+    aboutPetId: bigint("about_pet_id", { mode: "number" }).references(() => pets.id, {
+      onDelete: "set null",
+    }),
+    content: text("content").notNull(),
+    source: text("source").notNull().default("auto"), // 'auto'(재생성 교체 대상) | 'manual'(보존)
+  },
+  (t) => [index("pet_lines_pet_stage_idx").on(t.petId, t.stage)],
 );

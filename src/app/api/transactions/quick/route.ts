@@ -2,6 +2,7 @@ import { z } from "zod";
 import { getCurrentUser } from "@/lib/currentUser";
 import * as txRepo from "@/db/repo/transactions";
 import { parseQuickTx } from "@/lib/txparse";
+import { grantGrowth } from "@/lib/growth";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -34,6 +35,7 @@ export async function POST(req: Request) {
     amount: tx.amount,
     memo: tx.memo,
   });
+  void grantGrowth(user.id, 1).catch(() => {}); // 펫 성장 +1(일일 상한)
   return Response.json({
     transaction: {
       id: row.id,

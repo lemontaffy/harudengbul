@@ -43,6 +43,7 @@ services:
       - AVATARS_DIR=/data/avatars
       - DIARY_PHOTOS_DIR=/data/diary-photos
       - UPLOADS_DIR=/data/uploads
+      - SPRITES_DIR=/data/sprites
       # 웹검색(영양사·스터디) — 내부 SearxNG. 다운돼도 대화는 graceful 처리.
       - SEARXNG_URL=http://searxng:8080
     volumes:
@@ -53,6 +54,8 @@ services:
       - ./data/diary-photos:/data/diary-photos
       # 채팅 첨부 사진 영속 저장.
       - ./data/uploads:/data/uploads
+      # 펫 스프라이트/방 배경(GIF 등 원본 그대로 저장).
+      - ./data/sprites:/data/sprites
     ports:
       # 터널(cloudflared, host systemd)만 접근. 인터넷 직접 노출 없음.
       - "127.0.0.1:3000:3000"

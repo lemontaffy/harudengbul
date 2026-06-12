@@ -169,6 +169,13 @@
       "when": 1781267694400,
       "tag": "0023_rich_push_snooze",
       "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1781269955617,
+      "tag": "0024_pet_room",
+      "breakpoints": true
     }
   ]
 }

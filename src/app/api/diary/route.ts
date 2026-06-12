@@ -9,6 +9,7 @@ import * as diaryRepo from "@/db/repo/diary";
 import * as settingsRepo from "@/db/repo/settings";
 import * as personasRepo from "@/db/repo/personas";
 import * as usageRepo from "@/db/repo/usage";
+import { grantGrowth } from "@/lib/growth";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -84,6 +85,10 @@ export async function POST(req: Request) {
   if (d.body !== undefined) patch.body = d.body.trim() || null;
   const entry = await diaryRepo.upsertEntry(user.id, date, patch);
   if (d.items) await diaryRepo.setItems(user.id, entry.id, d.items);
+
+  // 펫 성장 적립(전 펫 공통, 일일 상한) — 일기 본문 +3 / 기분·컨디션 체크인 +1. best-effort.
+  const growthPts = d.body?.trim() ? 3 : d.mood !== undefined || d.bodyCondition !== undefined ? 1 : 0;
+  if (growthPts > 0) void grantGrowth(user.id, growthPts).catch(() => {});
 
   // 2) 담당 상담가가 답장(동기). 본문/사진 없거나 LLM 미설정이면 답장 없이 저장만.
   let reply: string | null = null;

@@ -72,6 +72,22 @@ export async function pickVisionConn(userId: number): Promise<LlmConfig | null> 
   return null;
 }
 
+/**
+ * 보조 텍스트 작업(펫 대사 등) 연결 — 비전 불필요. 보조 연결(aux_connection_id) 우선, 없으면 메인.
+ * 페르소나 프롬프트 미탑재 배경 작업 전용.
+ */
+export async function getAuxTextConfig(userId: number): Promise<LlmConfig> {
+  const s = await settingsRepo.getByUser(userId);
+  if (s?.auxConnectionId) {
+    const aux = await connectionsRepo.getOne(userId, s.auxConnectionId);
+    if (aux) {
+      const cfg = connToConfig(aux);
+      if (cfg.configured) return cfg;
+    }
+  }
+  return getLlmConfig(userId);
+}
+
 // 사용자별 OpenAI 호환 LLM 연결. 코드에 모델명/공급사 하드코딩 금지 — 항상 이 함수로만 읽는다.
 export async function getLlmConfig(userId: number): Promise<LlmConfig> {
   const { conn, legacy } = await activeConnection(userId);
