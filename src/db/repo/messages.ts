@@ -1,8 +1,17 @@
-import { and, asc, count, desc, eq, gt, inArray, lt, lte } from "drizzle-orm";
+import { and, asc, count, desc, eq, gt, ilike, inArray, lt, lte, notInArray, sql } from "drizzle-orm";
 import { db } from "../client";
 import { messages } from "../schema";
 
 export type MsgRole = "user" | "assistant" | "proactive";
+
+export interface MessageSearchHit {
+  id: number;
+  /** 200자 절단된 메시지 내용. */
+  content: string;
+  role: MsgRole;
+  personaId: number;
+  createdAt: Date | null;
+}
 
 export async function add(
   userId: number,
@@ -178,6 +187,80 @@ export async function listSinceId(userId: number, sinceId: number, limit = 200) 
     .where(and(eq(messages.userId, userId), gt(messages.id, sinceId)))
     .orderBy(asc(messages.id))
     .limit(limit);
+}
+
+/**
+ * 과거 대화 검색(search_past_messages 도구의 백엔드). userId 스코프 필수.
+ * 검색 방식: content ILIKE '%query%' 우선, 부족하면 similarity(content, query) 트라이그램 보조.
+ *   정렬은 유사도 → 최신순. **이 함수 내부만 교체하면 pgvector RAG 로 전환 가능**
+ *   (도구 인터페이스/격리 필터는 그대로) — 의도적 분리.
+ * 격리: onlyPersonaId(그 캐릭터 방만) / excludePersonaIds(그 캐릭터 방들 제외) 중 호출자가 강제.
+ */
+export async function searchMessages(
+  userId: number,
+  query: string,
+  opts: {
+    excludePersonaIds?: number[];
+    onlyPersonaId?: number;
+    limit?: number;
+  } = {},
+): Promise<MessageSearchHit[]> {
+  const q = query.trim();
+  const limit = opts.limit ?? 5;
+  if (!q || limit <= 0) return [];
+
+  const scope = [eq(messages.userId, userId)];
+  if (opts.onlyPersonaId != null) {
+    scope.push(eq(messages.personaId, opts.onlyPersonaId));
+  } else if (opts.excludePersonaIds && opts.excludePersonaIds.length > 0) {
+    scope.push(notInArray(messages.personaId, opts.excludePersonaIds));
+  }
+
+  const cols = {
+    id: messages.id,
+    content: messages.content,
+    role: messages.role,
+    personaId: messages.personaId,
+    createdAt: messages.createdAt,
+  };
+  const trunc = (r: { content: string }): string =>
+    r.content.length > 200 ? r.content.slice(0, 200) + "…" : r.content;
+  const toHit = (r: {
+    id: number;
+    content: string;
+    role: string;
+    personaId: number;
+    createdAt: Date | null;
+  }): MessageSearchHit => ({
+    id: r.id,
+    content: trunc(r),
+    role: r.role as MsgRole,
+    personaId: r.personaId,
+    createdAt: r.createdAt,
+  });
+
+  // 1차: 부분일치(ILIKE) — 최신순.
+  const exact = await db
+    .select(cols)
+    .from(messages)
+    .where(and(...scope, ilike(messages.content, `%${q}%`)))
+    .orderBy(desc(messages.createdAt))
+    .limit(limit);
+  if (exact.length >= limit) return exact.map(toHit);
+
+  // 보조: 트라이그램 유사도(부분일치에서 안 잡힌 행만). 유사도 → 최신순.
+  const seen = new Set(exact.map((r) => r.id));
+  const sim = sql<number>`similarity(${messages.content}, ${q})`;
+  const fuzzy = await db
+    .select({ ...cols, sim })
+    .from(messages)
+    .where(and(...scope, sql`${sim} > 0.1`))
+    .orderBy(desc(sim), desc(messages.createdAt))
+    .limit(limit * 3);
+  const extra = fuzzy
+    .filter((r) => !seen.has(r.id))
+    .slice(0, limit - exact.length);
+  return [...exact, ...extra].map(toHit);
 }
 
 /** 프롬프트용 — 최근 N턴(role/content만), 오래된→최신. */

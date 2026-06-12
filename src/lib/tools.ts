@@ -4,6 +4,8 @@ import * as transactionsRepo from "@/db/repo/transactions";
 import * as memoriesRepo from "@/db/repo/memories";
 import * as settingsRepo from "@/db/repo/settings";
 import * as handoffsRepo from "@/db/repo/handoffs";
+import * as messagesRepo from "@/db/repo/messages";
+import * as personasRepo from "@/db/repo/personas";
 import { pushCreate, pushUpdate, pushDelete } from "@/lib/googlesync";
 import type { Role } from "@/lib/persona";
 
@@ -183,13 +185,36 @@ export const HANDOFF_TOOL: ToolDef = {
   },
 };
 
-/** 역할·설정에 따른 도구 목록. 비서=등록 도구, 상담가=핸드오프(켜졌을 때만). */
+// 과거 대화 검색 — 모든 역할 공통. 실제 검색 대상(상담 격리)은 도구 핸들러가 서버에서
+// 강제하므로 LLM 이 인자로 우회할 수 없다(아래 executeTool 참고).
+export const SEARCH_TOOL: ToolDef = {
+  type: "function",
+  function: {
+    name: "search_past_messages",
+    description:
+      "사용자가 과거 대화를 언급할 때('저번에', '전에 말한', '기억나?') 추측하지 말고 이 도구로 실제 지난 대화를 찾는다. 핵심 키워드로 검색하고, 결과의 날짜를 함께 인용한다.",
+    parameters: {
+      type: "object",
+      properties: {
+        query: { type: "string", description: "찾을 핵심 키워드/문구" },
+        limit: { type: "integer", description: "최대 결과 수(기본 5, 최대 10)" },
+      },
+      required: ["query"],
+    },
+  },
+};
+
+/** 역할·설정에 따른 도구 목록. search_past_messages 는 모든 역할 공통. */
 export function toolsForRole(role: Role, handoffEnabled: boolean): ToolDef[] | undefined {
-  if (role === "secretary") return SECRETARY_TOOLS;
-  if (role === "counselor" && handoffEnabled) return [HANDOFF_TOOL];
-  return undefined;
+  if (role === "secretary") return [...SECRETARY_TOOLS, SEARCH_TOOL];
+  if (role === "counselor" && handoffEnabled) return [HANDOFF_TOOL, SEARCH_TOOL];
+  return [SEARCH_TOOL];
 }
 
+const searchArgs = z.object({
+  query: z.string().trim().min(1).max(200),
+  limit: z.number().int().min(1).max(10).nullish(),
+});
 const addEventArgs = z.object({
   title: z.string().min(1).max(120),
   starts_at: z.string().min(1),
@@ -263,6 +288,44 @@ export async function executeTool(
     return "ERROR: 도구 인자 JSON 파싱 실패";
   }
   try {
+    if (name === "search_past_messages") {
+      const a = searchArgs.parse(args);
+      const limit = a.limit ?? 5;
+
+      // 상담 격리 — 프롬프트가 아니라 여기(서버)서 강제. LLM 인자로 우회 불가.
+      //  · 호출자가 상담가 → 자기 방 대화만(onlyPersonaId).
+      //  · 호출자가 상담가 아님 → 모든 상담가 방 대화 제외(excludePersonaIds).
+      const personas = await personasRepo.listByUser(userId);
+      const caller = opts?.personaId
+        ? personas.find((p) => p.id === opts.personaId)
+        : undefined;
+      const scope =
+        caller?.role === "counselor"
+          ? { onlyPersonaId: caller.id, limit }
+          : {
+              excludePersonaIds: personas
+                .filter((p) => p.role === "counselor")
+                .map((p) => p.id),
+              limit,
+            };
+
+      const hits = await messagesRepo.searchMessages(userId, a.query, scope);
+      if (hits.length === 0) return "결과 없음";
+
+      const nameById = new Map(
+        personas.map((p) => [p.id, p.name?.trim() || "캐릭터"]),
+      );
+      const lines = hits.map((h) => {
+        const date = h.createdAt
+          ? new Date(h.createdAt).toISOString().slice(0, 10)
+          : "????-??-??";
+        const speaker =
+          h.role === "user" ? "사용자" : nameById.get(h.personaId) ?? "캐릭터";
+        const snippet = h.content.replace(/\s+/g, " ").trim();
+        return `${date} | ${speaker} | ${snippet}`;
+      });
+      return lines.join("\n");
+    }
     if (name === "suggest_handoff") {
       const a = handoffArgs.parse(args);
       let created = 0;

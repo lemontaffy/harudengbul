@@ -11,6 +11,13 @@ import * as memoriesRepo from "../src/db/repo/memories";
 import * as diaryRepo from "../src/db/repo/diary";
 import * as messagesRepo from "../src/db/repo/messages";
 import { buildContext, buildSystemPrompt, type Role } from "../src/lib/persona";
+import { executeTool } from "../src/lib/tools";
+
+async function search(userId: number, query: string, personaId: number) {
+  return executeTool(userId, "search_past_messages", JSON.stringify({ query }), {
+    personaId,
+  });
+}
 
 let failed = 0;
 function check(name: string, cond: boolean) {
@@ -114,6 +121,48 @@ async function main() {
     (await messagesRepo.removeUserWithResponses(B.id, aUser.id)) === false,
   );
   check("A user 메시지 여전히 존재", !!(await messagesRepo.getOne(A.id, aUser.id)));
+
+  // ── 과거 대화 검색: 교차 유저 격리 ──
+  await messagesRepo.add(A.id, aSecretary.id, "user", "A만의 검색키워드 SEARCHSECRET_A 회사 얘기");
+  const bSearchOfA = await messagesRepo.searchMessages(B.id, "SEARCHSECRET_A");
+  check("B 검색에 A 메시지 안 나옴(유저 격리)", bSearchOfA.length === 0);
+  const aSearchOwn = await messagesRepo.searchMessages(A.id, "SEARCHSECRET_A");
+  check("A 검색엔 A 본인 메시지 나옴(양성 대조)", aSearchOwn.length > 0);
+
+  // ── 과거 대화 검색: 상담 격리(도구 핸들러 단위, 프롬프트 회귀 면역) ──
+  // B의 상담가(노라) 방·비서(테오) 방에 각각 전용 키워드 메시지를 심는다.
+  const KW_COUNSELOR = "노라방전용키워드_CONFESSION";
+  const KW_SECRETARY = "테오방전용키워드_SCHEDULE";
+  await messagesRepo.add(B.id, bCounselor.id, "user", `상담방에서만 말함: ${KW_COUNSELOR}`);
+  await messagesRepo.add(B.id, bSecretary.id, "user", `비서방에서만 말함: ${KW_SECRETARY}`);
+
+  // 핵심 역검증: 비서(테오)는 상담가(노라) 방의 키워드를 절대 못 찾는다.
+  const secSeesCounselor = await search(B.id, KW_COUNSELOR, bSecretary.id);
+  check(
+    "비서 검색에 상담방 키워드 절대 미노출(상담 격리)",
+    !secSeesCounselor.includes(KW_COUNSELOR),
+  );
+  // 상담가(노라)는 자기 방의 그 키워드를 찾는다(양성 대조).
+  const counSeesOwn = await search(B.id, KW_COUNSELOR, bCounselor.id);
+  check("상담가는 자기 방 과거 내용을 찾음", counSeesOwn.includes(KW_COUNSELOR));
+  // 상담가는 자기 방만(onlyPersonaId) — 비서 방 키워드는 못 본다.
+  const counSeesSecretary = await search(B.id, KW_SECRETARY, bCounselor.id);
+  check(
+    "상담가 검색에 비서방 키워드 미노출(자기 방만)",
+    !counSeesSecretary.includes(KW_SECRETARY),
+  );
+  // 비서는 비-상담 방(자기 방 포함) 키워드는 찾는다(양성 대조).
+  const secSeesOwn = await search(B.id, KW_SECRETARY, bSecretary.id);
+  check("비서는 비-상담 방 과거 내용을 찾음", secSeesOwn.includes(KW_SECRETARY));
+
+  // 형식: 결과는 'YYYY-MM-DD | 발화자 | …' (날짜 동반 인용 가능 — 수동①).
+  check(
+    "검색 결과에 날짜(YYYY-MM-DD)가 포함됨",
+    /^\d{4}-\d{2}-\d{2} \| /.test(counSeesOwn),
+  );
+  // 없는 내용은 지어내지 않고 '결과 없음'(수동②).
+  const noHit = await search(B.id, "절대존재하지않는키워드_ZZZQQQ999", bSecretary.id);
+  check("없는 내용 검색은 '결과 없음'", noHit === "결과 없음");
 
   console.log(failed === 0 ? "\n격리 테스트 통과 ✅" : `\n${failed}건 실패 ❌`);
   process.exit(failed === 0 ? 0 : 1);
