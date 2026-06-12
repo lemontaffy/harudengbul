@@ -1,10 +1,10 @@
-import Link from "next/link";
 import { requireUser } from "@/lib/currentUser";
 import { getLlmConfig } from "@/lib/config";
 import type { Role } from "@/lib/persona";
 import * as settingsRepo from "@/db/repo/settings";
 import * as personasRepo from "@/db/repo/personas";
 import ChatView, { type ChatPersona } from "@/components/ChatView";
+import NavMenu from "@/components/NavMenu";
 
 export const dynamic = "force-dynamic";
 
@@ -25,11 +25,8 @@ export default async function ChatPage() {
   return (
     <main className="mx-auto flex h-screen max-w-md flex-col p-4">
       <header className="mb-3 flex items-center justify-between">
-        <Link href="/" className="text-sm opacity-60 hover:opacity-100">
-          ← 홈
-        </Link>
         <h1 className="text-base font-semibold text-accent">대화</h1>
-        <span className="w-8" />
+        <NavMenu isAdmin={user.role === "admin"} username={user.username} />
       </header>
 
       <ChatView

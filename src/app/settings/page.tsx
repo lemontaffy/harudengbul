@@ -1,10 +1,10 @@
-import Link from "next/link";
 import { requireUser } from "@/lib/currentUser";
 import type { Role } from "@/lib/persona";
 import * as settingsRepo from "@/db/repo/settings";
 import * as personasRepo from "@/db/repo/personas";
 import SettingsForm, { type SettingsInitial } from "@/components/SettingsForm";
 import ConnectionsManager from "@/components/ConnectionsManager";
+import NavMenu from "@/components/NavMenu";
 import CharacterManager, {
   type Character,
   type TriggerAssignments,
@@ -84,11 +84,8 @@ export default async function SettingsPage({
   return (
     <main className="mx-auto max-w-md p-5">
       <div className="mb-5 flex items-center justify-between">
-        <Link href="/" className="text-sm opacity-60 hover:opacity-100">
-          ← 홈
-        </Link>
         <h1 className="text-lg font-semibold">설정</h1>
-        <span className="w-8" />
+        <NavMenu isAdmin={user.role === "admin"} username={user.username} />
       </div>
 
       {user.mustChangePassword && (

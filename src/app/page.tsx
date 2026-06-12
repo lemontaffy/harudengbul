@@ -7,7 +7,7 @@ import * as diaryRepo from "@/db/repo/diary";
 import * as messagesRepo from "@/db/repo/messages";
 import * as handoffsRepo from "@/db/repo/handoffs";
 import { phraseForDate } from "@/lib/phrases";
-import LogoutButton from "@/components/LogoutButton";
+import NavMenu from "@/components/NavMenu";
 import ConnectionSwitcher from "@/components/ConnectionSwitcher";
 import LiveClock from "@/components/LiveClock";
 import MoodChips from "@/components/MoodChips";
@@ -71,19 +71,7 @@ export default async function DashboardPage() {
       {/* 헤더 */}
       <header className="flex items-center justify-between">
         <h1 className="text-base font-semibold text-accent">하루등불</h1>
-        <div className="flex items-center gap-3 text-xs opacity-70">
-          <span>{user.username}</span>
-          <Link href="/diary" className="hover:opacity-100">일기</Link>
-          <Link href="/events" className="hover:opacity-100">일정</Link>
-          <Link href="/ledger" className="hover:opacity-100">가계부</Link>
-          <Link href="/letters" className="hover:opacity-100">편지</Link>
-          <Link href="/pocket" className="text-accent/80 hover:text-accent">비상</Link>
-          <Link href="/settings" className="hover:opacity-100">설정</Link>
-          {user.role === "admin" && (
-            <Link href="/admin" className="hover:opacity-100">어드민</Link>
-          )}
-          <LogoutButton />
-        </div>
+        <NavMenu isAdmin={user.role === "admin"} username={user.username} />
       </header>
 
       {/* 메인 AI 연결 전환 */}
