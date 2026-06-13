@@ -30,9 +30,20 @@ function publicRow(e: eventsRepo.EventRow) {
   };
 }
 
-export async function GET() {
+export async function GET(req: Request) {
   const user = await getCurrentUser();
   if (!user) return Response.json({ error: "unauthorized" }, { status: 401 });
+  const url = new URL(req.url);
+  const startQ = url.searchParams.get("start");
+  const endQ = url.searchParams.get("end");
+  // 범위 지정(캘린더 월 뷰): start~end. 둘 다 유효할 때만, 아니면 기존 동작(오늘 이후).
+  if (startQ && endQ) {
+    const start = parseDate(startQ);
+    const end = parseDate(endQ);
+    if (!start || !end) return Response.json({ error: "잘못된 범위" }, { status: 400 });
+    const rows = await eventsRepo.listBetween(user.id, start, end);
+    return Response.json({ events: rows.map(publicRow) });
+  }
   // 예정 일정: 오늘 0시 이후(살짝 과거도 포함되게 하루 전부터).
   const from = new Date();
   from.setHours(0, 0, 0, 0);

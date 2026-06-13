@@ -194,6 +194,15 @@ export async function listFrom(userId: number, from: Date, limit = 200) {
     .limit(limit);
 }
 
+/** 범위 내 전체 컬럼 조회(캘린더 월 뷰용 — start ≤ startsAt < end). getBetween 은 subset이라 별도. */
+export async function listBetween(userId: number, start: Date, end: Date) {
+  return db
+    .select()
+    .from(events)
+    .where(and(eq(events.userId, userId), gte(events.startsAt, start), lt(events.startsAt, end)))
+    .orderBy(asc(events.startsAt));
+}
+
 export async function getOne(userId: number, id: number) {
   return db.query.events.findFirst({
     where: and(eq(events.id, id), eq(events.userId, userId)),

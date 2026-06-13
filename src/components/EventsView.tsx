@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useDialog } from "@/components/ui/Dialog";
 
 export interface EventItem {
@@ -77,10 +77,13 @@ export default function EventsView({
   const [adding, setAdding] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
   const [status, setStatus] = useState("");
+  const [view, setView] = useState<"list" | "calendar">("list"); // 기본=리스트(다가오는 것 중심)
+  const [dataVersion, setDataVersion] = useState(0); // 변경 시 캘린더 재조회 트리거
 
   async function refresh() {
     const res = await fetch("/api/events");
     if (res.ok) setEvents((await res.json()).events);
+    setDataVersion((v) => v + 1);
   }
 
   async function remove(ev: EventItem) {
@@ -103,19 +106,35 @@ export default function EventsView({
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="flex items-center justify-between">
-        <span className="text-xs opacity-60">{status}</span>
-        {!adding && (
-          <button
-            onClick={() => {
-              setAdding(true);
-              setEditingId(null);
-            }}
-            className="rounded-control bg-accent px-3 py-1.5 text-xs font-medium text-black"
-          >
-            + 일정 추가
-          </button>
-        )}
+      <div className="flex items-center justify-between gap-2">
+        <div className="flex gap-1 text-xs">
+          {([
+            ["list", "리스트"],
+            ["calendar", "캘린더"],
+          ] as const).map(([v, label]) => (
+            <button
+              key={v}
+              onClick={() => setView(v)}
+              className={`rounded-control px-3 py-1.5 ${view === v ? "bg-accent text-black" : "bg-bg ring-1 ring-border"}`}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+        <div className="flex items-center gap-2">
+          <span className="text-xs opacity-60">{status}</span>
+          {!adding && (
+            <button
+              onClick={() => {
+                setAdding(true);
+                setEditingId(null);
+              }}
+              className="rounded-control bg-accent px-3 py-1.5 text-xs font-medium text-black"
+            >
+              + 일정 추가
+            </button>
+          )}
+        </div>
       </div>
 
       {adding && (
@@ -130,74 +149,217 @@ export default function EventsView({
         />
       )}
 
-      {groups.length === 0 && !adding && (
-        emptyCta ? (
-          <a
-            href={emptyCta.href}
-            className="flex items-center justify-center gap-1 py-8 text-center text-sm text-accent hover:text-accent"
-          >
-            {emptyCta.text} <span aria-hidden>→</span>
-          </a>
-        ) : (
-          <p className="py-8 text-center text-sm opacity-40">예정된 일정이 없어요.</p>
-        )
-      )}
+      {view === "calendar" ? (
+        <CalendarView dataVersion={dataVersion} onError={setStatus} />
+      ) : (
+        <>
+          {groups.length === 0 && !adding && (
+            emptyCta ? (
+              <a
+                href={emptyCta.href}
+                className="flex items-center justify-center gap-1 py-8 text-center text-sm text-accent hover:text-accent"
+              >
+                {emptyCta.text} <span aria-hidden>→</span>
+              </a>
+            ) : (
+              <p className="py-8 text-center text-sm opacity-40">예정된 일정이 없어요.</p>
+            )
+          )}
 
-      {groups.map((g) => (
-        <section key={g.key}>
-          <h3 className="mb-1 text-xs font-semibold opacity-60">{g.key}</h3>
-          <ul className="flex flex-col gap-2">
-            {g.items.map((e) =>
-              editingId === e.id ? (
-                <li key={e.id}>
-                  <EventForm
-                    initial={e}
-                    onCancel={() => setEditingId(null)}
-                    onSaved={async () => {
-                      setEditingId(null);
-                      setStatus("저장됨 ✓");
-                      await refresh();
-                    }}
-                    onError={setStatus}
-                  />
+          {groups.map((g) => (
+            <section key={g.key}>
+              <h3 className="mb-1 text-xs font-semibold opacity-60">{g.key}</h3>
+              <ul className="flex flex-col gap-2">
+                {g.items.map((e) =>
+                  editingId === e.id ? (
+                    <li key={e.id}>
+                      <EventForm
+                        initial={e}
+                        onCancel={() => setEditingId(null)}
+                        onSaved={async () => {
+                          setEditingId(null);
+                          setStatus("저장됨 ✓");
+                          await refresh();
+                        }}
+                        onError={setStatus}
+                      />
+                    </li>
+                  ) : (
+                    <li
+                      key={e.id}
+                      className="flex items-center gap-3 rounded-xl bg-surface p-3 ring-1 ring-border"
+                    >
+                      <div className="min-w-0 flex-1">
+                        <div className="truncate text-sm">{e.title}</div>
+                        <div className="text-[11px] opacity-50">
+                          {new Date(e.startsAt).toLocaleTimeString("ko-KR", {
+                            hour: "2-digit",
+                            minute: "2-digit",
+                          })}
+                          {e.alarmMinutesBefore != null &&
+                            ` · 알람 ${e.alarmMinutesBefore}분 전`}
+                        </div>
+                      </div>
+                      <button
+                        onClick={() => {
+                          setEditingId(e.id);
+                          setAdding(false);
+                        }}
+                        className="rounded-control bg-bg px-3 py-1.5 text-xs ring-1 ring-border"
+                      >
+                        편집
+                      </button>
+                      <button
+                        onClick={() => remove(e)}
+                        className="px-2 py-1.5 text-xs opacity-60 hover:text-red-400"
+                      >
+                        삭제
+                      </button>
+                    </li>
+                  ),
+                )}
+              </ul>
+            </section>
+          ))}
+        </>
+      )}
+    </div>
+  );
+}
+
+// 월 그리드 캘린더 — 같은 이벤트 데이터를 월 범위로 조회(getBetween→listBetween 재사용).
+// 일정 있는 날 점 마커(단색), 날짜 탭 → 그날 일정 패널. 모바일 우선(마커만, 텍스트는 탭 후).
+function CalendarView({
+  dataVersion,
+  onError,
+}: {
+  dataVersion: number;
+  onError: (m: string) => void;
+}) {
+  const [cur, setCur] = useState(() => {
+    const n = new Date();
+    return { y: n.getFullYear(), m: n.getMonth() };
+  });
+  const [monthEvents, setMonthEvents] = useState<EventItem[]>([]);
+  const [selDay, setSelDay] = useState<number | null>(null);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    const start = new Date(cur.y, cur.m, 1, 0, 0, 0, 0);
+    const end = new Date(cur.y, cur.m + 1, 1, 0, 0, 0, 0);
+    let cancelled = false;
+    setLoading(true);
+    fetch(`/api/events?start=${encodeURIComponent(start.toISOString())}&end=${encodeURIComponent(end.toISOString())}`)
+      .then((r) => (r.ok ? r.json() : Promise.reject(new Error("fail"))))
+      .then((d) => {
+        if (!cancelled) setMonthEvents(d.events as EventItem[]);
+      })
+      .catch(() => {
+        if (!cancelled) onError("캘린더를 불러오지 못했어요.");
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [cur, dataVersion, onError]);
+
+  // 날짜(1-base) → 그날 이벤트
+  const byDay = new Map<number, EventItem[]>();
+  for (const e of monthEvents) {
+    const d = new Date(e.startsAt);
+    if (d.getFullYear() === cur.y && d.getMonth() === cur.m) {
+      const k = d.getDate();
+      const arr = byDay.get(k);
+      if (arr) arr.push(e);
+      else byDay.set(k, [e]);
+    }
+  }
+
+  const firstWeekday = new Date(cur.y, cur.m, 1).getDay(); // 0=일
+  const daysInMonth = new Date(cur.y, cur.m + 1, 0).getDate();
+  const cells: (number | null)[] = [];
+  for (let i = 0; i < firstWeekday; i++) cells.push(null);
+  for (let d = 1; d <= daysInMonth; d++) cells.push(d);
+  while (cells.length % 7 !== 0) cells.push(null);
+
+  const today = new Date();
+  const isToday = (d: number) =>
+    today.getFullYear() === cur.y && today.getMonth() === cur.m && today.getDate() === d;
+
+  function shift(delta: number) {
+    setSelDay(null);
+    setCur((c) => {
+      const nm = c.m + delta;
+      return { y: c.y + Math.floor(nm / 12), m: ((nm % 12) + 12) % 12 };
+    });
+  }
+
+  const WEEK = ["일", "월", "화", "수", "목", "금", "토"];
+  const selEvents = selDay != null ? byDay.get(selDay) ?? [] : [];
+
+  return (
+    <div className="flex flex-col gap-3">
+      {/* 월 이동 */}
+      <div className="flex items-center justify-between">
+        <button onClick={() => shift(-1)} className="rounded-control bg-bg px-3 py-1.5 text-sm ring-1 ring-border" aria-label="이전 달">‹</button>
+        <span className="text-sm font-semibold">
+          {cur.y}년 {cur.m + 1}월
+        </span>
+        <button onClick={() => shift(1)} className="rounded-control bg-bg px-3 py-1.5 text-sm ring-1 ring-border" aria-label="다음 달">›</button>
+      </div>
+      {/* 요일 헤더 */}
+      <div className="grid grid-cols-7 gap-1 text-center text-[11px] opacity-50">
+        {WEEK.map((w, i) => (
+          <div key={w} className={i === 0 ? "text-red-400/80" : i === 6 ? "text-blue-400/80" : ""}>
+            {w}
+          </div>
+        ))}
+      </div>
+      {/* 날짜 그리드 — 마커(점)만, 텍스트는 탭 후 */}
+      <div className="grid grid-cols-7 gap-1">
+        {cells.map((d, i) => {
+          if (d == null) return <div key={i} />;
+          const has = (byDay.get(d)?.length ?? 0) > 0;
+          const sel = selDay === d;
+          return (
+            <button
+              key={i}
+              onClick={() => setSelDay(sel ? null : d)}
+              className={`flex aspect-square flex-col items-center justify-center rounded-control text-xs ring-1 ${
+                sel ? "bg-accent text-black ring-accent" : isToday(d) ? "bg-surface ring-accent" : "bg-surface ring-border"
+              }`}
+            >
+              <span>{d}</span>
+              <span className={`mt-0.5 h-1.5 w-1.5 rounded-full ${has ? (sel ? "bg-black/70" : "bg-accent") : "bg-transparent"}`} />
+            </button>
+          );
+        })}
+      </div>
+      {loading && <p className="text-center text-[11px] opacity-40">불러오는 중…</p>}
+      {/* 선택일 패널 */}
+      {selDay != null && (
+        <div className="rounded-card bg-surface p-3 ring-1 ring-border">
+          <h3 className="mb-2 text-xs font-semibold opacity-60">
+            {cur.m + 1}월 {selDay}일
+          </h3>
+          {selEvents.length === 0 ? (
+            <p className="py-2 text-center text-xs opacity-40">이 날은 일정이 없어요.</p>
+          ) : (
+            <ul className="flex flex-col gap-2">
+              {selEvents.map((e) => (
+                <li key={e.id} className="flex items-center gap-3 rounded-xl bg-bg p-2.5 ring-1 ring-border">
+                  <span className="shrink-0 text-[11px] tabular-nums opacity-50">
+                    {new Date(e.startsAt).toLocaleTimeString("ko-KR", { hour: "2-digit", minute: "2-digit" })}
+                  </span>
+                  <span className="min-w-0 flex-1 truncate text-sm">{e.title}</span>
                 </li>
-              ) : (
-                <li
-                  key={e.id}
-                  className="flex items-center gap-3 rounded-xl bg-surface p-3 ring-1 ring-border"
-                >
-                  <div className="min-w-0 flex-1">
-                    <div className="truncate text-sm">{e.title}</div>
-                    <div className="text-[11px] opacity-50">
-                      {new Date(e.startsAt).toLocaleTimeString("ko-KR", {
-                        hour: "2-digit",
-                        minute: "2-digit",
-                      })}
-                      {e.alarmMinutesBefore != null &&
-                        ` · 알람 ${e.alarmMinutesBefore}분 전`}
-                    </div>
-                  </div>
-                  <button
-                    onClick={() => {
-                      setEditingId(e.id);
-                      setAdding(false);
-                    }}
-                    className="rounded-control bg-bg px-3 py-1.5 text-xs ring-1 ring-border"
-                  >
-                    편집
-                  </button>
-                  <button
-                    onClick={() => remove(e)}
-                    className="px-2 py-1.5 text-xs opacity-60 hover:text-red-400"
-                  >
-                    삭제
-                  </button>
-                </li>
-              ),
-            )}
-          </ul>
-        </section>
-      ))}
+              ))}
+            </ul>
+          )}
+        </div>
+      )}
     </div>
   );
 }
