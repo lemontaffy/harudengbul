@@ -21,6 +21,7 @@ function reduced(): boolean {
   return typeof window !== "undefined" && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 }
 const PINGPONG_COOLDOWN_MS = 90_000;
+const STARTLE_LINES = ["꺄앗!", "으냐?!", "깜짝이야!", "헉!", "으아앙"]; // 자다 깨면 놀라는 한 마디
 
 // 배경 밝기와 무관하게 텍스트를 분리 — 어두운 칩 + 4방향 검은 외곽선(칩 페이드 중에도 안 묻힘).
 const CHIP_BG = "rgba(0,0,0,0.72)";
@@ -55,8 +56,8 @@ export default function RoomView({
   const [walking, setWalking] = useState<{ petId: number; ms: number; flip: boolean } | null>(null);
   const [customPlay, setCustomPlay] = useState<{ petId: number; path: string; flip: boolean } | null>(null);
   const [editId, setEditId] = useState<number | null>(null);
-  const [showNames, setShowNames] = useState(true); // 이름 항상 표시 on/off(끄면 탭/호버 시만)
-  const [hover, setHover] = useState<number | null>(null);
+  const [showNames, setShowNames] = useState(true); // 이름표 표시 on/off(끄면 아예 안 뜸)
+  const [menu, setMenu] = useState<null | "room" | "pet">(null); // 설정 메뉴(평소 접힘)
   const [liveliness, setLiveliness] = useState(room.liveliness); // 방 분주함(즉시 반영)
   const effectSeq = useRef(0);
   const livelinessRef = useRef(liveliness);
@@ -337,12 +338,12 @@ export default function RoomView({
       (p) => p.sleepPath && !isNapping(p.id, now) && walkingRef.current?.petId !== p.id,
     );
     if (cands.length === 0) return false;
-    if (Math.random() >= 0.12) return false; // 가끔만
+    if (Math.random() >= 0.05) return false; // 가끔만(잠이 길어 발생은 드물게)
     doNap(cands[Math.floor(Math.random() * cands.length)]);
     return true;
   }
   function doNap(p: PetVM) {
-    const dur = 3000 + Math.random() * 5000; // 3~8초 졸기
+    const dur = 3600_000 + Math.random() * 4 * 3600_000; // 1~5시간(탭하면 즉시 깸)
     const until = Date.now() + dur;
     setNapUntil((m) => ({ ...m, [p.id]: until }));
     spawnEffect("zzz", p.posX, p.posY - 8);
@@ -391,14 +392,26 @@ export default function RoomView({
     }
   }
 
+  // 자다 깨면 놀라는 리액션(말풍선 + 팟 이펙트). 깨우는 탭에서만.
+  function startleWake(p: PetVM) {
+    showBubble(p.id, STARTLE_LINES[Math.floor(Math.random() * STARTLE_LINES.length)], 1800, true);
+    spawnEffect("sparkle", p.posX, p.posY - 8);
+  }
+
   // ── 탭/드래그 ──
   function onTap(p: PetVM) {
+    // 전역 잠을 만져서 깨움 — 놀라는 리액션.
     if (asleep) {
       setAsleep(false);
+      startleWake(p);
       return;
     }
-    // 조는 중이면 만지는 즉시 깨우고(아래서 한 마디) 이어서 일반 반응.
-    if (isNapping(p.id)) setNapUntil((m) => ({ ...m, [p.id]: 0 }));
+    // 조는 중이면 만지는 즉시 깨우고 놀라는 리액션(일반 발화 대신).
+    if (isNapping(p.id)) {
+      setNapUntil((m) => ({ ...m, [p.id]: 0 }));
+      startleWake(p);
+      return;
+    }
     // 산책 중이면 그 자리 정지
     if (walkingRef.current?.petId === p.id) setWalking(null);
     const line = pickLine(p);
@@ -583,8 +596,6 @@ export default function RoomView({
                   transition: isWalking ? `left ${walking!.ms}ms linear, top ${walking!.ms}ms linear` : undefined,
                 }}
                 onPointerDown={(e) => startDrag(e, p)}
-                onMouseEnter={() => setHover(p.id)}
-                onMouseLeave={() => setHover((h) => (h === p.id ? null : h))}
               >
                 {bubble?.petId === p.id && (
                   <div className="absolute bottom-full left-1/2 mb-1.5 -translate-x-1/2">
@@ -607,7 +618,7 @@ export default function RoomView({
                     </div>
                   </div>
                 )}
-                <div className={`relative ${sleeping ? "opacity-60" : ""}`}>
+                <div className="relative">
                   {src ? (
                     // eslint-disable-next-line @next/next/no-img-element
                     <img
@@ -622,7 +633,7 @@ export default function RoomView({
                   )}
                   {sleeping && <span className="absolute -top-1 right-0 text-sm">💤</span>}
                 </div>
-                {(showNames || hover === p.id || bubble?.petId === p.id) && (
+                {showNames && (
                   <div className="mt-1 flex justify-center" data-capture-hide="name">
                     <span
                       className="inline-block rounded border border-white/20 px-1.5 py-0.5 text-[10px] leading-tight text-white"
@@ -640,74 +651,101 @@ export default function RoomView({
         </div>
       </div>
 
-      {/* 분주함(방 전역, 즉시 반영) */}
+      {/* 메뉴 바 — 설정은 평소 접힘(무대에서 실수로 클릭하는 문제 방지). 메뉴 2개로 분리. */}
       <div className="flex items-center gap-2 text-xs">
-        <span className="shrink-0 opacity-60">분주함</span>
-        {[
-          { l: "정지", v: 0 },
-          { l: "차분", v: 25 },
-          { l: "보통", v: 50 },
-          { l: "활발", v: 90 },
-        ].map((o) => (
-          <button
-            key={o.v}
-            onClick={() => changeLiveliness(o.v)}
-            className={`rounded-control px-3 py-1 ${liveliness === o.v ? "bg-accent text-black" : "bg-surface ring-1 ring-border"}`}
-          >
-            {o.l}
-          </button>
-        ))}
+        <button
+          onClick={() => setMenu((m) => (m === "room" ? null : "room"))}
+          className={`rounded-control px-3 py-1.5 ring-1 ring-border ${menu === "room" ? "bg-accent text-black" : "bg-surface"}`}
+        >
+          ⚙ 방 설정
+        </button>
+        <button
+          onClick={() => setMenu((m) => (m === "pet" ? null : "pet"))}
+          className={`rounded-control px-3 py-1.5 ring-1 ring-border ${menu === "pet" ? "bg-accent text-black" : "bg-surface"}`}
+        >
+          🐾 펫 관리
+        </button>
         <button
           onClick={captureRoom}
           disabled={capturing}
           title="펫 룸 스크린샷(배경+펫+말풍선, 이름표 제외)"
-          className="ml-auto rounded-control bg-surface px-3 py-1 ring-1 ring-border disabled:opacity-50"
+          className="ml-auto rounded-control bg-surface px-3 py-1.5 ring-1 ring-border disabled:opacity-50"
         >
-          {capturing ? "📷 …" : "📷 스크린샷"}
-        </button>
-      </div>
-
-      {/* 패널 관리 */}
-      <div className="flex flex-wrap items-center gap-2 text-xs">
-        <label className="cursor-pointer rounded-control bg-surface px-3 py-1.5 ring-1 ring-border">
-          ＋ 패널
-          <input
-            type="file"
-            accept="image/gif,image/webp,image/png,image/jpeg"
-            className="hidden"
-            onChange={(e) => e.target.files?.[0] && addPanel(e.target.files[0])}
-          />
-        </label>
-        {room.panels.map((b, i) => (
-          <span key={b.id} className="flex items-center gap-1 rounded-control bg-bg px-1.5 py-1 ring-1 ring-border">
-            <span className="opacity-50">{i + 1}</span>
-            <button onClick={() => movePanel(i, -1)} disabled={i === 0} className="px-1 disabled:opacity-20">‹</button>
-            <button onClick={() => movePanel(i, 1)} disabled={i === room.panels.length - 1} className="px-1 disabled:opacity-20">›</button>
-            <button onClick={() => delPanel(b.id)} className="px-1 opacity-50 hover:text-red-400">×</button>
-          </span>
-        ))}
-        {status && <span className="text-accent">{status}</span>}
-        <button
-          onClick={toggleNames}
-          className={`ml-auto rounded-control px-3 py-1.5 ring-1 ring-border ${showNames ? "bg-accent text-black" : "bg-surface"}`}
-        >
-          이름 {showNames ? "표시" : "숨김"}
+          {capturing ? "📷 …" : "📷"}
         </button>
       </div>
       <span className="text-[11px] opacity-40">{N > 1 ? "옆으로 스와이프 · " : ""}펫을 끌어 배치 · 탭하면 반응</span>
 
-      {/* 펫 편집 진입 */}
-      <div className="flex flex-wrap gap-2">
-        {pets.map((p) => (
-          <button
-            key={p.id}
-            onClick={() => setEditId(p.id)}
-            className="rounded-control bg-surface px-3 py-1.5 text-xs ring-1 ring-border hover:ring-accent"
-          >
-            {p.name} · {p.displayStage}
-          </button>
-        ))}
-      </div>
+      {/* 방 설정 메뉴 — 분주함 · 이름표 · 배경 패널 */}
+      {menu === "room" && (
+        <div className="flex flex-col gap-3 rounded-card bg-surface-2 p-3 text-xs ring-1 ring-border">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="w-10 shrink-0 opacity-60">분주함</span>
+            {[
+              { l: "정지", v: 0 },
+              { l: "차분", v: 25 },
+              { l: "보통", v: 50 },
+              { l: "활발", v: 90 },
+            ].map((o) => (
+              <button
+                key={o.v}
+                onClick={() => changeLiveliness(o.v)}
+                className={`rounded-control px-3 py-1 ring-1 ring-border ${liveliness === o.v ? "bg-accent text-black" : "bg-surface"}`}
+              >
+                {o.l}
+              </button>
+            ))}
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="w-10 shrink-0 opacity-60">이름표</span>
+            <button
+              onClick={toggleNames}
+              className={`rounded-control px-3 py-1 ring-1 ring-border ${showNames ? "bg-accent text-black" : "bg-surface"}`}
+            >
+              {showNames ? "표시" : "숨김"}
+            </button>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="w-10 shrink-0 opacity-60">배경</span>
+            <label className="cursor-pointer rounded-control bg-surface px-3 py-1.5 ring-1 ring-border">
+              ＋ 패널
+              <input
+                type="file"
+                accept="image/gif,image/webp,image/png,image/jpeg"
+                className="hidden"
+                onChange={(e) => e.target.files?.[0] && addPanel(e.target.files[0])}
+              />
+            </label>
+            {room.panels.map((b, i) => (
+              <span key={b.id} className="flex items-center gap-1 rounded-control bg-bg px-1.5 py-1 ring-1 ring-border">
+                <span className="opacity-50">{i + 1}</span>
+                <button onClick={() => movePanel(i, -1)} disabled={i === 0} className="px-1 disabled:opacity-20">‹</button>
+                <button onClick={() => movePanel(i, 1)} disabled={i === room.panels.length - 1} className="px-1 disabled:opacity-20">›</button>
+                <button onClick={() => delPanel(b.id)} className="px-1 opacity-50 hover:text-red-400">×</button>
+              </span>
+            ))}
+            {status && <span className="text-accent">{status}</span>}
+          </div>
+        </div>
+      )}
+
+      {/* 펫 관리 메뉴 — 펫 골라 편집(모습·대사·관계·성장) */}
+      {menu === "pet" && (
+        <div className="flex flex-col gap-2 rounded-card bg-surface-2 p-3 ring-1 ring-border">
+          <span className="text-[11px] opacity-60">펫을 골라 편집해요(모습·대사·관계·성장).</span>
+          <div className="flex flex-wrap gap-2">
+            {pets.map((p) => (
+              <button
+                key={p.id}
+                onClick={() => setEditId(p.id)}
+                className="rounded-control bg-surface px-3 py-1.5 text-xs ring-1 ring-border hover:ring-accent"
+              >
+                {p.name} · {p.displayStage}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
 
       {editId != null && (
         <PetEditSheet
