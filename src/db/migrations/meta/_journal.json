@@ -225,6 +225,13 @@
       "when": 1781400300000,
       "tag": "0031_furniture_alt_sprite",
       "breakpoints": true
+    },
+    {
+      "idx": 32,
+      "version": "7",
+      "when": 1781400400000,
+      "tag": "0032_pet_letters",
+      "breakpoints": true
     }
   ]
 }

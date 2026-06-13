@@ -55,6 +55,8 @@ export default function ConnectionsManager() {
   const [conns, setConns] = useState<Conn[]>([]);
   const [activeId, setActiveId] = useState<number | null>(null);
   const [auxId, setAuxId] = useState<number | null>(null);
+  const [letterId, setLetterId] = useState<number | null>(null);
+  const [lettersPerDay, setLettersPerDay] = useState(1);
   const [editing, setEditing] = useState<number | "new" | null>(null);
   const [form, setForm] = useState({ ...EMPTY });
   const [keyView, setKeyView] = useState<{ has: boolean; masked: string }>({ has: false, masked: "" });
@@ -73,6 +75,8 @@ export default function ConnectionsManager() {
       setConns(d.connections);
       setActiveId(d.activeId);
       setAuxId(d.auxId ?? null);
+      setLetterId(d.letterId ?? null);
+      setLettersPerDay(d.lettersPerDay ?? 1);
     }
   }, []);
   useEffect(() => {
@@ -86,6 +90,9 @@ export default function ConnectionsManager() {
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ auxConnectionId: id }),
     });
+  }
+  async function patchSettings(body: Record<string, unknown>) {
+    await fetch("/api/settings", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
   }
 
   function openNew() {
@@ -414,6 +421,48 @@ export default function ConnectionsManager() {
               </option>
             ))}
           </select>
+        </div>
+      )}
+
+      {/* 편지 연결 — 펫 편지 답장(저빈도·고품질) 전용 */}
+      {conns.length > 0 && editing === null && (
+        <div className="mt-5 border-t border-border pt-4">
+          <h3 className="mb-1 text-sm font-semibold">편지 연결</h3>
+          <p className="mb-2 text-[11px] opacity-50">
+            펫 편지 답장에 쓰는 연결(하루 한 통뿐이라 좋은 모델을 써도 부담이 적어요). 비우면 메인 연결을 써요.
+          </p>
+          <select
+            value={letterId ?? ""}
+            onChange={(e) => {
+              const id = e.target.value ? Number(e.target.value) : null;
+              setLetterId(id);
+              patchSettings({ letterConnectionId: id });
+            }}
+            className="mb-3 w-full rounded-control bg-bg px-3 py-2 text-sm outline-none ring-1 ring-border focus:ring-accent"
+          >
+            <option value="">메인 연결 사용</option>
+            {conns.map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.name}
+              </option>
+            ))}
+          </select>
+          <label className="flex items-center gap-2 text-xs opacity-70">
+            하루 편지 수
+            <input
+              type="number"
+              min={1}
+              max={10}
+              value={lettersPerDay}
+              onChange={(e) => {
+                const v = Math.max(1, Math.min(10, Math.floor(Number(e.target.value) || 1)));
+                setLettersPerDay(v);
+                patchSettings({ lettersPerDay: v });
+              }}
+              className="w-16 rounded-control bg-bg px-2 py-1 text-center ring-1 ring-border"
+            />
+            통
+          </label>
         </div>
       )}
     </section>

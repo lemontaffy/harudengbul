@@ -38,6 +38,8 @@ export async function GET() {
     connections: rows.map(publicConn),
     activeId: s?.activeConnectionId ?? null,
     auxId: s?.auxConnectionId ?? null,
+    letterId: s?.letterConnectionId ?? null,
+    lettersPerDay: s?.lettersPerDay ?? 1,
   });
 }
 

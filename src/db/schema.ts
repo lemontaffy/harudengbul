@@ -119,6 +119,12 @@ export const settings = pgTable("settings", {
     () => llmConnections.id,
     { onDelete: "set null" },
   ),
+  // 편지 답장 전용 연결(저빈도·고품질). 기본값(null)이면 메인 연결 사용.
+  letterConnectionId: bigint("letter_connection_id", { mode: "number" }).references(
+    () => llmConnections.id,
+    { onDelete: "set null" },
+  ),
+  lettersPerDay: integer("letters_per_day").notNull().default(1), // 1일 편지 발송 상한(비용 천장)
   // [레거시] 단일 연결 컬럼 — 다중 연결(llm_connections)로 이관됨. 폴백/하위호환용 유지.
   llmApiKey: text("llm_api_key"),
   llmBaseUrl: text("llm_base_url"),
@@ -554,6 +560,43 @@ export const roomFurniture = pgTable(
     actionType: text("action_type"),
   },
   (t) => [index("room_furniture_room_idx").on(t.roomId)],
+);
+
+// 펫 편지 — 사용자가 펫에게 쓰는 편지(하루 1통). to_pet_id null = 전원에게.
+// ※ 기존 `letters`(주간 상담 편지)와 별개 — 이름 충돌 회피로 pet_letters.
+export const petLetters = pgTable(
+  "pet_letters",
+  {
+    id: bigint("id", { mode: "number" }).primaryKey().generatedAlwaysAsIdentity(),
+    userId: bigint("user_id", { mode: "number" })
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    toPetId: bigint("to_pet_id", { mode: "number" }).references(() => pets.id, { onDelete: "set null" }),
+    content: text("content").notNull(),
+    sentAt: timestamp("sent_at", { withTimezone: true }).notNull().defaultNow(),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
+  },
+  (t) => [index("pet_letters_user_sent_idx").on(t.userId, t.sentAt)],
+);
+
+// 펫 답장 — 받는 펫별 단발 생성(딜레이 후 도착). status pending→arrived, read_at 으로 읽음 추적.
+export const petLetterReplies = pgTable(
+  "pet_letter_replies",
+  {
+    id: bigint("id", { mode: "number" }).primaryKey().generatedAlwaysAsIdentity(),
+    letterId: bigint("letter_id", { mode: "number" })
+      .notNull()
+      .references(() => petLetters.id, { onDelete: "cascade" }),
+    petId: bigint("pet_id", { mode: "number" })
+      .notNull()
+      .references(() => pets.id, { onDelete: "cascade" }),
+    content: text("content").notNull().default(""),
+    status: text("status").notNull().default("pending"), // 'pending' | 'arrived'
+    deliverAt: timestamp("deliver_at", { withTimezone: true }).notNull(),
+    readAt: timestamp("read_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
+  },
+  (t) => [index("pet_letter_replies_due_idx").on(t.status, t.deliverAt)],
 );
 
 // 커스텀 모션 스프라이트 — 스테이지별, 빈도 가중 자동/수동 재생. 수치·상태와 무관.

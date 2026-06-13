@@ -9,6 +9,7 @@ import * as relationsRepo from "@/db/repo/petRelations";
 import * as petLinesRepo from "@/db/repo/petLines";
 import * as customRepo from "@/db/repo/petCustomSprites";
 import * as furnitureRepo from "@/db/repo/roomFurniture";
+import * as letterRepliesRepo from "@/db/repo/petLetterReplies";
 import * as settingsRepo from "@/db/repo/settings";
 import {
   stageFor,
@@ -47,10 +48,8 @@ export default async function RoomPage({ params }: { params: Promise<{ roomId: s
       petsRepo.listByUser(user.id),
     ]);
 
-  // fixture 상태 active 판정. 'letters' = 안 읽은 도착 답장 1건+.
-  // ※ 편지 답장 읽음 추적(letter_replies.read_at/status) 미구현 → 현재 항상 false.
-  //   해당 테이블 도입 시 이 한 줄만 실제 카운트로 교체하면 우체통이 자동 반응.
-  const lettersActive = false;
+  // fixture 상태 active 판정. 'letters' = 안 읽은 도착 답장 1건+ → 우체통 열림 스프라이트.
+  const lettersActive = (await letterRepliesRepo.countUnread(user.id)) > 0;
   const furniture: FurnitureVM[] = furnitureRows.map((f) => ({
     id: f.id,
     kind: f.kind as "seat" | "fixture",

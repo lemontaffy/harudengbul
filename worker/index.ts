@@ -16,6 +16,11 @@ import * as googleRepo from "../src/db/repo/google";
 import * as capsulesRepo from "../src/db/repo/timeCapsules";
 import * as memosRepo from "../src/db/repo/memos";
 import * as usageRepo from "../src/db/repo/usage";
+import * as petsRepo from "../src/db/repo/pets";
+import * as petRelationsRepo from "../src/db/repo/petRelations";
+import * as letterRepliesRepo from "../src/db/repo/petLetterReplies";
+import { buildReplyMessages, fallbackReply, type ReplyRelation } from "../src/lib/petLetter";
+import { getLetterConfig } from "../src/lib/config";
 import { getPetBriefingLine } from "../src/modules/pets/boundary";
 import {
   composeDelivery,
@@ -237,10 +242,80 @@ async function deliverDueCapsules() {
   }
 }
 
+// 펫 편지 답장 배달 — 도착 시각 도래한 pending 을 청구→주모델 생성(재시도 1)→폴백→푸시.
+async function buildReplyRels(userId: number, petId: number): Promise<ReplyRelation[]> {
+  try {
+    const rels = await petRelationsRepo.listForPet(userId, petId);
+    if (rels.length === 0) return [];
+    const all = await petsRepo.listByUser(userId);
+    const nameOf = new Map(all.map((p) => [p.id, p.name]));
+    return rels
+      .map((r) => {
+        const otherId = r.petAId === petId ? r.petBId : r.petAId;
+        const name = nameOf.get(otherId);
+        return name ? { name, label: r.relationLabel } : null;
+      })
+      .filter((x): x is ReplyRelation => !!x);
+  } catch {
+    return [];
+  }
+}
+
+async function deliverDueLetterReplies() {
+  let due;
+  try {
+    due = await letterRepliesRepo.listAllDue();
+  } catch (err) {
+    log(`letter reply listDue 오류: ${(err as Error)?.message}`);
+    return;
+  }
+  for (const r of due) {
+    try {
+      const pet = await petsRepo.getOne(r.userId, r.petId);
+      const petName = pet?.name ?? "펫";
+      // 원자적 청구 — content 를 폴백으로 채워 빈 답장 방지(이후 생성분으로 덮어씀).
+      const claimed = await letterRepliesRepo.claimArrival(r.id, fallbackReply(petName));
+      if (!claimed) continue;
+
+      // 주모델(편지 전용→메인→aux)로 생성. 실패/미설정이면 폴백 유지.
+      if (pet) {
+        const cfg = await getLetterConfig(r.userId);
+        if (cfg.configured) {
+          const msgs = buildReplyMessages(
+            { name: pet.name, personality: pet.personality },
+            r.letterContent,
+            await buildReplyRels(r.userId, pet.id),
+          );
+          let content = "";
+          for (let attempt = 0; attempt < 2 && !content; attempt++) {
+            try {
+              content = (await completeChat(cfg, msgs)).trim();
+            } catch {
+              /* 재시도 */
+            }
+          }
+          if (content) await letterRepliesRepo.setContent(r.id, content);
+        }
+      }
+
+      const sent = await sendToUser(r.userId, {
+        title: "💌 편지가 도착했어요",
+        body: `${petName}의 답장이 왔어요. 우체통을 열어보세요.`,
+        url: "/mailbox",
+        tag: `letter-reply-${r.id}`,
+      });
+      log(`  letter-reply → user#${r.userId} reply#${r.id} pet#${r.petId} (push ${sent})`);
+    } catch (err) {
+      log(`letter reply deliver #${r.id} 오류: ${(err as Error)?.message}`);
+    }
+  }
+}
+
 /** 매 5분 — proactive 켠 사용자별로 아침(비서)/저녁(상담가) 슬롯 도달 시 선제 톡. */
 async function proactiveJob() {
   try {
     await deliverDueCapsules(); // 타임캡슐 배달(토글 무관)
+    await deliverDueLetterReplies(); // 펫 편지 답장 배달(토글 무관)
     const rows = await settingsRepo.listProactiveEnabled();
     for (const s of rows) {
       const tz = s.timezone ?? "Asia/Seoul";

@@ -44,6 +44,9 @@ const bodySchema = z.object({
   diaryReminderTime: z.string().regex(timeRe).optional(),
   // 보조 모델(사진 캡션 등 배경 작업) — 연결 id 또는 null(없음).
   auxConnectionId: z.number().int().nullable().optional(),
+  // 편지 답장 전용 연결 — id 또는 null(메인 사용). 1일 편지 상한.
+  letterConnectionId: z.number().int().nullable().optional(),
+  lettersPerDay: z.number().int().min(1).max(10).optional(),
   // 화면 — 프리셋 테마 + 커스텀 CSS(20KB).
   theme: z.enum(["lantern", "dawn", "paper"]).optional(),
   customCss: z.string().max(20480).nullable().optional(),
@@ -134,6 +137,17 @@ export async function POST(req: Request) {
       set.auxConnectionId = d.auxConnectionId;
     }
   }
+  // 편지 전용 연결: null=메인 사용, 숫자=본인 소유 연결만.
+  if (d.letterConnectionId !== undefined) {
+    if (d.letterConnectionId === null) {
+      set.letterConnectionId = null;
+    } else {
+      const c = await connectionsRepo.getOne(user.id, d.letterConnectionId);
+      if (!c) return Response.json({ error: "없는 연결" }, { status: 400 });
+      set.letterConnectionId = d.letterConnectionId;
+    }
+  }
+  if (d.lettersPerDay !== undefined) set.lettersPerDay = d.lettersPerDay;
 
   // 위치: 좌표가 둘 다 오면 격자(nx/ny) 도출해 함께 저장(numeric 컬럼 → 문자열).
   if (typeof d.locationLat === "number" && typeof d.locationLon === "number") {

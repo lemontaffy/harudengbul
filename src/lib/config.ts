@@ -88,6 +88,24 @@ export async function getAuxTextConfig(userId: number): Promise<LlmConfig> {
   return getLlmConfig(userId);
 }
 
+/**
+ * 편지 답장 전용 연결 — 저빈도·고품질. 우선순위: 편지 전용 연결 > 메인 > aux.
+ * 기본값(letter_connection_id null)이면 메인 연결을 그대로 쓴다.
+ */
+export async function getLetterConfig(userId: number): Promise<LlmConfig> {
+  const s = await settingsRepo.getByUser(userId);
+  if (s?.letterConnectionId) {
+    const conn = await connectionsRepo.getOne(userId, s.letterConnectionId);
+    if (conn) {
+      const cfg = connToConfig(conn);
+      if (cfg.configured) return cfg;
+    }
+  }
+  const main = await getLlmConfig(userId);
+  if (main.configured) return main;
+  return getAuxTextConfig(userId);
+}
+
 // 사용자별 OpenAI 호환 LLM 연결. 코드에 모델명/공급사 하드코딩 금지 — 항상 이 함수로만 읽는다.
 export async function getLlmConfig(userId: number): Promise<LlmConfig> {
   const { conn, legacy } = await activeConnection(userId);
