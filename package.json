@@ -22,6 +22,7 @@
     "@serwist/next": "^9.5.11",
     "drizzle-orm": "^0.38.3",
     "google-auth-library": "^10.7.0",
+    "html2canvas": "^1.4.1",
     "iron-session": "^8.0.4",
     "lucide-react": "^1.17.0",
     "next": "^15.1.6",

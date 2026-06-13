@@ -477,6 +477,59 @@ export default function RoomView({
     setStatus(j.error ?? "실패");
   }
   const [status, setStatus] = useState("");
+  const [capturing, setCapturing] = useState(false);
+
+  // 펫 룸 스크린샷 — 무대(배경+펫+말풍선+이펙트)를 PNG로. 이름표만 제외.
+  // GIF/APNG는 캡처 시점의 정지 프레임으로 담긴다(움직이는 캡처는 비대상).
+  async function captureRoom() {
+    const el = scrollRef.current;
+    if (!el || capturing) return;
+    setCapturing(true);
+    setStatus("");
+    try {
+      const { default: html2canvas } = await import("html2canvas");
+      const canvas = await html2canvas(el, {
+        backgroundColor: null, // rounded-card 모서리 바깥은 투명하게
+        scale: Math.min(3, window.devicePixelRatio || 2),
+        useCORS: true,
+        logging: false,
+        ignoreElements: (node) => (node as HTMLElement).dataset?.captureHide === "name", // 이름표만 제외(말풍선·이펙트는 포함)
+      });
+      const blob = await new Promise<Blob | null>((r) => canvas.toBlob(r, "image/png"));
+      if (!blob) {
+        setStatus("캡처 실패");
+        return;
+      }
+      const safe = (room.name || "room").replace(/[^\w가-힣 -]/g, "").trim() || "room";
+      const file = new File([blob], `harudengbul-${safe}.png`, { type: "image/png" });
+
+      // 모바일: 공유 시트 우선. 취소(AbortError)면 조용히 종료, 미지원/실패면 다운로드 폴백.
+      const nav = navigator as Navigator & { canShare?: (d: ShareData) => boolean };
+      if (nav.share && nav.canShare?.({ files: [file] })) {
+        try {
+          await nav.share({ files: [file], title: room.name });
+          setStatus("공유함");
+          return;
+        } catch (e) {
+          if ((e as { name?: string })?.name === "AbortError") return; // 사용자가 취소
+          // 그 외엔 아래 다운로드로 폴백
+        }
+      }
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = file.name;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 2000);
+      setStatus("저장됨");
+    } catch {
+      setStatus("캡처 실패");
+    } finally {
+      setCapturing(false);
+    }
+  }
 
   const pixel = (on: boolean) => (on ? ({ imageRendering: "pixelated" } as const) : {});
 
@@ -570,7 +623,7 @@ export default function RoomView({
                   {sleeping && <span className="absolute -top-1 right-0 text-sm">💤</span>}
                 </div>
                 {(showNames || hover === p.id || bubble?.petId === p.id) && (
-                  <div className="mt-1 flex justify-center">
+                  <div className="mt-1 flex justify-center" data-capture-hide="name">
                     <span
                       className="inline-block rounded border border-white/20 px-1.5 py-0.5 text-[10px] leading-tight text-white"
                       style={{ background: CHIP_BG, textShadow: TEXT_OUTLINE }}
@@ -604,6 +657,14 @@ export default function RoomView({
             {o.l}
           </button>
         ))}
+        <button
+          onClick={captureRoom}
+          disabled={capturing}
+          title="펫 룸 스크린샷(배경+펫+말풍선, 이름표 제외)"
+          className="ml-auto rounded-control bg-surface px-3 py-1 ring-1 ring-border disabled:opacity-50"
+        >
+          {capturing ? "📷 …" : "📷 스크린샷"}
+        </button>
       </div>
 
       {/* 패널 관리 */}
