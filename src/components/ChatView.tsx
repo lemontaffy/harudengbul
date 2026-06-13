@@ -4,6 +4,7 @@ import { Fragment, useEffect, useRef, useState, useCallback } from "react";
 import { useDialog } from "@/components/ui/Dialog";
 import { ImagePlus } from "lucide-react";
 import ConnectionSwitcher from "@/components/ConnectionSwitcher";
+import Markdown from "@/components/Markdown";
 
 type Role = "counselor" | "secretary" | "nutritionist" | "study_mate" | "friend";
 export interface ChatPersona {
@@ -370,8 +371,15 @@ export default function ChatView({
                       />
                     )}
                     {(m.content || (streaming && !mine)) && (
-                      <div className="whitespace-pre-wrap px-3 py-2">
-                        {m.content || (streaming && !mine ? "…" : "")}
+                      <div className="px-3 py-2 text-sm leading-relaxed">
+                        {mine ? (
+                          // 사용자 입력은 그대로(마크다운 해석 안 함 — '*' 등 의도치 않은 변형 방지).
+                          <span className="whitespace-pre-wrap">{m.content}</span>
+                        ) : m.content ? (
+                          <Markdown>{m.content}</Markdown>
+                        ) : (
+                          "…"
+                        )}
                       </div>
                     )}
                   </div>
