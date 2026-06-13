@@ -18,6 +18,7 @@ export interface PetVM {
   talkativeness: number;
   activeness: number; // 펫별 기질(배회·핑퐁 빈도)
   displayStage: Stage; // 표시 스테이지(display_stage 우선)
+  locomotion: "ground" | "air"; // ground=바닥 구역 / air=비행(부엉이류)
   spritePath: string | null; // idle(표시 스테이지, 폴백 적용)
   walkPath: string | null; // walk 슬롯(있어야 산책 자격)
   sitPath: string | null; // sit 슬롯(있어야 가구에 앉음)
@@ -34,6 +35,8 @@ export interface RoomPanel {
   id: number;
   path: string;
   pixelRender: boolean;
+  floorTopY: number; // 바닥 구역 위 경계(%)
+  floorBottomY: number; // 바닥 구역 아래 경계(%)
 }
 
 export interface RoomVM {

@@ -42,6 +42,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
       activeness: pet.activeness,
       displayStage: pet.displayStage,
       walkFacing: pet.walkFacing,
+      locomotion: pet.locomotion,
       reachedStages: reachedStages(pet.growthPoints, pet.teenThreshold, pet.adultThreshold),
     },
     sprites,
@@ -62,6 +63,7 @@ const patchSchema = z.object({
   activeness: z.number().int().min(0).max(100).optional(),
   displayStage: z.enum(["baby", "teen", "adult"]).nullable().optional(),
   walkFacing: z.enum(["left", "right"]).optional(),
+  locomotion: z.enum(["ground", "air"]).optional(),
 });
 
 export async function PATCH(req: Request, { params }: { params: Promise<{ id: string }> }) {
@@ -99,6 +101,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
     ...(d.activeness !== undefined ? { activeness: d.activeness } : {}),
     ...(d.displayStage !== undefined ? { displayStage: d.displayStage } : {}),
     ...(d.walkFacing !== undefined ? { walkFacing: d.walkFacing } : {}),
+    ...(d.locomotion !== undefined ? { locomotion: d.locomotion } : {}),
   });
 
   // 성격 변경 시 현재 스테이지 대사 풀 갱신(best-effort).

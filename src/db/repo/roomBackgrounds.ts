@@ -16,11 +16,23 @@ export async function listForRoom(userId: number, roomId: number) {
       path: roomBackgrounds.path,
       sortOrder: roomBackgrounds.sortOrder,
       pixelRender: roomBackgrounds.pixelRender,
+      floorTopY: roomBackgrounds.floorTopY,
+      floorBottomY: roomBackgrounds.floorBottomY,
     })
     .from(roomBackgrounds)
     .innerJoin(petRooms, eq(petRooms.id, roomBackgrounds.roomId))
     .where(and(eq(petRooms.userId, userId), eq(roomBackgrounds.roomId, roomId)))
     .orderBy(asc(roomBackgrounds.sortOrder), asc(roomBackgrounds.id));
+}
+
+/** 바닥 구역 경계 조정(% clamp, top<bottom 보장). 소유 건만. */
+export async function setFloor(userId: number, id: number, floorTopY: number, floorBottomY: number) {
+  const top = Math.max(0, Math.min(98, Math.min(floorTopY, floorBottomY)));
+  const bottom = Math.max(top + 2, Math.min(100, Math.max(floorTopY, floorBottomY)));
+  await db
+    .update(roomBackgrounds)
+    .set({ floorTopY: top, floorBottomY: bottom })
+    .where(and(eq(roomBackgrounds.id, id), ownsRoom(userId)));
 }
 
 export async function countForRoom(userId: number, roomId: number): Promise<number> {

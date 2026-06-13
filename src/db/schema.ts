@@ -510,6 +510,7 @@ export const pets = pgTable(
     activeness: integer("activeness").notNull().default(30), // 0~100, 펫별 기질(배회·핑퐁 빈도)
     displayStage: text("display_stage"), // null=실제 성장 스테이지, 값=그 모습으로 고정(렌더만)
     walkFacing: text("walk_facing").notNull().default("left"), // walk GIF 기본 진행 방향
+    locomotion: text("locomotion").notNull().default("ground"), // 'ground'(바닥 구역) | 'air'(비행, 부엉이류)
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
   },
   (t) => [index("pets_user_room_idx").on(t.userId, t.roomId)],
@@ -526,6 +527,9 @@ export const roomBackgrounds = pgTable(
     path: text("path").notNull(),
     sortOrder: integer("sort_order").notNull().default(0),
     pixelRender: boolean("pixel_render").notNull().default(true),
+    // 바닥 구역(%, ground 펫이 다닐 수 있는 위·아래 경계). 배경마다 바닥 높이가 달라 패널별로 가짐.
+    floorTopY: real("floor_top_y").notNull().default(72),
+    floorBottomY: real("floor_bottom_y").notNull().default(92),
   },
   (t) => [index("room_bg_room_idx").on(t.roomId, t.sortOrder)],
 );

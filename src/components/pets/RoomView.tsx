@@ -23,6 +23,8 @@ function reduced(): boolean {
 const PINGPONG_COOLDOWN_MS = 90_000;
 const STARTLE_LINES = ["꺄앗!", "으냐?!", "깜짝이야!", "헉!", "으아앙"]; // 자다 깨면 놀라는 한 마디
 const PET_RADIUS_PX = 36; // 점유 반경 ≈ 스프라이트(80px) 폭 절반(약간 작게 — 살짝 겹침은 허용)
+const DEFAULT_FLOOR = { top: 72, bottom: 92 }; // 패널 없을 때(기본 그라데이션) 바닥 구역
+const AIR_BAND = { top: 8, bottom: 58 }; // air 펫 자율 비행 대역(상단~중단)
 const SEAT_TARGET_PROB = 0.25; // 산책 시 빈 seat 가구를 목적지로 고를 확률(낮게 가중)
 // fixture 액션 → 앱 기능 경로. 없거나 'none'이면 순수 장식.
 const FIXTURE_ROUTE: Record<string, string> = { letters: "/letters", memo: "/memos", diary: "/diary" };
@@ -61,6 +63,9 @@ export default function RoomView({
   const [sitUntil, setSitUntil] = useState<Record<number, number>>({}); // 가구에 앉아 쉬는 중(sit 스프라이트)
   const [furniture, setFurniture] = useState<FurnitureVM[]>(room.furniture);
   useEffect(() => setFurniture(room.furniture), [room.furniture]);
+  const [panels, setPanels] = useState(room.panels); // 바닥 구역 라이브 편집용
+  useEffect(() => setPanels(room.panels), [room.panels]);
+  const [floorEdit, setFloorEdit] = useState(false); // 바닥 구역 경계 편집 모드
   const [toast, setToast] = useState(""); // 가구 탭 등 짧은 안내
   const [walking, setWalking] = useState<{ petId: number; ms: number; flip: boolean } | null>(null);
   const [customPlay, setCustomPlay] = useState<{ petId: number; path: string; flip: boolean } | null>(null);
@@ -98,7 +103,36 @@ export default function RoomView({
     });
   }
 
-  const N = Math.max(room.panels.length, 1); // 좌표계 패널 수(스트립 폭 = N*100%)
+  const N = Math.max(panels.length, 1); // 좌표계 패널 수(스트립 폭 = N*100%)
+  const panelsRef = useRef(panels);
+  panelsRef.current = panels;
+
+  // ── 바닥 구역(floor zone) ── 패널별 위·아래 경계. posX 가 속한 패널의 구역을 돌려줌.
+  function floorZoneAt(posX: number): { top: number; bottom: number } {
+    const ps = panelsRef.current;
+    if (ps.length === 0) return DEFAULT_FLOOR;
+    const idx = Math.max(0, Math.min(ps.length - 1, Math.floor((posX / 100) * ps.length)));
+    return { top: ps[idx].floorTopY, bottom: ps[idx].floorBottomY };
+  }
+  // 드래그(수동) y 보정: ground=구역 스냅, air=자유(전체).
+  function dragClampY(loco: string, posX: number, rawY: number): number {
+    if (loco === "air") return Math.max(6, Math.min(96, rawY));
+    const z = floorZoneAt(posX);
+    return Math.max(z.top, Math.min(z.bottom, rawY));
+  }
+  // 산책(자동) 목적지 y: ground=바닥 구역 내(앞뒤 어슬렁) / air=비행 대역.
+  function walkY(loco: string, posX: number, curY: number): number {
+    const z = loco === "air" ? AIR_BAND : floorZoneAt(posX);
+    const y = curY + (Math.random() * 2 - 1) * (z.bottom - z.top) * 0.6;
+    return Math.max(z.top, Math.min(z.bottom, y));
+  }
+  // 원근 스케일(ground 한정, 2단계 — 도트 뭉갬 최소화): 앞(아래)이면 살짝 크게.
+  function petScale(p: PetVM): number {
+    if (p.locomotion !== "ground") return 1;
+    const z = floorZoneAt(p.posX);
+    const t = (p.posY - z.top) / Math.max(1, z.bottom - z.top); // 0 뒤 .. 1 앞
+    return t > 0.55 ? 1.2 : 1.0;
+  }
 
   // ── 루프용 refs(타이머에서 최신값 읽기) ──
   const petsRef = useRef(pets);
@@ -156,13 +190,14 @@ export default function RoomView({
   function resolvePlacement(petId: number, x: number, y: number): { x: number; y: number } {
     const { W, H } = roomDims();
     if (!W || !H || !collidesAny(petId, x, y, W, H)) return { x, y };
+    const loco = petsRef.current.find((p) => p.id === petId)?.locomotion ?? "ground";
     const cx = (x / 100) * W;
     const cy = (y / 100) * H;
     for (let r = 8; r <= 180; r += 8) {
       for (let a = 0; a < 360; a += 30) {
         const rad = (a * Math.PI) / 180;
         const nx = Math.max(2, Math.min(98, ((cx + Math.cos(rad) * r) / W) * 100));
-        const ny = Math.max(6, Math.min(96, ((cy + Math.sin(rad) * r) / H) * 100));
+        const ny = dragClampY(loco, nx, ((cy + Math.sin(rad) * r) / H) * 100); // 구역 유지
         if (!collidesAny(petId, nx, ny, W, H)) return { x: nx, y: ny };
       }
     }
@@ -174,7 +209,7 @@ export default function RoomView({
     const range = wanderRange(ea);
     for (let i = 0; i < 8; i++) {
       const x = Math.max(3, Math.min(97, p.posX + (Math.random() * 2 - 1) * range));
-      const y = Math.max(6, Math.min(96, p.posY + (Math.random() * 10 - 5)));
+      const y = walkY(p.locomotion, x, p.posY); // ground=바닥 구역 / air=비행 대역
       if (!W || !H) return { x, y }; // 치수 모름 → 충돌검사 스킵
       if (!collidesAny(p.id, x, y, W, H)) return { x, y };
     }
@@ -380,8 +415,8 @@ export default function RoomView({
     let r = Math.random() * total;
     const chosen = cands.find((x) => (r -= x.ea) < 0) ?? cands[0];
     if (Math.random() >= walkStartProb(chosen.ea)) return false; // 정지 우세
-    // 가끔 빈 seat 가구로 향함(sit 슬롯 있는 펫만). 아니면 가까운 랜덤 지점.
-    if (chosen.p.sitPath && Math.random() < SEAT_TARGET_PROB) {
+    // 가끔 빈 seat 가구로 향함(sit 슬롯 있는 ground 펫만; air 내려앉기는 나중). 아니면 랜덤 지점.
+    if (chosen.p.locomotion !== "air" && chosen.p.sitPath && Math.random() < SEAT_TARGET_PROB) {
       const seat = pickEmptySeat();
       if (seat) {
         doWalk(chosen.p, { x: seat.posX, y: seat.posY }, seat.id);
@@ -538,7 +573,8 @@ export default function RoomView({
     const move = (ev: PointerEvent) => {
       if (Math.abs(ev.clientX - start.x) + Math.abs(ev.clientY - start.y) > 6) moved = true;
       const { x, y } = toPct(ev.clientX, ev.clientY);
-      setPets((xs) => xs.map((q) => (q.id === p.id ? { ...q, posX: x, posY: y } : q)));
+      const sy = dragClampY(p.locomotion, x, y); // ground=바닥 구역 스냅 / air=자유
+      setPets((xs) => xs.map((q) => (q.id === p.id ? { ...q, posX: x, posY: sy } : q)));
     };
     const up = (ev: PointerEvent) => {
       window.removeEventListener("pointermove", move);
@@ -548,8 +584,9 @@ export default function RoomView({
         return;
       }
       const raw = toPct(ev.clientX, ev.clientY);
+      const sy = dragClampY(p.locomotion, raw.x, raw.y); // 구역 스냅 후 충돌 보정
       // 다른 펫 점유 반경과 겹치면 가장 가까운 비충돌 지점으로 살짝 비켜 배치(못 찾으면 그대로).
-      const { x, y } = resolvePlacement(p.id, raw.x, raw.y);
+      const { x, y } = resolvePlacement(p.id, raw.x, sy);
       setPets((xs) => xs.map((q) => (q.id === p.id ? { ...q, posX: x, posY: y } : q)));
       fetch(`/api/pets/${p.id}/position`, {
         method: "PATCH",
@@ -636,6 +673,40 @@ export default function RoomView({
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ pixelRender: next }),
     }).catch(() => {});
+  }
+
+  // ── 바닥 구역 경계 드래그(패널별 위/아래 선) ──
+  function dragFloor(e: React.PointerEvent, panelId: number, which: "top" | "bottom") {
+    e.preventDefault();
+    e.stopPropagation();
+    const inner = innerRef.current;
+    if (!inner) return;
+    const move = (ev: PointerEvent) => {
+      const rect = inner.getBoundingClientRect();
+      const y = Math.max(0, Math.min(100, ((ev.clientY - rect.top) / rect.height) * 100));
+      setPanels((ps) =>
+        ps.map((p) =>
+          p.id !== panelId
+            ? p
+            : which === "top"
+              ? { ...p, floorTopY: Math.min(y, p.floorBottomY - 2) }
+              : { ...p, floorBottomY: Math.max(y, p.floorTopY + 2) },
+        ),
+      );
+    };
+    const up = () => {
+      window.removeEventListener("pointermove", move);
+      window.removeEventListener("pointerup", up);
+      const pn = panelsRef.current.find((x) => x.id === panelId);
+      if (pn)
+        fetch(`/api/pet-rooms/${room.id}/backgrounds/${panelId}`, {
+          method: "PATCH",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ floorTopY: pn.floorTopY, floorBottomY: pn.floorBottomY }),
+        }).catch(() => {});
+    };
+    window.addEventListener("pointermove", move);
+    window.addEventListener("pointerup", up);
   }
 
   // ── 방에 펫 들이기 ── (전역 펫을 이 방으로 배정 / 이 방에서 신규 생성)
@@ -748,10 +819,10 @@ export default function RoomView({
         className="aspect-[3/4] w-full snap-x snap-mandatory overflow-x-auto overflow-y-hidden rounded-card bg-surface-2 ring-1 ring-border"
       >
         <div ref={innerRef} className="relative h-full" style={{ width: `${N * 100}%` }}>
-          {room.panels.length === 0 ? (
+          {panels.length === 0 ? (
             <div className="absolute inset-0 bg-gradient-to-b from-surface-2 to-surface" />
           ) : (
-            room.panels.map((panel, i) => (
+            panels.map((panel, i) => (
               // eslint-disable-next-line @next/next/no-img-element
               <img
                 key={panel.id}
@@ -763,6 +834,36 @@ export default function RoomView({
               />
             ))
           )}
+
+          {/* 바닥 구역 편집 — 패널별 위·아래 경계선(드래그로 조절). */}
+          {floorEdit &&
+            panels.map((panel, i) => {
+              const left = (i * 100) / N;
+              const width = 100 / N;
+              return (
+                <div key={`fz-${panel.id}`}>
+                  {/* 구역 음영 */}
+                  <div
+                    className="pointer-events-none absolute bg-accent/15"
+                    style={{ left: `${left}%`, width: `${width}%`, top: `${panel.floorTopY}%`, height: `${panel.floorBottomY - panel.floorTopY}%` }}
+                  />
+                  {(["top", "bottom"] as const).map((which) => {
+                    const yv = which === "top" ? panel.floorTopY : panel.floorBottomY;
+                    return (
+                      <div
+                        key={which}
+                        onPointerDown={(e) => dragFloor(e, panel.id, which)}
+                        className="absolute -translate-y-1/2 cursor-ns-resize touch-none"
+                        style={{ left: `${left}%`, width: `${width}%`, top: `${yv}%`, height: 14 }}
+                      >
+                        <div className="absolute top-1/2 h-0.5 w-full -translate-y-1/2 bg-accent" />
+                        <div className="absolute left-1/2 top-1/2 h-3 w-6 -translate-x-1/2 -translate-y-1/2 rounded-full bg-accent" />
+                      </div>
+                    );
+                  })}
+                </div>
+              );
+            })}
 
           {/* 가구 — 펫보다 뒤 레이어(앉으면 펫이 가구 위에 그려짐). 드래그 배치, fixture 탭→기능. */}
           {furniture.map((f) => (
@@ -802,6 +903,7 @@ export default function RoomView({
                       ? p.lovePath ?? p.spritePath
                       : p.spritePath;
             const flip = isWalking ? walking!.flip : false;
+            const scale = petScale(p); // 원근(ground 한정, 2단계)
             return (
               <div
                 key={p.id}
@@ -842,7 +944,7 @@ export default function RoomView({
                       alt={p.name}
                       draggable={false}
                       className="h-20 w-20 object-contain"
-                      style={{ ...pixel(p.pixelRender), transform: flip ? "scaleX(-1)" : undefined }}
+                      style={{ ...pixel(p.pixelRender), transform: `scaleX(${flip ? -scale : scale}) scaleY(${scale})` }}
                     />
                   ) : (
                     <div className="flex h-20 w-20 items-center justify-center rounded-full bg-surface text-3xl">🐾</div>
@@ -930,6 +1032,14 @@ export default function RoomView({
               className={`rounded-control px-3 py-1 ring-1 ring-border ${showNames ? "bg-accent text-black" : "bg-surface"}`}
             >
               {showNames ? "표시" : "숨김"}
+            </button>
+            <span className="ml-2 w-12 shrink-0 opacity-60">바닥</span>
+            <button
+              onClick={() => setFloorEdit((v) => !v)}
+              className={`rounded-control px-3 py-1 ring-1 ring-border ${floorEdit ? "bg-accent text-black" : "bg-surface"}`}
+              title="배경마다 펫이 설 바닥 구역을 위·아래 선으로 맞춰요(ground 펫 전용)."
+            >
+              {floorEdit ? "구역 조절 중" : "바닥 구역"}
             </button>
           </div>
           <div className="flex flex-wrap items-center gap-2">

@@ -67,6 +67,7 @@ export async function update(
       | "activeness"
       | "displayStage"
       | "walkFacing"
+      | "locomotion"
     >
   >,
 ) {

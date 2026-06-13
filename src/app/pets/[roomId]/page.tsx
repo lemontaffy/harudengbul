@@ -85,6 +85,7 @@ export default async function RoomPage({ params }: { params: Promise<{ roomId: s
       talkativeness: p.talkativeness,
       activeness: p.activeness,
       displayStage: display,
+      locomotion: (p.locomotion as "ground" | "air") ?? "ground",
       spritePath: pickSpritePath(ps, display, "idle"),
       walkPath: pickWalkPath(ps, display), // idle 폴백 없음 — walk 슬롯 있어야 산책
       sitPath: pickSitPath(ps, display), // sit 슬롯 있어야 가구에 앉음
@@ -127,7 +128,13 @@ export default async function RoomPage({ params }: { params: Promise<{ roomId: s
           id: room.id,
           name: room.name,
           liveliness: room.liveliness,
-          panels: panels.map((b) => ({ id: b.id, path: b.path, pixelRender: b.pixelRender })),
+          panels: panels.map((b) => ({
+            id: b.id,
+            path: b.path,
+            pixelRender: b.pixelRender,
+            floorTopY: b.floorTopY,
+            floorBottomY: b.floorBottomY,
+          })),
           furniture,
         }}
         pets={petVMs}

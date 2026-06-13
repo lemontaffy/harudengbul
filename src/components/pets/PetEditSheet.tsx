@@ -17,7 +17,7 @@ interface Detail {
     name: string;
     personality: string | null;
     pixelRender: boolean;
-    roomId: number;
+    roomId: number | null;
     growthPoints: number;
     teenThreshold: number;
     adultThreshold: number;
@@ -26,6 +26,7 @@ interface Detail {
     activeness: number;
     displayStage: string | null;
     walkFacing: "left" | "right";
+    locomotion: "ground" | "air";
     reachedStages: string[];
   };
   sprites: { stage: string; kind: string; path: string }[];
@@ -165,11 +166,12 @@ function InfoTab({ d, rooms, onChanged, reload }: { d: Detail; rooms: PetRef[]; 
   const [name, setName] = useState(d.pet.name);
   const [personality, setPersonality] = useState(d.pet.personality ?? "");
   const [pixel, setPixel] = useState(d.pet.pixelRender);
-  const [roomId, setRoomId] = useState(d.pet.roomId);
+  const [roomId, setRoomId] = useState<number | null>(d.pet.roomId);
   const [talkativeness, setTalk] = useState(d.pet.talkativeness);
   const [activeness, setActive] = useState(d.pet.activeness);
   const [displayStage, setDisplayStage] = useState<string>(d.pet.displayStage ?? "");
   const [walkFacing, setWalkFacing] = useState<"left" | "right">(d.pet.walkFacing);
+  const [locomotion, setLocomotion] = useState<"ground" | "air">(d.pet.locomotion);
   const [saving, setSaving] = useState(false);
 
   async function save() {
@@ -186,6 +188,7 @@ function InfoTab({ d, rooms, onChanged, reload }: { d: Detail; rooms: PetRef[]; 
         activeness,
         displayStage: displayStage || null,
         walkFacing,
+        locomotion,
       }),
     });
     setSaving(false);
@@ -211,13 +214,26 @@ function InfoTab({ d, rooms, onChanged, reload }: { d: Detail; rooms: PetRef[]; 
       />
       <div className="flex items-center gap-2">
         <span className="text-xs opacity-60">방</span>
-        <select value={roomId} onChange={(e) => setRoomId(Number(e.target.value))} className={input}>
+        <select value={roomId ?? ""} onChange={(e) => setRoomId(e.target.value ? Number(e.target.value) : null)} className={input}>
+          <option value="">대기(어느 방에도 없음)</option>
           {rooms.map((r) => (
             <option key={r.id} value={r.id}>
               {r.name}
             </option>
           ))}
         </select>
+      </div>
+      <div className="flex items-center gap-2">
+        <span className="text-xs opacity-60">이동</span>
+        {(["ground", "air"] as const).map((m) => (
+          <button
+            key={m}
+            onClick={() => setLocomotion(m)}
+            className={`rounded-control px-3 py-1 text-xs ring-1 ring-border ${locomotion === m ? "bg-accent text-black" : "bg-bg"}`}
+          >
+            {m === "ground" ? "바닥(걷기)" : "비행(부엉이류)"}
+          </button>
+        ))}
       </div>
       {/* 모습(표시 스테이지) — 도달한 스테이지만 노출 */}
       <div className="flex items-center gap-2">
