@@ -567,24 +567,12 @@ export default function RoomView({
         return;
       }
       const safe = (room.name || "room").replace(/[^\w가-힣 -]/g, "").trim() || "room";
-      const file = new File([blob], `harudengbul-${safe}.png`, { type: "image/png" });
 
-      // 모바일: 공유 시트 우선. 취소(AbortError)면 조용히 종료, 미지원/실패면 다운로드 폴백.
-      const nav = navigator as Navigator & { canShare?: (d: ShareData) => boolean };
-      if (nav.share && nav.canShare?.({ files: [file] })) {
-        try {
-          await nav.share({ files: [file], title: room.name });
-          setStatus("공유함");
-          return;
-        } catch (e) {
-          if ((e as { name?: string })?.name === "AbortError") return; // 사용자가 취소
-          // 그 외엔 아래 다운로드로 폴백
-        }
-      }
+      // 공유 시트 대신 바로 다운로드.
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = file.name;
+      a.download = `harudengbul-${safe}.png`;
       document.body.appendChild(a);
       a.click();
       a.remove();
