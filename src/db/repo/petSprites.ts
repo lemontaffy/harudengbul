@@ -1,6 +1,8 @@
 import { and, eq } from "drizzle-orm";
 import { db } from "../client";
 import { petSprites, pets, petRooms } from "../schema";
+import * as roomBackgroundsRepo from "./roomBackgrounds";
+import * as petCustomSpritesRepo from "./petCustomSprites";
 
 export type PetSpriteRow = typeof petSprites.$inferSelect;
 
@@ -51,7 +53,7 @@ export async function deleteSlot(petId: number, stage: string, kind: string) {
     );
 }
 
-/** 서빙 화이트리스트 — 이 path 가 사용자의 스프라이트 또는 방 배경으로 등록돼 있는지. */
+/** 서빙 화이트리스트 — 스프라이트·방 배경(스트립)·커스텀 모션·레거시 배경 어디든 사용자 소유면 OK. */
 export async function pathBelongsToUser(userId: number, urlPath: string): Promise<boolean> {
   const [sprite] = await db
     .select({ id: petSprites.id })
@@ -60,6 +62,9 @@ export async function pathBelongsToUser(userId: number, urlPath: string): Promis
     .where(and(eq(pets.userId, userId), eq(petSprites.path, urlPath)))
     .limit(1);
   if (sprite) return true;
+  if (await roomBackgroundsRepo.pathBelongsToUser(userId, urlPath)) return true;
+  if (await petCustomSpritesRepo.pathBelongsToUser(userId, urlPath)) return true;
+  // 레거시(이행 전) 배경 경로도 호환.
   const [bg] = await db
     .select({ id: petRooms.id })
     .from(petRooms)

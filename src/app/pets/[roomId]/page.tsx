@@ -2,12 +2,21 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { requireUser } from "@/lib/currentUser";
 import * as roomsRepo from "@/db/repo/petRooms";
+import * as bgRepo from "@/db/repo/roomBackgrounds";
 import * as petsRepo from "@/db/repo/pets";
 import * as spritesRepo from "@/db/repo/petSprites";
 import * as relationsRepo from "@/db/repo/petRelations";
 import * as petLinesRepo from "@/db/repo/petLines";
+import * as customRepo from "@/db/repo/petCustomSprites";
 import * as settingsRepo from "@/db/repo/settings";
-import { stageFor, pickSpritePath, isLoveLabel, DEFAULT_LINES } from "@/lib/pets";
+import {
+  stageFor,
+  reachedStages,
+  displayStageFor,
+  pickSpritePath,
+  isLoveLabel,
+  DEFAULT_LINES,
+} from "@/lib/pets";
 import { isSleeping } from "@/lib/growth";
 import RoomView from "@/components/pets/RoomView";
 import type { PetVM, RelationVM } from "@/components/pets/types";
@@ -21,24 +30,32 @@ export default async function RoomPage({ params }: { params: Promise<{ roomId: s
   const room = await roomsRepo.getOne(user.id, roomId);
   if (!room) notFound();
 
-  const [petsRows, sprites, relations, lines, settings, allRooms, allPetsRows] = await Promise.all([
-    petsRepo.listByRoom(user.id, roomId),
-    spritesRepo.listForRoom(user.id, roomId),
-    relationsRepo.listForUser(user.id),
-    petLinesRepo.listForRoom(user.id, roomId),
-    settingsRepo.getByUser(user.id),
-    roomsRepo.listByUser(user.id),
-    petsRepo.listByUser(user.id),
-  ]);
+  const [petsRows, sprites, relations, lines, customs, panels, settings, allRooms, allPetsRows] =
+    await Promise.all([
+      petsRepo.listByRoom(user.id, roomId),
+      spritesRepo.listForRoom(user.id, roomId),
+      relationsRepo.listForUser(user.id),
+      petLinesRepo.listForRoom(user.id, roomId),
+      customRepo.listForRoom(user.id, roomId),
+      bgRepo.listForRoom(user.id, roomId),
+      settingsRepo.getByUser(user.id),
+      roomsRepo.listByUser(user.id),
+      petsRepo.listByUser(user.id),
+    ]);
 
   const wasSleeping = isSleeping(settings?.lastActivityAt);
 
   const petVMs: PetVM[] = petsRows.map((p) => {
-    const stage = stageFor(p.growthPoints, p.teenThreshold, p.adultThreshold);
+    const growthStage = stageFor(p.growthPoints, p.teenThreshold, p.adultThreshold);
+    const reached = reachedStages(p.growthPoints, p.teenThreshold, p.adultThreshold);
+    const display = displayStageFor(growthStage, p.displayStage, reached);
     const ps = sprites.filter((s) => s.petId === p.id);
-    const solo = lines.filter((l) => l.petId === p.id && l.stage === stage && l.kind === "solo").map((l) => l.content);
+    // 대사·잠꼬대·love는 실제 성장 스테이지 기준(스펙), 모습만 display.
+    const solo = lines
+      .filter((l) => l.petId === p.id && l.stage === growthStage && l.kind === "solo")
+      .map((l) => l.content);
     const about = lines
-      .filter((l) => l.petId === p.id && l.stage === stage && l.kind === "about_other" && l.aboutPetId != null)
+      .filter((l) => l.petId === p.id && l.stage === growthStage && l.kind === "about_other" && l.aboutPetId != null)
       .map((l) => ({ aboutPetId: l.aboutPetId as number, content: l.content }));
     return {
       id: p.id,
@@ -46,13 +63,25 @@ export default async function RoomPage({ params }: { params: Promise<{ roomId: s
       posX: p.posX,
       posY: p.posY,
       pixelRender: p.pixelRender,
-      stage,
-      spritePath: pickSpritePath(ps, stage, "idle"),
-      sleepPath: pickSpritePath(ps, stage, "sleep"),
-      lovePath: pickSpritePath(ps, stage, "love"),
-      evolutionPending: p.lastStageSeen !== stage,
-      soloLines: solo.length ? solo : DEFAULT_LINES[stage],
+      walkFacing: (p.walkFacing as "left" | "right") ?? "left",
+      talkativeness: p.talkativeness,
+      displayStage: display,
+      spritePath: pickSpritePath(ps, display, "idle"),
+      walkPath: pickSpritePath(ps, display, "walk"),
+      sleepPath: pickSpritePath(ps, display, "sleep"),
+      lovePath: pickSpritePath(ps, display, "love"),
+      evolutionPending: p.lastStageSeen !== growthStage,
+      soloLines: solo.length ? solo : DEFAULT_LINES[growthStage],
       aboutLines: about,
+      customs: customs
+        .filter((c) => c.petId === p.id && c.stage === display)
+        .map((c) => ({
+          id: c.id,
+          name: c.name,
+          path: c.path,
+          frequency: c.frequency as "often" | "sometimes" | "manual",
+          line: c.line,
+        })),
     };
   });
 
@@ -73,7 +102,11 @@ export default async function RoomPage({ params }: { params: Promise<{ roomId: s
         <span className="w-12" />
       </div>
       <RoomView
-        room={{ id: room.id, name: room.name, backgroundPath: room.backgroundPath, pixelRenderBg: room.pixelRenderBg }}
+        room={{
+          id: room.id,
+          name: room.name,
+          panels: panels.map((b) => ({ id: b.id, path: b.path, pixelRender: b.pixelRender })),
+        }}
         pets={petVMs}
         relations={relVMs}
         wasSleeping={wasSleeping}

@@ -54,7 +54,20 @@ export async function create(
 export async function update(
   userId: number,
   id: number,
-  patch: Partial<Pick<PetRow, "name" | "personality" | "pixelRender" | "teenThreshold" | "adultThreshold" | "roomId">>,
+  patch: Partial<
+    Pick<
+      PetRow,
+      | "name"
+      | "personality"
+      | "pixelRender"
+      | "teenThreshold"
+      | "adultThreshold"
+      | "roomId"
+      | "talkativeness"
+      | "displayStage"
+      | "walkFacing"
+    >
+  >,
 ) {
   await db
     .update(pets)

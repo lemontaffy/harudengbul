@@ -476,7 +476,8 @@ export const petRooms = pgTable("pet_rooms", {
     .notNull()
     .references(() => users.id, { onDelete: "cascade" }),
   name: text("name").notNull(),
-  backgroundPath: text("background_path"), // null = 기본 배경
+  // [deprecated] v1.5에서 room_backgrounds(스트립)로 이행. 읽기/쓰기 안 함(데이터만 보존).
+  backgroundPath: text("background_path"),
   pixelRenderBg: boolean("pixel_render_bg").notNull().default(true),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
 });
@@ -501,9 +502,45 @@ export const pets = pgTable(
     teenThreshold: integer("teen_threshold").notNull().default(30),
     adultThreshold: integer("adult_threshold").notNull().default(90),
     lastStageSeen: text("last_stage_seen"), // 진화 1회 연출 추적
+    // v1.5: 살아있는 방.
+    talkativeness: integer("talkativeness").notNull().default(30), // 0~100, 자발 발화 빈도
+    displayStage: text("display_stage"), // null=실제 성장 스테이지, 값=그 모습으로 고정(렌더만)
+    walkFacing: text("walk_facing").notNull().default("left"), // walk GIF 기본 진행 방향
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
   },
   (t) => [index("pets_user_room_idx").on(t.userId, t.roomId)],
+);
+
+// 확장 맵 — 방의 배경 패널들(가로 스트립). 기존 pet_rooms.background_path 는 패널 0으로 이행.
+export const roomBackgrounds = pgTable(
+  "room_backgrounds",
+  {
+    id: bigint("id", { mode: "number" }).primaryKey().generatedAlwaysAsIdentity(),
+    roomId: bigint("room_id", { mode: "number" })
+      .notNull()
+      .references(() => petRooms.id, { onDelete: "cascade" }),
+    path: text("path").notNull(),
+    sortOrder: integer("sort_order").notNull().default(0),
+    pixelRender: boolean("pixel_render").notNull().default(true),
+  },
+  (t) => [index("room_bg_room_idx").on(t.roomId, t.sortOrder)],
+);
+
+// 커스텀 모션 스프라이트 — 스테이지별, 빈도 가중 자동/수동 재생. 수치·상태와 무관.
+export const petCustomSprites = pgTable(
+  "pet_custom_sprites",
+  {
+    id: bigint("id", { mode: "number" }).primaryKey().generatedAlwaysAsIdentity(),
+    petId: bigint("pet_id", { mode: "number" })
+      .notNull()
+      .references(() => pets.id, { onDelete: "cascade" }),
+    stage: text("stage").notNull(), // 'baby'|'teen'|'adult' — 표시 스테이지 일치 시만
+    name: text("name").notNull(),
+    path: text("path").notNull(),
+    frequency: text("frequency").notNull().default("sometimes"), // 'often'|'sometimes'|'manual'
+    line: text("line"), // 재생 시 함께 표시할 대사 한 줄(선택)
+  },
+  (t) => [index("pet_custom_pet_idx").on(t.petId, t.stage)],
 );
 
 export const petSprites = pgTable(

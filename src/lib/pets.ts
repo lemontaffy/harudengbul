@@ -12,6 +12,24 @@ export function stageFor(points: number, teen: number, adult: number): Stage {
   return "baby";
 }
 
+/** 도달한 스테이지 목록(모습 선택 UI — 미도달은 비노출). baby는 항상. */
+export function reachedStages(points: number, teen: number, adult: number): Stage[] {
+  const out: Stage[] = ["baby"];
+  if (points >= teen) out.push("teen");
+  if (points >= adult) out.push("adult");
+  return out;
+}
+
+/** 표시 스테이지 — display_stage 가 도달한 스테이지면 그것, 아니면 실제 성장 스테이지. */
+export function displayStageFor(
+  growthStage: Stage,
+  displayStage: string | null,
+  reached: Stage[],
+): Stage {
+  if (displayStage && (reached as string[]).includes(displayStage)) return displayStage as Stage;
+  return growthStage;
+}
+
 // aux 미설정/실패 시 폴백 대사 풀(스테이지 톤 반영). 사용자를 향하지 않는 펫의 혼잣말.
 export const DEFAULT_LINES: Record<Stage, string[]> = {
   baby: ["뀨?", "우꺄", "냐앙…", "배고파…", "엄마?", "데굴", "꼬물꼬물", "히끄"],
@@ -32,6 +50,23 @@ export function isLoveLabel(label: string): boolean {
 export function forbiddenLine(s: string): boolean {
   const t = s.normalize("NFC");
   return DEATH_SELFHARM.test(t) || PROFANITY.test(t);
+}
+
+/**
+ * 패널 삭제 시 펫 pos_x(스트립 전체 %) 보정 — 펫이 허공에 남지 않게 인접 패널로.
+ * deletedIdx = 삭제 패널의 정렬 인덱스, oldN = 삭제 전 패널 수. 패널 내 상대 위치는 보존.
+ */
+export function remapPosAfterDelete(posX: number, deletedIdx: number, oldN: number): number {
+  if (oldN <= 1) return posX; // 패널 1개뿐이면 좌표계 불변
+  const panelW = 100 / oldN;
+  const panel = Math.max(0, Math.min(oldN - 1, Math.floor(posX / panelW)));
+  const intra = Math.max(0, Math.min(1, (posX - panel * panelW) / panelW));
+  let newPanel: number;
+  if (panel < deletedIdx) newPanel = panel;
+  else if (panel === deletedIdx) newPanel = Math.min(deletedIdx, oldN - 2); // 인접 패널로
+  else newPanel = panel - 1;
+  const newW = 100 / (oldN - 1);
+  return Math.max(2, Math.min(98, (newPanel + intra) * newW));
 }
 
 /** 두 펫 id 를 a<b 로 정규화(관계 unique pair). */

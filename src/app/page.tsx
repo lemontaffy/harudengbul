@@ -11,7 +11,7 @@ import * as spritesRepo from "@/db/repo/petSprites";
 import * as memosRepo from "@/db/repo/memos";
 import { phraseForDate } from "@/lib/phrases";
 import { findSecretary } from "@/lib/cta";
-import { stageFor, pickSpritePath } from "@/lib/pets";
+import { stageFor, reachedStages, displayStageFor, pickSpritePath } from "@/lib/pets";
 import { isSleeping } from "@/lib/growth";
 import PetMiniWidget from "@/components/pets/PetMiniWidget";
 import ConnectionSwitcher from "@/components/ConnectionSwitcher";
@@ -78,10 +78,11 @@ export default async function DashboardPage() {
     petMini = {
       roomId,
       items: inRoom.map((p) => {
-        const stage = stageFor(p.growthPoints, p.teenThreshold, p.adultThreshold);
+        const growth = stageFor(p.growthPoints, p.teenThreshold, p.adultThreshold);
+        const display = displayStageFor(growth, p.displayStage, reachedStages(p.growthPoints, p.teenThreshold, p.adultThreshold));
         return {
           name: p.name,
-          avatar: pickSpritePath(petSprites.filter((sp) => sp.petId === p.id), stage, "idle"),
+          avatar: pickSpritePath(petSprites.filter((sp) => sp.petId === p.id), display, "idle"),
           asleep,
         };
       }),

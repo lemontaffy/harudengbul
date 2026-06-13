@@ -2,7 +2,7 @@ import { requireUser } from "@/lib/currentUser";
 import * as roomsRepo from "@/db/repo/petRooms";
 import * as petsRepo from "@/db/repo/pets";
 import * as spritesRepo from "@/db/repo/petSprites";
-import { stageFor, pickSpritePath } from "@/lib/pets";
+import { stageFor, reachedStages, displayStageFor, pickSpritePath } from "@/lib/pets";
 import RoomListView, { type RoomCard } from "@/components/pets/RoomListView";
 
 export const dynamic = "force-dynamic";
@@ -19,8 +19,9 @@ export default async function PetsPage() {
       const inRoom = allPets.filter((p) => p.roomId === r.id);
       const sprites = await spritesRepo.listForRoom(user.id, r.id);
       const avatars = inRoom.map((p) => {
-        const stage = stageFor(p.growthPoints, p.teenThreshold, p.adultThreshold);
-        return pickSpritePath(sprites.filter((s) => s.petId === p.id), stage, "idle");
+        const growth = stageFor(p.growthPoints, p.teenThreshold, p.adultThreshold);
+        const display = displayStageFor(growth, p.displayStage, reachedStages(p.growthPoints, p.teenThreshold, p.adultThreshold));
+        return pickSpritePath(sprites.filter((s) => s.petId === p.id), display, "idle");
       });
       return { id: r.id, name: r.name, petCount: inRoom.length, avatars };
     }),
