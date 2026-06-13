@@ -8,6 +8,7 @@ import * as messagesRepo from "@/db/repo/messages";
 import * as handoffsRepo from "@/db/repo/handoffs";
 import * as petsRepo from "@/db/repo/pets";
 import * as spritesRepo from "@/db/repo/petSprites";
+import * as memosRepo from "@/db/repo/memos";
 import { phraseForDate } from "@/lib/phrases";
 import { findSecretary } from "@/lib/cta";
 import { stageFor, pickSpritePath } from "@/lib/pets";
@@ -19,6 +20,7 @@ import MoodChips from "@/components/MoodChips";
 import WeatherSlot from "@/components/WeatherSlot";
 import PhraseCard from "@/components/PhraseCard";
 import HandoffCard, { type HandoffItem } from "@/components/HandoffCard";
+import MemoCapture, { type MemoPreview } from "@/components/MemoCapture";
 
 export const dynamic = "force-dynamic";
 
@@ -59,6 +61,10 @@ export default async function DashboardPage() {
     suggestedText: h.suggestedText,
     personaName: h.personaName,
   }));
+
+  // 주머니 메모 — 홈 캡처 박스용 최근 미완료 3개(카운트·뱃지 없음).
+  const memoRows = await memosRepo.listOpen(user.id, 3);
+  const memoPreview: MemoPreview[] = memoRows.map((m) => ({ id: m.id, content: m.content }));
 
   // 홈 펫 미니 위젯 — 마지막 본 방(없으면 첫 방)의 펫. 펫 0마리면 미표시.
   let petMini: { roomId: number; items: { name: string; avatar: string | null; asleep: boolean }[] } | null = null;
@@ -155,6 +161,8 @@ export default async function DashboardPage() {
       <HandoffCard initial={handoffs} />
 
       {petMini && <PetMiniWidget roomId={petMini.roomId} items={petMini.items} />}
+
+      <MemoCapture initial={memoPreview} />
 
       {/* 오늘 일정 미니 */}
       <section className="rounded-card bg-surface p-4">

@@ -2,6 +2,7 @@ import { z } from "zod";
 import { getCurrentUser } from "@/lib/currentUser";
 import * as handoffsRepo from "@/db/repo/handoffs";
 import * as eventsRepo from "@/db/repo/events";
+import * as memosRepo from "@/db/repo/memos";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -48,5 +49,7 @@ export async function POST(
   });
   const ok = await handoffsRepo.accept(user.id, id, event.id);
   if (!ok) return Response.json({ error: "이미 처리됨" }, { status: 409 });
+  // 메모 승격으로 생긴 핸드오프면 원본 메모 자동 체크(승격돼도 메모는 남고, 등록 승인 시 완료).
+  if (h.sourceMemoId) await memosRepo.markDone(user.id, h.sourceMemoId);
   return Response.json({ ok: true, eventId: event.id });
 }

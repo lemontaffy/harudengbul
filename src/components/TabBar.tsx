@@ -16,6 +16,7 @@ import {
   Settings,
   Shield,
   PawPrint,
+  Inbox,
   type LucideIcon,
 } from "lucide-react";
 
@@ -29,6 +30,7 @@ const TABS: Tab[] = [
 const MORE: { href: string; label: string; Icon: LucideIcon; admin?: boolean }[] = [
   { href: "/ledger", label: "가계부", Icon: Wallet },
   { href: "/letters", label: "편지", Icon: Mail },
+  { href: "/memos", label: "주머니 메모", Icon: Inbox },
   { href: "/pets", label: "펫 룸", Icon: PawPrint },
   { href: "/pocket", label: "비상 주머니", Icon: LifeBuoy },
   { href: "/characters", label: "캐릭터", Icon: Users },

@@ -15,6 +15,7 @@ import * as handoffsRepo from "../src/db/repo/handoffs";
 import * as googleRepo from "../src/db/repo/google";
 import * as capsulesRepo from "../src/db/repo/timeCapsules";
 import * as petsRepo from "../src/db/repo/pets";
+import * as memosRepo from "../src/db/repo/memos";
 import * as usageRepo from "../src/db/repo/usage";
 import { stageFor } from "../src/lib/pets";
 import {
@@ -131,8 +132,9 @@ async function sendProactive(
   const persona = await personasRepo.getOne(userId, personaId);
   if (!persona || !persona.isActive) return;
   const ctx = await buildContext(userId);
-  // 아침 브리핑에만 펫 목록(이름·스테이지)을 컨텍스트로 — 가끔 한 줄 언급 허용(의무 아님).
+  // 아침 브리핑에만 펫 목록·주머니 메모 수를 컨텍스트로 — 가끔 한 줄 언급 허용(의무 아님, 독촉 금지).
   let petsLine: string | undefined;
+  let memoCount: number | undefined;
   if (trigger === "morning") {
     const pets = await petsRepo.listByUser(userId);
     if (pets.length) {
@@ -141,6 +143,7 @@ async function sendProactive(
         .map((p) => `${p.name}(${stageFor(p.growthPoints, p.teenThreshold, p.adultThreshold)})`)
         .join(", ");
     }
+    memoCount = await memosRepo.countOpen(userId);
   }
   const text = (
     await completeChat(conn, [
@@ -151,7 +154,7 @@ async function sendProactive(
           ctx,
         ),
       },
-      { role: "user", content: proactiveInstruction(trigger, weatherLine, petsLine) },
+      { role: "user", content: proactiveInstruction(trigger, weatherLine, petsLine, memoCount) },
     ])
   ).trim();
   if (!text) return;

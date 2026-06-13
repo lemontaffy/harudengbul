@@ -440,10 +440,31 @@ export const handoffSuggestions = pgTable(
       () => events.id,
       { onDelete: "set null" },
     ),
+    // 메모 승격으로 생긴 핸드오프면 원본 메모 id — 승인(일정 등록) 시 그 메모 자동 체크.
+    sourceMemoId: bigint("source_memo_id", { mode: "number" }).references(
+      () => memos.id,
+      { onDelete: "set null" },
+    ),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
     resolvedAt: timestamp("resolved_at", { withTimezone: true }),
   },
   (t) => [index("handoff_user_status_idx").on(t.userId, t.status)],
+);
+
+// 만능 캡처 인박스 — 떠오른 모든 것을 1초 안에. 분류·마감·우선순위 없음(마찰 제로).
+export const memos = pgTable(
+  "memos",
+  {
+    id: bigint("id", { mode: "number" }).primaryKey().generatedAlwaysAsIdentity(),
+    userId: bigint("user_id", { mode: "number" })
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    content: text("content").notNull(),
+    done: boolean("done").notNull().default(false),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
+    doneAt: timestamp("done_at", { withTimezone: true }),
+  },
+  (t) => [index("memos_user_done_idx").on(t.userId, t.done, t.createdAt)],
 );
 
 // ── 펫 룸 v1 ──────────────────────────────────────────────

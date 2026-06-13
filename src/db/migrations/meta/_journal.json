@@ -176,6 +176,13 @@
       "when": 1781269955617,
       "tag": "0024_pet_room",
       "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "7",
+      "when": 1781311408731,
+      "tag": "0025_memos",
+      "breakpoints": true
     }
   ]
 }

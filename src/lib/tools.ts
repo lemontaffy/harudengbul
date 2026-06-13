@@ -2,6 +2,7 @@ import { z } from "zod";
 import * as eventsRepo from "@/db/repo/events";
 import * as transactionsRepo from "@/db/repo/transactions";
 import * as memoriesRepo from "@/db/repo/memories";
+import * as memosRepo from "@/db/repo/memos";
 import * as settingsRepo from "@/db/repo/settings";
 import * as handoffsRepo from "@/db/repo/handoffs";
 import * as messagesRepo from "@/db/repo/messages";
@@ -165,6 +166,31 @@ export const SECRETARY_TOOLS: ToolDef[] = [
       },
     },
   },
+  {
+    type: "function",
+    function: {
+      name: "add_memo",
+      description:
+        "'메모해둬 ~' 같은 명시적 지시에 주머니 메모(만능 캡처함)에 한 줄 등록한다. 분류·기한 없음. 흘러나온 말은 등록하지 말고 먼저 '메모해둘까?'로 물어본다.",
+      parameters: {
+        type: "object",
+        properties: { content: { type: "string", description: "메모 내용(한 줄)" } },
+        required: ["content"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "list_memos",
+      description: "주머니 메모(미완료)를 최신순으로 조회한다. '주머니에 뭐 있었지?' 류에 사용.",
+      parameters: {
+        type: "object",
+        properties: { limit: { type: "integer", description: "최대 개수(선택, 기본 10)" } },
+        required: [],
+      },
+    },
+  },
   SAVE_MEMORY_TOOL,
 ];
 
@@ -289,6 +315,8 @@ const saveMemArgs = z.object({
   content: z.string().min(1).max(200),
   importance: z.number().int().min(1).max(5).nullish(),
 });
+const addMemoArgs = z.object({ content: z.string().trim().min(1).max(2000) });
+const listMemosArgs = z.object({ limit: z.number().int().min(1).max(50).nullish() });
 const handoffArgs = z.object({
   items: z.array(z.string().trim().min(1).max(200)).min(1).max(10),
 });
@@ -536,6 +564,18 @@ export async function executeTool(
       const a = saveMemArgs.parse(args);
       const row = await memoriesRepo.add(userId, a.content, "chat", a.importance ?? 3);
       return `OK: 기억 저장(id=${row.id})`;
+    }
+    if (name === "add_memo") {
+      const a = addMemoArgs.parse(args);
+      const row = await memosRepo.create(userId, a.content);
+      return `OK: 주머니에 메모했어요 — "${row.content}" (id=${row.id})`;
+    }
+    if (name === "list_memos") {
+      const a = listMemosArgs.parse(args);
+      const rows = await memosRepo.listOpen(userId);
+      if (rows.length === 0) return "OK: 주머니가 비어 있어요.";
+      const lines = rows.slice(0, a.limit ?? 10).map((m) => `#${m.id} ${m.content}`);
+      return `OK: 주머니 메모(미완료 ${rows.length}개)\n` + lines.join("\n");
     }
     return `ERROR: 알 수 없는 도구 ${name}`;
   } catch (err) {

@@ -10,6 +10,7 @@ export async function createPending(
   userId: number,
   sourcePersonaId: number | null,
   suggestedText: string,
+  sourceMemoId: number | null = null,
 ): Promise<boolean> {
   const text = suggestedText.trim();
   if (!text) return false;
@@ -27,7 +28,7 @@ export async function createPending(
   if (dup) return false;
   await db
     .insert(handoffSuggestions)
-    .values({ userId, sourcePersonaId, suggestedText: text });
+    .values({ userId, sourcePersonaId, suggestedText: text, sourceMemoId });
   return true;
 }
 

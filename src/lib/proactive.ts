@@ -49,6 +49,7 @@ export function proactiveInstruction(
   trigger: Trigger,
   weatherLine?: string,
   petsLine?: string,
+  memoCount?: number,
 ): string {
   const common =
     "사용자가 앱을 열지 않은 상태에서 네가 먼저 보내는 한 통의 메시지를 작성해. " +
@@ -61,6 +62,9 @@ export function proactiveInstruction(
       (weatherLine ? `\n참고 — 오늘 날씨: ${weatherLine}` : "") +
       (petsLine
         ? `\n참고 — 사용자의 펫: ${petsLine}. 가끔(매번은 금지) 한 줄 가볍게 언급해도 좋아. 의무는 아니야.`
+        : "") +
+      (memoCount && memoCount > 0
+        ? `\n참고 — 주머니 메모가 ${memoCount}개 있어. 부담 없이 "주머니에 ${memoCount}개 있어" 정도로 한 줄까지만 언급 가능(내용 나열·독촉 금지). 0개면 언급 안 함.`
         : "")
     );
   }
