@@ -40,15 +40,11 @@ export default function RoomView({
   const [editId, setEditId] = useState<number | null>(null);
   const effectSeq = useRef(0);
 
-  // 한 펫이 다른 펫과 '연인' 관계이고 둘 다 이 방에 있으면 그 상대 id.
-  function lovePartnerInRoom(petId: number): number | null {
-    const here = new Set(pets.map((p) => p.id));
-    for (const r of relations) {
-      if (!r.isLove) continue;
-      if (r.petAId === petId && here.has(r.petBId)) return r.petBId;
-      if (r.petBId === petId && here.has(r.petAId)) return r.petAId;
-    }
-    return null;
+  // 두 펫이 연인 계열 관계인지.
+  function isLovePair(a: number, b: number): boolean {
+    return relations.some(
+      (r) => r.isLove && ((r.petAId === a && r.petBId === b) || (r.petAId === b && r.petBId === a)),
+    );
   }
 
   function spawnEffect(type: EffectType, xPct: number, yPct: number) {
@@ -82,12 +78,22 @@ export default function RoomView({
   }, []);
 
   // ── 탭/드래그 ──
-  function pickLine(p: PetVM): string {
+  // 풀: solo 전부 + 같은 방 상대의 about_other ×2 가중. 매번 랜덤 1개(kind·상대 포함) 반환.
+  function pickLine(p: PetVM): { content: string; kind: "solo" | "about_other"; aboutPetId: number | null } {
     const here = new Set(pets.map((x) => x.id));
-    const weighted: string[] = [...p.soloLines];
-    for (const a of p.aboutLines) if (here.has(a.aboutPetId)) weighted.push(a.content, a.content); // 같은 방 상대 가중
-    if (weighted.length === 0) return ["…", "뀨?", "흐음"][Math.floor(pets.length) % 3] || "…";
-    return weighted[Math.floor(Math.random() * weighted.length)];
+    const pool: { content: string; kind: "solo" | "about_other"; aboutPetId: number | null }[] =
+      p.soloLines.map((content) => ({ content, kind: "solo", aboutPetId: null }));
+    for (const a of p.aboutLines) {
+      if (here.has(a.aboutPetId)) {
+        const item = { content: a.content, kind: "about_other" as const, aboutPetId: a.aboutPetId };
+        pool.push(item, item); // 같은 방 상대 가중
+      }
+    }
+    if (pool.length === 0) {
+      const fb = ["…", "뀨?", "흐음"];
+      return { content: fb[Math.floor(Math.random() * fb.length)], kind: "solo", aboutPetId: null };
+    }
+    return pool[Math.floor(Math.random() * pool.length)];
   }
 
   function onTap(p: PetVM) {
@@ -95,18 +101,18 @@ export default function RoomView({
       setAsleep(false);
       return;
     }
-    const partner = lovePartnerInRoom(p.id);
-    if (partner) {
-      // 연인 about_other 우선 + love 슬롯 2초 + hearts
-      const about = p.aboutLines.find((a) => a.aboutPetId === partner);
-      showBubble(p.id, about?.content ?? "보고 있으면 좋네…");
+    const line = pickLine(p);
+    showBubble(p.id, line.content);
+    // 연인 대사(about_other + 연인 관계)가 나온 탭에서만 hearts + love 슬롯. 그 외엔 sparkle|notes.
+    const lovely =
+      line.kind === "about_other" && line.aboutPetId != null && isLovePair(p.id, line.aboutPetId);
+    if (lovely) {
       spawnEffect("hearts", p.posX, p.posY - 8);
       if (p.lovePath) {
         setLoveUntil((m) => ({ ...m, [p.id]: Date.now() + 2000 }));
         setTimeout(() => setLoveUntil((m) => ({ ...m, [p.id]: 0 })), 2000);
       }
     } else {
-      showBubble(p.id, pickLine(p));
       spawnEffect(Math.random() < 0.5 ? "sparkle" : "notes", p.posX, p.posY - 8);
     }
   }
