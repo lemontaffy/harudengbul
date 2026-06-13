@@ -6,13 +6,10 @@ import * as eventsRepo from "@/db/repo/events";
 import * as diaryRepo from "@/db/repo/diary";
 import * as messagesRepo from "@/db/repo/messages";
 import * as handoffsRepo from "@/db/repo/handoffs";
-import * as petsRepo from "@/db/repo/pets";
-import * as spritesRepo from "@/db/repo/petSprites";
 import * as memosRepo from "@/db/repo/memos";
 import { phraseForDate } from "@/lib/phrases";
 import { findSecretary } from "@/lib/cta";
-import { stageFor, reachedStages, displayStageFor, pickSpritePath } from "@/lib/pets";
-import { isSleeping } from "@/lib/growth";
+import { getPetMiniWidget } from "@/modules/pets/boundary";
 import PetMiniWidget from "@/components/pets/PetMiniWidget";
 import ConnectionSwitcher from "@/components/ConnectionSwitcher";
 import LiveClock from "@/components/LiveClock";
@@ -66,28 +63,8 @@ export default async function DashboardPage() {
   const memoRows = await memosRepo.listOpen(user.id, 3);
   const memoPreview: MemoPreview[] = memoRows.map((m) => ({ id: m.id, content: m.content }));
 
-  // 홈 펫 미니 위젯 — 마지막 본 방(없으면 첫 방)의 펫. 펫 0마리면 미표시.
-  let petMini: { roomId: number; items: { name: string; avatar: string | null; asleep: boolean }[] } | null = null;
-  const allPets = await petsRepo.listByUser(user.id);
-  if (allPets.length > 0) {
-    const lastRoomId = s?.petLastRoomId ?? null;
-    const roomId = lastRoomId && allPets.some((p) => p.roomId === lastRoomId) ? lastRoomId : allPets[0].roomId;
-    const inRoom = allPets.filter((p) => p.roomId === roomId);
-    const petSprites = await spritesRepo.listForRoom(user.id, roomId);
-    const asleep = isSleeping(s?.lastActivityAt);
-    petMini = {
-      roomId,
-      items: inRoom.map((p) => {
-        const growth = stageFor(p.growthPoints, p.teenThreshold, p.adultThreshold);
-        const display = displayStageFor(growth, p.displayStage, reachedStages(p.growthPoints, p.teenThreshold, p.adultThreshold));
-        return {
-          name: p.name,
-          avatar: pickSpritePath(petSprites.filter((sp) => sp.petId === p.id), display, "idle"),
-          asleep,
-        };
-      }),
-    };
-  }
+  // 홈 펫 미니 위젯 — 펫 모듈 경계 경유(본체는 펫 repo/렌더 헬퍼를 직접 모름). 펫 0마리면 null→미표시.
+  const petMini = await getPetMiniWidget(user.id);
 
   // 입구 카드는 "가장 최근 대화가 있었던 페르소나" 기준(활성 고정 아님).
   const lasts = await Promise.all(

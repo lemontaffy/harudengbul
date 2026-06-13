@@ -14,10 +14,9 @@ import * as memoriesRepo from "../src/db/repo/memories";
 import * as handoffsRepo from "../src/db/repo/handoffs";
 import * as googleRepo from "../src/db/repo/google";
 import * as capsulesRepo from "../src/db/repo/timeCapsules";
-import * as petsRepo from "../src/db/repo/pets";
 import * as memosRepo from "../src/db/repo/memos";
 import * as usageRepo from "../src/db/repo/usage";
-import { stageFor } from "../src/lib/pets";
+import { getPetBriefingLine } from "../src/modules/pets/boundary";
 import {
   composeDelivery,
   fallbackIntro,
@@ -136,13 +135,7 @@ async function sendProactive(
   let petsLine: string | undefined;
   let memoCount: number | undefined;
   if (trigger === "morning") {
-    const pets = await petsRepo.listByUser(userId);
-    if (pets.length) {
-      petsLine = pets
-        .slice(0, 8)
-        .map((p) => `${p.name}(${stageFor(p.growthPoints, p.teenThreshold, p.adultThreshold)})`)
-        .join(", ");
-    }
+    petsLine = await getPetBriefingLine(userId); // 펫 모듈 경계 경유(워커는 펫 repo를 직접 모름)
     memoCount = await memosRepo.countOpen(userId);
   }
   const text = (

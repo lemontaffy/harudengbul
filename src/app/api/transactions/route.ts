@@ -2,7 +2,7 @@ import { z } from "zod";
 import { getCurrentUser } from "@/lib/currentUser";
 import * as txRepo from "@/db/repo/transactions";
 import { summarize } from "@/lib/txparse";
-import { grantGrowth } from "@/lib/growth";
+import { recordGrowth } from "@/modules/pets/boundary";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -67,6 +67,6 @@ export async function POST(req: Request) {
     amount: d.amount,
     memo: d.memo ?? null,
   });
-  void grantGrowth(user.id, 1).catch(() => {}); // 펫 성장 +1(일일 상한)
+  void recordGrowth(user.id, 1).catch(() => {}); // 펫 성장 이벤트 +1(경계 경유, 일일 상한)
   return Response.json({ transaction: publicRow(row) });
 }

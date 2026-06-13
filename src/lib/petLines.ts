@@ -1,4 +1,4 @@
-import { getAuxTextConfig } from "@/lib/config";
+import { getPetAuxConfig } from "@/modules/pets/auxConfig";
 import { completeChat } from "@/lib/llm";
 import { forbiddenLine, type Stage } from "@/lib/pets";
 import * as petsRepo from "@/db/repo/pets";
@@ -60,7 +60,7 @@ function parseLines(text: string): string[] {
 export async function regenerateLines(userId: number, petId: number, stage: Stage): Promise<void> {
   const pet = await petsRepo.getOne(userId, petId);
   if (!pet) return;
-  const cfg = await getAuxTextConfig(userId);
+  const cfg = await getPetAuxConfig(userId);
   if (!cfg.configured) return;
 
   const out: { kind: "solo" | "about_other"; aboutPetId: number | null; content: string }[] = [];
