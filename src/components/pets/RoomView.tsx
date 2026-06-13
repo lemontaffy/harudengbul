@@ -22,6 +22,7 @@ function reduced(): boolean {
 }
 const PINGPONG_COOLDOWN_MS = 90_000;
 const STARTLE_LINES = ["꺄앗!", "으냐?!", "깜짝이야!", "헉!", "으아앙"]; // 자다 깨면 놀라는 한 마디
+const PET_RADIUS_PX = 36; // 점유 반경 ≈ 스프라이트(80px) 폭 절반(약간 작게 — 살짝 겹침은 허용)
 
 // 배경 밝기와 무관하게 텍스트를 분리 — 어두운 칩 + 4방향 검은 외곽선(칩 페이드 중에도 안 묻힘).
 const CHIP_BG = "rgba(0,0,0,0.72)";
@@ -114,6 +115,49 @@ export default function RoomView({
   }
   function isNapping(petId: number, now = Date.now()): boolean {
     return (napUntilRef.current[petId] ?? 0) > now;
+  }
+
+  // ── 펫 겹침(점유 반경) 판정 ── 좌표가 X=스트립%·Y=높이%로 축마다 px 스케일이 달라,
+  //    충돌은 픽셀 공간에서 계산해야 정확하다.
+  function roomDims(): { W: number; H: number } {
+    return { W: innerRef.current?.clientWidth ?? 0, H: scrollRef.current?.clientHeight ?? 0 };
+  }
+  function overlapsPx(ax: number, ay: number, bx: number, by: number, W: number, H: number): boolean {
+    const dx = ((ax - bx) / 100) * W;
+    const dy = ((ay - by) / 100) * H;
+    return dx * dx + dy * dy < (2 * PET_RADIUS_PX) ** 2; // 두 점유 반경 합보다 가까우면 겹침
+  }
+  function collidesAny(petId: number, x: number, y: number, W: number, H: number): boolean {
+    return petsRef.current.some((o) => o.id !== petId && overlapsPx(x, y, o.posX, o.posY, W, H));
+  }
+  // 드래그 배치 보정 — 겹치면 놓은 위치 근처 가장 가까운 비충돌 지점으로 살짝 밀기.
+  // 못 찾으면(좁은 방 등) 그대로 둠 — 못 놓는 것보다 겹치는 게 낫다(경고 없음).
+  function resolvePlacement(petId: number, x: number, y: number): { x: number; y: number } {
+    const { W, H } = roomDims();
+    if (!W || !H || !collidesAny(petId, x, y, W, H)) return { x, y };
+    const cx = (x / 100) * W;
+    const cy = (y / 100) * H;
+    for (let r = 8; r <= 180; r += 8) {
+      for (let a = 0; a < 360; a += 30) {
+        const rad = (a * Math.PI) / 180;
+        const nx = Math.max(2, Math.min(98, ((cx + Math.cos(rad) * r) / W) * 100));
+        const ny = Math.max(6, Math.min(96, ((cy + Math.sin(rad) * r) / H) * 100));
+        if (!collidesAny(petId, nx, ny, W, H)) return { x: nx, y: ny };
+      }
+    }
+    return { x, y };
+  }
+  // 산책 목적지 — 비충돌 지점을 최대 8회 재추첨. 다 실패하면 null(이번 틱 이동 취소).
+  function pickWalkTarget(p: PetVM, ea: number): { x: number; y: number } | null {
+    const { W, H } = roomDims();
+    const range = wanderRange(ea);
+    for (let i = 0; i < 8; i++) {
+      const x = Math.max(3, Math.min(97, p.posX + (Math.random() * 2 - 1) * range));
+      const y = Math.max(6, Math.min(96, p.posY + (Math.random() * 10 - 5)));
+      if (!W || !H) return { x, y }; // 치수 모름 → 충돌검사 스킵
+      if (!collidesAny(p.id, x, y, W, H)) return { x, y };
+    }
+    return null;
   }
   function isVisible(posX: number): boolean {
     return posX >= view.current.left - 2 && posX <= view.current.right + 2;
@@ -309,18 +353,17 @@ export default function RoomView({
     let r = Math.random() * total;
     const chosen = cands.find((x) => (r -= x.ea) < 0) ?? cands[0];
     if (Math.random() >= walkStartProb(chosen.ea)) return false; // 정지 우세
-    doWalk(chosen.p, chosen.ea);
+    // 가까운 랜덤 지점(짧은 이동). 다른 펫 점유 반경 피해 재추첨, 다 실패하면 이번 틱 이동 취소.
+    const target = pickWalkTarget(chosen.p, chosen.ea);
+    if (!target) return false;
+    doWalk(chosen.p, target);
     return true;
   }
-  function doWalk(p: PetVM, ea: number) {
-    // 가까운 랜덤 지점(짧은 이동, 전체 횡단 X). 거리는 실효 활동성에 비례.
-    const range = wanderRange(ea);
-    const targetX = Math.max(3, Math.min(97, p.posX + (Math.random() * 2 - 1) * range));
-    const targetY = Math.max(6, Math.min(96, p.posY + (Math.random() * 10 - 5)));
-    const ms = walkDurationMs(p.posX, targetX, 7);
-    const flip = shouldFlip(p.walkFacing, targetX > p.posX);
+  function doWalk(p: PetVM, target: { x: number; y: number }) {
+    const ms = walkDurationMs(p.posX, target.x, 7);
+    const flip = shouldFlip(p.walkFacing, target.x > p.posX);
     setWalking({ petId: p.id, ms, flip });
-    setPets((xs) => xs.map((q) => (q.id === p.id ? { ...q, posX: targetX, posY: targetY } : q)));
+    setPets((xs) => xs.map((q) => (q.id === p.id ? { ...q, posX: target.x, posY: target.y } : q)));
     setTimeout(() => {
       setWalking((w) => (w?.petId === p.id ? null : w));
       // 도착 후 idle 로 머묾(2~8s) — 다음 산책 보류. 정지 우세.
@@ -457,7 +500,10 @@ export default function RoomView({
         onTap(petsRef.current.find((q) => q.id === p.id) ?? p);
         return;
       }
-      const { x, y } = toPct(ev.clientX, ev.clientY);
+      const raw = toPct(ev.clientX, ev.clientY);
+      // 다른 펫 점유 반경과 겹치면 가장 가까운 비충돌 지점으로 살짝 비켜 배치(못 찾으면 그대로).
+      const { x, y } = resolvePlacement(p.id, raw.x, raw.y);
+      setPets((xs) => xs.map((q) => (q.id === p.id ? { ...q, posX: x, posY: y } : q)));
       fetch(`/api/pets/${p.id}/position`, {
         method: "PATCH",
         headers: { "content-type": "application/json" },
