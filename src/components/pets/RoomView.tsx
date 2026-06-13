@@ -12,6 +12,10 @@ function reduced(): boolean {
 }
 const PINGPONG_COOLDOWN_MS = 90_000;
 
+// 배경 밝기와 무관하게 텍스트를 분리 — 어두운 칩 + 4방향 검은 외곽선(칩 페이드 중에도 안 묻힘).
+const CHIP_BG = "rgba(0,0,0,0.72)";
+const TEXT_OUTLINE = "0 0 2px #000, -1px -1px 0 #000, 1px 1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000";
+
 export default function RoomView({
   room,
   pets: initialPets,
@@ -40,7 +44,25 @@ export default function RoomView({
   const [walking, setWalking] = useState<{ petId: number; ms: number; flip: boolean } | null>(null);
   const [customPlay, setCustomPlay] = useState<{ petId: number; path: string; flip: boolean } | null>(null);
   const [editId, setEditId] = useState<number | null>(null);
+  const [showNames, setShowNames] = useState(true); // 이름 항상 표시 on/off(끄면 탭/호버 시만)
+  const [hover, setHover] = useState<number | null>(null);
   const effectSeq = useRef(0);
+
+  useEffect(() => {
+    const v = localStorage.getItem("petShowNames");
+    if (v != null) setShowNames(v === "1");
+  }, []);
+  function toggleNames() {
+    setShowNames((v) => {
+      const n = !v;
+      try {
+        localStorage.setItem("petShowNames", n ? "1" : "0");
+      } catch {
+        /* ignore */
+      }
+      return n;
+    });
+  }
 
   const N = Math.max(room.panels.length, 1); // 좌표계 패널 수(스트립 폭 = N*100%)
 
@@ -412,10 +434,28 @@ export default function RoomView({
                   transition: isWalking ? `left ${walking!.ms}ms linear, top ${walking!.ms}ms linear` : undefined,
                 }}
                 onPointerDown={(e) => startDrag(e, p)}
+                onMouseEnter={() => setHover(p.id)}
+                onMouseLeave={() => setHover((h) => (h === p.id ? null : h))}
               >
                 {bubble?.petId === p.id && (
-                  <div className="absolute bottom-full left-1/2 mb-1 -translate-x-1/2 whitespace-nowrap rounded-control bg-bg/90 px-2 py-1 text-[11px] ring-1 ring-border">
-                    {bubble.text}
+                  <div className="absolute bottom-full left-1/2 mb-1.5 -translate-x-1/2">
+                    <div
+                      className="relative whitespace-nowrap rounded-md border border-white/25 px-2 py-1 text-[11px] text-white"
+                      style={{ background: CHIP_BG, textShadow: TEXT_OUTLINE }}
+                    >
+                      {bubble.text}
+                      {/* 꼬리(tail) — 칩과 같은 어두운 색 */}
+                      <span
+                        className="absolute left-1/2 top-full -translate-x-1/2"
+                        style={{
+                          width: 0,
+                          height: 0,
+                          borderLeft: "5px solid transparent",
+                          borderRight: "5px solid transparent",
+                          borderTop: `6px solid ${CHIP_BG}`,
+                        }}
+                      />
+                    </div>
                   </div>
                 )}
                 <div className={`relative ${asleep ? "opacity-60" : ""}`}>
@@ -433,7 +473,16 @@ export default function RoomView({
                   )}
                   {asleep && <span className="absolute -top-1 right-0 text-sm">💤</span>}
                 </div>
-                <div className="mt-0.5 text-center text-[10px] opacity-70">{p.name}</div>
+                {(showNames || hover === p.id || bubble?.petId === p.id) && (
+                  <div className="mt-1 flex justify-center">
+                    <span
+                      className="inline-block rounded border border-white/20 px-1.5 py-0.5 text-[10px] leading-tight text-white"
+                      style={{ background: CHIP_BG, textShadow: TEXT_OUTLINE }}
+                    >
+                      {p.name}
+                    </span>
+                  </div>
+                )}
               </div>
             );
           })}
@@ -462,6 +511,12 @@ export default function RoomView({
           </span>
         ))}
         {status && <span className="text-accent">{status}</span>}
+        <button
+          onClick={toggleNames}
+          className={`ml-auto rounded-control px-3 py-1.5 ring-1 ring-border ${showNames ? "bg-accent text-black" : "bg-surface"}`}
+        >
+          이름 {showNames ? "표시" : "숨김"}
+        </button>
       </div>
       <span className="text-[11px] opacity-40">{N > 1 ? "옆으로 스와이프 · " : ""}펫을 끌어 배치 · 탭하면 반응</span>
 
