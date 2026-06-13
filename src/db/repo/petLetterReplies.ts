@@ -1,4 +1,4 @@
-import { and, desc, eq, isNull, lte, sql } from "drizzle-orm";
+import { and, asc, desc, eq, isNull, lte, sql } from "drizzle-orm";
 import { db } from "../client";
 import { petLetterReplies, petLetters, pets } from "../schema";
 
@@ -45,23 +45,30 @@ export async function setContent(id: number, content: string) {
   await db.update(petLetterReplies).set({ content }).where(eq(petLetterReplies.id, id));
 }
 
-/** 보관함 — 도착한 답장(최신순) + 펫 이름. 소유 스코프(letter→user). */
+/**
+ * 보관함 — 사용자의 모든 편지 답장(대기 포함). 편지(letter_id)별 합본 카드로 묶을 수 있게
+ * letter 메타(sentAt·toPetId·content)와 펫 이름을 동봉. 편지 최신순, 카드 내 도착(deliver_at) 순.
+ */
 export async function listForUser(userId: number) {
   return db
     .select({
       id: petLetterReplies.id,
+      letterId: petLetterReplies.letterId,
+      toPetId: petLetters.toPetId,
       petId: petLetterReplies.petId,
       petName: pets.name,
       content: petLetterReplies.content,
+      status: petLetterReplies.status,
       readAt: petLetterReplies.readAt,
-      createdAt: petLetterReplies.createdAt,
+      deliverAt: petLetterReplies.deliverAt,
       letterContent: petLetters.content,
+      sentAt: petLetters.sentAt,
     })
     .from(petLetterReplies)
     .innerJoin(petLetters, eq(petLetters.id, petLetterReplies.letterId))
     .leftJoin(pets, eq(pets.id, petLetterReplies.petId))
-    .where(and(eq(petLetters.userId, userId), eq(petLetterReplies.status, "arrived")))
-    .orderBy(desc(petLetterReplies.createdAt));
+    .where(eq(petLetters.userId, userId))
+    .orderBy(desc(petLetters.sentAt), asc(petLetterReplies.deliverAt));
 }
 
 /** 안 읽은 도착 답장 수(우체통 active 판정). */
@@ -89,6 +96,21 @@ export async function markRead(userId: number, id: number) {
       and(
         eq(petLetterReplies.id, id),
         sql`exists (select 1 from ${petLetters} where ${petLetters.id} = ${petLetterReplies.letterId} and ${petLetters.userId} = ${userId})`,
+      ),
+    );
+}
+
+/** 합본 읽음 — 한 편지(letter_id)의 도착 답장 전체를 읽음 처리(개별 안 눌러도 됨). */
+export async function markLetterRead(userId: number, letterId: number) {
+  await db
+    .update(petLetterReplies)
+    .set({ readAt: new Date() })
+    .where(
+      and(
+        eq(petLetterReplies.letterId, letterId),
+        eq(petLetterReplies.status, "arrived"),
+        isNull(petLetterReplies.readAt),
+        sql`exists (select 1 from ${petLetters} where ${petLetters.id} = ${letterId} and ${petLetters.userId} = ${userId})`,
       ),
     );
 }

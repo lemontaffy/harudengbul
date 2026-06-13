@@ -3,14 +3,20 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 
-export interface ReplyItem {
+export interface CardReply {
   id: number;
   petName: string;
   avatar: string | null;
+  arrived: boolean; // false면 아직 안 옴(플레이스홀더)
   content: string;
-  letterContent: string;
   read: boolean;
-  createdAt: string;
+}
+export interface LetterCard {
+  letterId: number;
+  toAll: boolean;
+  letterContent: string;
+  sentAt: string; // ISO
+  replies: CardReply[];
 }
 
 const input = "w-full rounded-control bg-bg px-3 py-2 text-sm outline-none ring-1 ring-border focus:ring-accent";
@@ -19,13 +25,22 @@ function fmt(iso: string): string {
   return new Date(iso).toLocaleString("ko-KR", { month: "long", day: "numeric", hour: "2-digit", minute: "2-digit" });
 }
 
+function Avatar({ src }: { src: string | null }) {
+  return src ? (
+    // eslint-disable-next-line @next/next/no-img-element
+    <img src={src} alt="" className="h-9 w-9 shrink-0 rounded-full bg-bg object-contain" />
+  ) : (
+    <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-bg text-base">🐾</span>
+  );
+}
+
 export default function MailboxView({
-  replies,
+  cards,
   pets,
   canSend,
   perDay,
 }: {
-  replies: ReplyItem[];
+  cards: LetterCard[];
   pets: { id: number; name: string }[];
   canSend: boolean;
   perDay: number;
@@ -37,7 +52,7 @@ export default function MailboxView({
   const [status, setStatus] = useState("");
   const [sending, setSending] = useState(false);
   const [openId, setOpenId] = useState<number | null>(null);
-  const [readIds, setReadIds] = useState<Set<number>>(new Set());
+  const [readLetters, setReadLetters] = useState<Set<number>>(new Set()); // 낙관적 읽음
 
   async function send() {
     if (!content.trim()) return setStatus("편지 내용을 입력하세요.");
@@ -65,11 +80,13 @@ export default function MailboxView({
     }
   }
 
-  async function open(r: ReplyItem) {
-    setOpenId((id) => (id === r.id ? null : r.id));
-    if (!r.read && !readIds.has(r.id)) {
-      setReadIds((s) => new Set(s).add(r.id));
-      await fetch(`/api/pet-letters/${r.id}/read`, { method: "POST" }).catch(() => {});
+  // 카드 열기 — 합본이면 그 편지의 도착 답장 전체를 읽음 처리(개별 안 눌러도 됨).
+  async function openCard(card: LetterCard) {
+    setOpenId((id) => (id === card.letterId ? null : card.letterId));
+    const hasUnread = card.replies.some((r) => r.arrived && !r.read) && !readLetters.has(card.letterId);
+    if (hasUnread) {
+      setReadLetters((s) => new Set(s).add(card.letterId));
+      await fetch(`/api/pet-letters/letter/${card.letterId}/read`, { method: "POST" }).catch(() => {});
       router.refresh(); // 우체통 active(안 읽음) 갱신
     }
   }
@@ -122,36 +139,63 @@ export default function MailboxView({
         </section>
       )}
 
-      {replies.length === 0 ? (
+      {cards.length === 0 ? (
         <p className="py-12 text-center text-sm opacity-40">아직 받은 답장이 없어요. 편지를 보내면 답장이 와요.</p>
       ) : (
         <ul className="flex flex-col gap-2">
-          {replies.map((r) => {
-            const unread = !r.read && !readIds.has(r.id);
-            const opened = openId === r.id;
+          {cards.map((card) => {
+            const arrived = card.replies.filter((r) => r.arrived);
+            const waiting = card.replies.filter((r) => !r.arrived);
+            const unread = !readLetters.has(card.letterId) && arrived.some((r) => !r.read);
+            const opened = openId === card.letterId;
+            const title = card.toAll ? "모두에게" : `${card.replies[0]?.petName ?? "펫"}에게`;
+            const summary = card.toAll
+              ? `답장 ${arrived.length}/${card.replies.length}`
+              : arrived.length
+                ? "답장 도착"
+                : "답장 기다리는 중";
             return (
-              <li key={r.id} className="rounded-card bg-surface p-3 ring-1 ring-border">
-                <button onClick={() => open(r)} className="flex w-full items-center gap-3 text-left">
-                  {r.avatar ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img src={r.avatar} alt="" className="h-10 w-10 shrink-0 rounded-full bg-bg object-contain" />
-                  ) : (
-                    <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-bg text-lg">🐾</span>
-                  )}
+              <li key={card.letterId} className="rounded-card bg-surface p-3 ring-1 ring-border">
+                <button onClick={() => openCard(card)} className="flex w-full items-center gap-3 text-left">
+                  {/* 합본은 앞 3개 아바타 겹쳐 보이기, 개별은 단일 */}
+                  <div className="flex shrink-0 -space-x-3">
+                    {card.replies.slice(0, 3).map((r) => (
+                      <span key={r.id} className={r.arrived ? "" : "opacity-40"}>
+                        <Avatar src={r.avatar} />
+                      </span>
+                    ))}
+                  </div>
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-1.5 text-sm font-medium">
-                      {r.petName}의 답장
-                      {unread && <span className="h-1.5 w-1.5 rounded-full bg-accent" />}
+                      <span className="truncate">{card.toAll ? "모두의 답장" : `${title.replace("에게", "")}의 답장`}</span>
+                      {unread && <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-accent" />}
                     </div>
-                    <div className="truncate text-[11px] opacity-50">{fmt(r.createdAt)}</div>
+                    <div className="truncate text-[11px] opacity-50">
+                      {fmt(card.sentAt)} · {summary}
+                    </div>
                   </div>
                 </button>
+
                 {opened && (
-                  <div className="mt-2 flex flex-col gap-2 border-t border-border pt-2">
-                    <p className="whitespace-pre-wrap text-sm leading-relaxed">{r.content}</p>
+                  <div className="mt-2 flex flex-col gap-3 border-t border-border pt-2">
+                    {arrived.map((r) => (
+                      <div key={r.id} className="flex gap-2.5">
+                        <Avatar src={r.avatar} />
+                        <div className="min-w-0 flex-1">
+                          <div className="text-xs font-medium opacity-80">{r.petName}</div>
+                          <p className="whitespace-pre-wrap text-sm leading-relaxed">{r.content}</p>
+                        </div>
+                      </div>
+                    ))}
+                    {waiting.map((r) => (
+                      <div key={r.id} className="flex items-center gap-2.5 opacity-50">
+                        <Avatar src={r.avatar} />
+                        <span className="text-xs italic">{r.petName} 답장 기다리는 중…</span>
+                      </div>
+                    ))}
                     <details className="text-[11px] opacity-50">
                       <summary className="cursor-pointer">내가 보낸 편지</summary>
-                      <p className="mt-1 whitespace-pre-wrap">{r.letterContent}</p>
+                      <p className="mt-1 whitespace-pre-wrap">{card.letterContent}</p>
                     </details>
                   </div>
                 )}

@@ -5,7 +5,7 @@ import * as petsRepo from "@/db/repo/pets";
 import * as spritesRepo from "@/db/repo/petSprites";
 import * as settingsRepo from "@/db/repo/settings";
 import { stageFor, reachedStages, displayStageFor, pickSpritePath } from "@/lib/pets";
-import MailboxView, { type ReplyItem } from "@/components/MailboxView";
+import MailboxView, { type LetterCard, type CardReply } from "@/components/MailboxView";
 
 export const dynamic = "force-dynamic";
 
@@ -28,21 +28,38 @@ export default async function MailboxPage() {
     avatarOf.set(p.id, pickSpritePath(sprites.filter((s) => s.petId === p.id), display, "idle"));
   }
 
-  const items: ReplyItem[] = replies.map((r) => ({
-    id: r.id,
-    petName: r.petName ?? "펫",
-    avatar: avatarOf.get(r.petId) ?? null,
-    content: r.content,
-    letterContent: r.letterContent,
-    read: r.readAt != null,
-    createdAt: (r.createdAt ?? new Date()).toISOString(),
-  }));
+  // 편지(letter_id)별 합본 카드로 묶음. 답장 row 는 그대로 — 표시만 그룹화.
+  // 전원 발송(toPetId null)은 여러 답장이 한 카드에, 개별 발송은 단일 답장 카드.
+  const byLetter = new Map<number, LetterCard>();
+  for (const r of replies) {
+    let card = byLetter.get(r.letterId);
+    if (!card) {
+      card = {
+        letterId: r.letterId,
+        toAll: r.toPetId == null,
+        letterContent: r.letterContent,
+        sentAt: (r.sentAt ?? new Date()).toISOString(),
+        replies: [],
+      };
+      byLetter.set(r.letterId, card);
+    }
+    const reply: CardReply = {
+      id: r.id,
+      petName: r.petName ?? "펫",
+      avatar: avatarOf.get(r.petId) ?? null,
+      arrived: r.status === "arrived",
+      content: r.content,
+      read: r.readAt != null,
+    };
+    card.replies.push(reply);
+  }
+  const cards = [...byLetter.values()]; // listForUser 가 이미 sentAt desc · deliverAt asc 정렬
 
   return (
     <main className="mx-auto max-w-md p-5">
       <h1 className="mb-4 font-display text-lg font-semibold">우체통</h1>
       <MailboxView
-        replies={items}
+        cards={cards}
         pets={allPets.map((p) => ({ id: p.id, name: p.name }))}
         canSend={sentToday < perDay}
         perDay={perDay}
