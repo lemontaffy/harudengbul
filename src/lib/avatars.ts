@@ -2,6 +2,7 @@ import { promises as fs } from "node:fs";
 import path from "node:path";
 import { randomUUID } from "node:crypto";
 import sharp from "sharp";
+import { permGuidance, isPermError } from "@/lib/permcheck";
 
 // 아바타 저장소. docker 에선 ./data/avatars 볼륨을 /data/avatars 로 마운트.
 // 로컬 개발에선 env 없이 프로젝트의 ./data/avatars 사용.
@@ -74,9 +75,17 @@ export async function saveAvatar(userId: number, file: File): Promise<string> {
   }
 
   const dir = path.join(AVATARS_DIR, String(userId));
-  await fs.mkdir(dir, { recursive: true });
   const filename = `${randomUUID()}.webp`;
-  await fs.writeFile(path.join(dir, filename), out);
+  try {
+    await fs.mkdir(dir, { recursive: true });
+    await fs.writeFile(path.join(dir, filename), out);
+  } catch (err) {
+    if (isPermError(err)) {
+      console.error(`[avatar] 저장 실패 — ${permGuidance(AVATARS_DIR)}`);
+      throw new AvatarError(permGuidance(AVATARS_DIR));
+    }
+    throw new AvatarError("이미지를 저장하지 못했어요. 잠시 후 다시 시도해 주세요.");
+  }
   return `/api/avatars/${userId}/${filename}`;
 }
 

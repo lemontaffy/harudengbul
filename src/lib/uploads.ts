@@ -2,6 +2,7 @@ import { promises as fs } from "node:fs";
 import path from "node:path";
 import { randomUUID } from "node:crypto";
 import sharp from "sharp";
+import { permGuidance, isPermError } from "@/lib/permcheck";
 
 // 채팅 첨부 사진 저장소(아바타·일기와 분리). docker 에선 ./data/uploads 볼륨 마운트.
 export const UPLOADS_DIR =
@@ -59,9 +60,17 @@ export async function saveUpload(userId: number, file: File): Promise<string> {
   }
 
   const dir = path.join(UPLOADS_DIR, String(userId));
-  await fs.mkdir(dir, { recursive: true });
   const filename = `${randomUUID()}.jpg`;
-  await fs.writeFile(path.join(dir, filename), out);
+  try {
+    await fs.mkdir(dir, { recursive: true });
+    await fs.writeFile(path.join(dir, filename), out);
+  } catch (err) {
+    if (isPermError(err)) {
+      console.error(`[upload] 저장 실패 — ${permGuidance(UPLOADS_DIR)}`);
+      throw new UploadError(permGuidance(UPLOADS_DIR));
+    }
+    throw new UploadError("사진을 저장하지 못했어요. 잠시 후 다시 시도해 주세요.");
+  }
   return `/api/uploads/${userId}/${filename}`;
 }
 

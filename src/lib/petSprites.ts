@@ -2,6 +2,7 @@ import { promises as fs } from "node:fs";
 import path from "node:path";
 import { randomUUID } from "node:crypto";
 import sharp from "sharp";
+import { permGuidance, isPermError } from "@/lib/permcheck";
 
 // 펫 스프라이트/배경 저장소. docker: ./data/sprites → /data/sprites.
 export const SPRITES_DIR =
@@ -102,13 +103,11 @@ export async function saveSprite(
     await fs.mkdir(dir, { recursive: true });
     await fs.writeFile(path.join(dir, filename), buf); // 원본 그대로
   } catch (err) {
-    const code = (err as NodeJS.ErrnoException)?.code;
-    console.error(`[sprite] 저장 실패 ${SPRITES_DIR} (${code}):`, (err as Error)?.message);
-    if (code === "EACCES" || code === "EPERM") {
-      throw new SpriteError(
-        "저장 폴더에 쓸 수 없어요(서버 권한). data/sprites 디렉터리 쓰기 권한을 확인하세요.",
-      );
+    if (isPermError(err)) {
+      console.error(`[sprite] 저장 실패 — ${permGuidance(SPRITES_DIR)}`);
+      throw new SpriteError(permGuidance(SPRITES_DIR));
     }
+    console.error(`[sprite] 저장 실패 ${SPRITES_DIR}:`, (err as Error)?.message);
     throw new SpriteError("이미지를 저장하지 못했어요. 잠시 후 다시 시도해 주세요.");
   }
   return { path: `/api/pet-sprites/${userId}/${filename}`, warning };

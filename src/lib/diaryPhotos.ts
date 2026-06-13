@@ -2,6 +2,7 @@ import { promises as fs } from "node:fs";
 import path from "node:path";
 import { randomUUID } from "node:crypto";
 import sharp from "sharp";
+import { permGuidance, isPermError } from "@/lib/permcheck";
 
 // 일기 사진 저장소. docker 에선 ./data/diary-photos 볼륨을 마운트.
 export const DIARY_PHOTOS_DIR =
@@ -58,9 +59,17 @@ export async function saveDiaryPhoto(userId: number, file: File): Promise<string
   }
 
   const dir = path.join(DIARY_PHOTOS_DIR, String(userId));
-  await fs.mkdir(dir, { recursive: true });
   const filename = `${randomUUID()}.webp`;
-  await fs.writeFile(path.join(dir, filename), out);
+  try {
+    await fs.mkdir(dir, { recursive: true });
+    await fs.writeFile(path.join(dir, filename), out);
+  } catch (err) {
+    if (isPermError(err)) {
+      console.error(`[diary-photo] 저장 실패 — ${permGuidance(DIARY_PHOTOS_DIR)}`);
+      throw new DiaryPhotoError(permGuidance(DIARY_PHOTOS_DIR));
+    }
+    throw new DiaryPhotoError("사진을 저장하지 못했어요. 잠시 후 다시 시도해 주세요.");
+  }
   return `/api/diary-photos/${userId}/${filename}`;
 }
 
