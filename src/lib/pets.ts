@@ -41,6 +41,22 @@ export const DEFAULT_LINES: Record<Stage, string[]> = {
 const DEATH_SELFHARM = /죽(어|여|을|음|고\s*싶|자|이)|자살|자해|목\s*매|손목\s*긋|뒤져|뒈져|죽여/;
 const PROFANITY = /씨\s*발|시\s*발|씨\s*바|존\s*나|좆|병\s*신|지\s*랄|개\s*새끼|썅|엿\s*같|엿\s*먹/;
 
+/**
+ * walk 전용 조회 — idle 폴백 없음(walk 슬롯 없으면 산책 금지). 현재 이하 스테이지의 walk 만.
+ * (일반 pickSpritePath 는 walk 가 없으면 idle 로 폴백해 '미끄러지는 이동'을 유발하므로 분리.)
+ */
+export function pickWalkPath(
+  sprites: { stage: string; kind: string; path: string }[],
+  stage: Stage,
+): string | null {
+  const ladder: Stage[] = ["baby", "teen", "adult"];
+  for (let i = ladder.indexOf(stage); i >= 0; i--) {
+    const w = sprites.find((s) => s.stage === ladder[i] && s.kind === "walk");
+    if (w) return w.path;
+  }
+  return null;
+}
+
 /** 관계 라벨이 '연인' 결인지(탭 시 love 이펙트 트리거). 자유 텍스트라 키워드 매칭. */
 export function isLoveLabel(label: string): boolean {
   return /연인|사랑|커플|love|연애/i.test(label);

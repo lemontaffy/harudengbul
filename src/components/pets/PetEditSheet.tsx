@@ -2,6 +2,8 @@
 
 import { useEffect, useState, useCallback } from "react";
 import { useDialog } from "@/components/ui/Dialog";
+import { pickWalkPath, type Stage } from "@/lib/pets";
+import { shouldFlip } from "@/lib/petroom";
 import type { PetRef } from "./types";
 
 const STAGES = ["baby", "teen", "adult"] as const;
@@ -109,6 +111,54 @@ function GrowthBar({ d }: { d: Detail }) {
   );
 }
 
+// 걷기 미리보기 — 현재 facing 기준, 왼쪽/오른쪽 이동 시 펫이 바라보는 모습을 즉석 표시.
+function WalkPreview({
+  sprites,
+  stage,
+  walkFacing,
+  pixel,
+}: {
+  sprites: { stage: string; kind: string; path: string }[];
+  stage: Stage;
+  walkFacing: "left" | "right";
+  pixel: boolean;
+}) {
+  const walkPath = pickWalkPath(sprites, stage);
+  const hasWalk = !!sprites.find((s) => s.stage === stage && s.kind === "walk");
+  const sty = pixel ? ({ imageRendering: "pixelated" } as const) : {};
+  if (!walkPath) {
+    return (
+      <p className="text-[11px] opacity-50">
+        이 모습에 걷기(walk) 스프라이트가 없어요 — 산책하지 않아요(미끄러짐 방지).
+      </p>
+    );
+  }
+  const dirs: { label: string; movingRight: boolean }[] = [
+    { label: "← 왼쪽으로", movingRight: false },
+    { label: "오른쪽으로 →", movingRight: true },
+  ];
+  return (
+    <div className="flex items-center gap-3 rounded-control bg-bg p-2 ring-1 ring-border">
+      {dirs.map((dir) => (
+        <div key={dir.label} className="flex flex-col items-center gap-0.5">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={walkPath}
+            alt={dir.label}
+            className="h-14 w-14 object-contain"
+            style={{
+              ...sty,
+              transform: shouldFlip(walkFacing, dir.movingRight) ? "scaleX(-1)" : undefined,
+            }}
+          />
+          <span className="text-[10px] opacity-60">{dir.label}</span>
+        </div>
+      ))}
+      {!hasWalk && <span className="text-[10px] opacity-40">(하위 스테이지 walk 폴백)</span>}
+    </div>
+  );
+}
+
 function InfoTab({ d, rooms, onChanged, reload }: { d: Detail; rooms: PetRef[]; onChanged: () => void; reload: () => void }) {
   const dialog = useDialog();
   const [name, setName] = useState(d.pet.name);
@@ -194,21 +244,29 @@ function InfoTab({ d, rooms, onChanged, reload }: { d: Detail; rooms: PetRef[]; 
         />
         <p className="text-[11px] opacity-40">0이면 자발 발화 없음(탭 반응은 유지).</p>
       </div>
-      {/* walk GIF 기본 진행 방향 */}
-      <div className="flex items-center gap-2 text-sm">
-        <span className="shrink-0 text-xs opacity-60">걷기 GIF 기본 방향</span>
-        <div className="flex gap-1.5">
-          {(["left", "right"] as const).map((f) => (
-            <button
-              key={f}
-              type="button"
-              onClick={() => setWalkFacing(f)}
-              className={`rounded-control px-3 py-1 text-xs ${walkFacing === f ? "bg-accent text-black" : "bg-bg ring-1 ring-border"}`}
-            >
-              {f === "left" ? "← 왼쪽" : "오른쪽 →"}
-            </button>
-          ))}
+      {/* walk GIF 기본 진행 방향 + 미리보기(이동 시 어느 쪽을 보는지 즉석 확인) */}
+      <div className="flex flex-col gap-2">
+        <div className="flex items-center gap-2 text-sm">
+          <span className="shrink-0 text-xs opacity-60">걷기 GIF 기본 방향</span>
+          <div className="flex gap-1.5">
+            {(["left", "right"] as const).map((f) => (
+              <button
+                key={f}
+                type="button"
+                onClick={() => setWalkFacing(f)}
+                className={`rounded-control px-3 py-1 text-xs ${walkFacing === f ? "bg-accent text-black" : "bg-bg ring-1 ring-border"}`}
+              >
+                {f === "left" ? "← 왼쪽" : "오른쪽 →"}
+              </button>
+            ))}
+          </div>
         </div>
+        <WalkPreview
+          sprites={d.sprites}
+          stage={(displayStage || d.pet.stage) as Stage}
+          walkFacing={walkFacing}
+          pixel={pixel}
+        />
       </div>
       <label className="flex items-center justify-between text-sm">
         <span>픽셀 렌더링</span>

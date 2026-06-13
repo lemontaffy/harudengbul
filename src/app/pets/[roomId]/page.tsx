@@ -14,6 +14,7 @@ import {
   reachedStages,
   displayStageFor,
   pickSpritePath,
+  pickWalkPath,
   isLoveLabel,
   DEFAULT_LINES,
 } from "@/lib/pets";
@@ -67,7 +68,8 @@ export default async function RoomPage({ params }: { params: Promise<{ roomId: s
       talkativeness: p.talkativeness,
       displayStage: display,
       spritePath: pickSpritePath(ps, display, "idle"),
-      walkPath: pickSpritePath(ps, display, "walk"),
+      walkPath: pickWalkPath(ps, display), // idle 폴백 없음 — walk 슬롯 있어야 산책
+
       sleepPath: pickSpritePath(ps, display, "sleep"),
       lovePath: pickSpritePath(ps, display, "love"),
       evolutionPending: p.lastStageSeen !== growthStage,
