@@ -1,4 +1,4 @@
-import { and, asc, eq, sql } from "drizzle-orm";
+import { and, asc, eq, or, sql } from "drizzle-orm";
 import { db } from "../client";
 import { roomFurniture, petRooms } from "../schema";
 
@@ -16,6 +16,7 @@ export async function listForRoom(userId: number, roomId: number) {
       kind: roomFurniture.kind,
       type: roomFurniture.type,
       spritePath: roomFurniture.spritePath,
+      spriteAltPath: roomFurniture.spriteAltPath,
       posX: roomFurniture.posX,
       posY: roomFurniture.posY,
       pixelRender: roomFurniture.pixelRender,
@@ -33,6 +34,7 @@ export async function add(input: {
   kind: "seat" | "fixture";
   type: string;
   spritePath: string;
+  spriteAltPath?: string | null;
   pixelRender: boolean;
   actionType: string | null;
 }) {
@@ -43,11 +45,33 @@ export async function add(input: {
       kind: input.kind,
       type: input.type,
       spritePath: input.spritePath,
+      spriteAltPath: input.spriteAltPath ?? null,
       pixelRender: input.pixelRender,
       actionType: input.actionType,
     })
     .returning();
   return row;
+}
+
+/** 스프라이트 교체(main=기본, alt=알림 스프라이트). */
+export async function setSprite(userId: number, id: number, slot: "main" | "alt", path: string) {
+  await db
+    .update(roomFurniture)
+    .set(slot === "main" ? { spritePath: path } : { spriteAltPath: path })
+    .where(and(eq(roomFurniture.id, id), ownsRoom(userId)));
+}
+
+/** 메타 변경(유형·라벨·액션). */
+export async function updateMeta(
+  userId: number,
+  id: number,
+  patch: { kind?: "seat" | "fixture"; type?: string; actionType?: string | null },
+) {
+  if (Object.keys(patch).length === 0) return;
+  await db
+    .update(roomFurniture)
+    .set(patch)
+    .where(and(eq(roomFurniture.id, id), ownsRoom(userId)));
 }
 
 export async function getOne(userId: number, id: number) {
@@ -84,7 +108,12 @@ export async function pathBelongsToUser(userId: number, urlPath: string): Promis
     .select({ id: roomFurniture.id })
     .from(roomFurniture)
     .innerJoin(petRooms, eq(petRooms.id, roomFurniture.roomId))
-    .where(and(eq(petRooms.userId, userId), eq(roomFurniture.spritePath, urlPath)))
+    .where(
+      and(
+        eq(petRooms.userId, userId),
+        or(eq(roomFurniture.spritePath, urlPath), eq(roomFurniture.spriteAltPath, urlPath)),
+      ),
+    )
     .limit(1);
   return !!row;
 }

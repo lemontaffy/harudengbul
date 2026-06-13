@@ -218,6 +218,13 @@
       "when": 1781400200000,
       "tag": "0030_floor_zone",
       "breakpoints": true
+    },
+    {
+      "idx": 31,
+      "version": "7",
+      "when": 1781400300000,
+      "tag": "0031_furniture_alt_sprite",
+      "breakpoints": true
     }
   ]
 }

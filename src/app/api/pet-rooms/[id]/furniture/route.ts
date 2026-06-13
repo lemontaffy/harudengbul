@@ -27,6 +27,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
 
   const form = await req.formData().catch(() => null);
   const file = form?.get("file");
+  const altFile = form?.get("altFile"); // 알림 스프라이트(선택)
   const kindRaw = String(form?.get("kind") ?? "");
   const typeRaw = String(form?.get("type") ?? "").trim();
   const actionRaw = String(form?.get("actionType") ?? "");
@@ -41,11 +42,13 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
 
   try {
     const { path, warning } = await saveSprite(user.id, file, { allowJpeg: true });
+    const altPath = altFile instanceof File ? (await saveSprite(user.id, altFile, { allowJpeg: true })).path : null;
     const row = await furnitureRepo.add({
       roomId: id,
       kind,
       type,
       spritePath: path,
+      spriteAltPath: altPath,
       pixelRender: pixel == null ? true : pixel === "true",
       actionType,
     });

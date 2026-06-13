@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import PetEffects, { type ActiveEffect, type EffectType } from "./PetEffects";
 import PetEditSheet from "./PetEditSheet";
+import FurnitureSheet from "./FurnitureSheet";
 import {
   walkDurationMs,
   shouldFlip,
@@ -66,6 +67,9 @@ export default function RoomView({
   const [panels, setPanels] = useState(room.panels); // 바닥 구역 라이브 편집용
   useEffect(() => setPanels(room.panels), [room.panels]);
   const [floorEdit, setFloorEdit] = useState(false); // 바닥 구역 경계 편집 모드
+  const [furnitureMode, setFurnitureMode] = useState(false); // 가구 배치 모드(드래그·편집)
+  const [furnAdding, setFurnAdding] = useState(false); // 가구 추가 시트
+  const [furnEditId, setFurnEditId] = useState<number | null>(null); // 가구 편집 시트
   const [toast, setToast] = useState(""); // 가구 탭 등 짧은 안내
   const [walking, setWalking] = useState<{ petId: number; ms: number; flip: boolean } | null>(null);
   const [customPlay, setCustomPlay] = useState<{ petId: number; path: string; flip: boolean } | null>(null);
@@ -633,7 +637,7 @@ export default function RoomView({
       window.removeEventListener("pointermove", move);
       window.removeEventListener("pointerup", up);
       if (!moved) {
-        onTapFurniture(furnitureRef.current.find((q) => q.id === f.id) ?? f);
+        setFurnEditId(f.id); // 가구 모드에서 탭 = 편집 시트(드래그만 이 핸들러가 붙음)
         return;
       }
       const { x, y } = toPct(ev.clientX, ev.clientY);
@@ -647,32 +651,15 @@ export default function RoomView({
     window.addEventListener("pointermove", move);
     window.addEventListener("pointerup", up);
   }
-  async function addFurniture(file: File, kind: "seat" | "fixture", actionType: string, type: string) {
-    const fd = new FormData();
-    fd.append("file", file);
-    fd.append("kind", kind);
-    fd.append("actionType", actionType);
-    if (type.trim()) fd.append("type", type.trim());
-    const res = await fetch(`/api/pet-rooms/${room.id}/furniture`, { method: "POST", body: fd });
-    if (res.ok) router.refresh();
-    else alertErr(res);
-  }
-  async function delFurniture(id: number) {
-    const res = await fetch(`/api/furniture/${id}`, { method: "DELETE" });
-    if (res.ok) {
-      // 이 seat을 점유 중인 펫이 있으면 점유 해제(seatOfRef: petId→furnitureId).
-      for (const [petId, seatId] of seatOfRef.current) if (seatId === id) seatOfRef.current.delete(petId);
-      setFurniture((xs) => xs.filter((f) => f.id !== id));
-    } else alertErr(res);
-  }
-  async function toggleFurniturePixel(f: FurnitureVM) {
-    const next = !f.pixelRender;
-    setFurniture((xs) => xs.map((q) => (q.id === f.id ? { ...q, pixelRender: next } : q)));
-    fetch(`/api/furniture/${f.id}`, {
-      method: "PATCH",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ pixelRender: next }),
-    }).catch(() => {});
+  // 가구(특히 seat) 삭제 시 그 seat에 앉아있던 펫을 idle 로 복귀(점유·sit 상태 해제).
+  function releaseSeatPets(furnitureId: number) {
+    const freed: number[] = [];
+    for (const [petId, seatId] of seatOfRef.current)
+      if (seatId === furnitureId) {
+        seatOfRef.current.delete(petId);
+        freed.push(petId);
+      }
+    if (freed.length) setSitUntil((m) => ({ ...m, ...Object.fromEntries(freed.map((id) => [id, 0])) }));
   }
 
   // ── 바닥 구역 경계 드래그(패널별 위/아래 선) ──
@@ -865,24 +852,29 @@ export default function RoomView({
               );
             })}
 
-          {/* 가구 — 펫보다 뒤 레이어(앉으면 펫이 가구 위에 그려짐). 드래그 배치, fixture 탭→기능. */}
-          {furniture.map((f) => (
-            <div
-              key={f.id}
-              className="absolute -translate-x-1/2 -translate-y-1/2 touch-none select-none"
-              style={{ left: `${f.posX}%`, top: `${f.posY}%` }}
-              onPointerDown={(e) => startDragFurniture(e, f)}
-            >
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src={f.spritePath}
-                alt={f.type}
-                draggable={false}
-                className="h-20 w-20 object-contain"
-                style={{ ...pixel(f.pixelRender) }}
-              />
-            </div>
-          ))}
+          {/* 가구 — 펫보다 뒤 레이어(앉으면 펫이 가구 위에). 가구 모드=드래그·탭편집 / 일반=fixture 탭→기능.
+              active(예: 안 읽은 편지)면 alt 스프라이트. 두 스프라이트 하단정렬(objectPosition bottom)로 전환 시 안 들썩. */}
+          {furniture.map((f) => {
+            const fsrc = f.active && f.spriteAltPath ? f.spriteAltPath : f.spritePath;
+            return (
+              <div
+                key={f.id}
+                className="absolute -translate-x-1/2 -translate-y-1/2 touch-none select-none"
+                style={{ left: `${f.posX}%`, top: `${f.posY}%` }}
+                onPointerDown={furnitureMode ? (e) => startDragFurniture(e, f) : undefined}
+                onClick={furnitureMode ? undefined : () => onTapFurniture(f)}
+              >
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={fsrc}
+                  alt={f.type}
+                  draggable={false}
+                  className={`h-20 w-20 object-contain ${furnitureMode ? "rounded ring-2 ring-accent/60" : ""}`}
+                  style={{ objectPosition: "bottom", ...pixel(f.pixelRender) }}
+                />
+              </div>
+            );
+          })}
 
           {pets.map((p) => {
             const loving = (loveUntil[p.id] ?? 0) > Date.now();
@@ -995,6 +987,15 @@ export default function RoomView({
           🐾 펫 관리
         </button>
         <button
+          onClick={() => {
+            setFurnitureMode((v) => !v);
+            setMenu(null);
+          }}
+          className={`rounded-control px-3 py-1.5 ring-1 ring-border ${furnitureMode ? "bg-accent text-black" : "bg-surface"}`}
+        >
+          🪑 가구
+        </button>
+        <button
           onClick={captureRoom}
           disabled={capturing}
           title="펫 룸 스크린샷(배경+펫+말풍선, 이름표 제외)"
@@ -1003,7 +1004,20 @@ export default function RoomView({
           {capturing ? "📷 …" : "📷"}
         </button>
       </div>
-      <span className="text-[11px] opacity-40">{N > 1 ? "옆으로 스와이프 · " : ""}펫을 끌어 배치 · 탭하면 반응</span>
+
+      {furnitureMode ? (
+        <div className="flex items-center gap-2 rounded-card bg-surface-2 p-2 text-xs ring-1 ring-border">
+          <span className="opacity-60">가구 배치 중 — 끌어 옮기고, 탭하면 편집</span>
+          <button onClick={() => setFurnAdding(true)} className="ml-auto rounded-control bg-accent px-3 py-1.5 font-medium text-black">
+            ＋ 가구
+          </button>
+          <button onClick={() => setFurnitureMode(false)} className="rounded-control bg-surface px-3 py-1.5 ring-1 ring-border">
+            완료
+          </button>
+        </div>
+      ) : (
+        <span className="text-[11px] opacity-40">{N > 1 ? "옆으로 스와이프 · " : ""}펫을 끌어 배치 · 탭하면 반응</span>
+      )}
 
       {/* 방 설정 메뉴 — 분주함 · 이름표 · 배경 패널 */}
       {menu === "room" && (
@@ -1063,12 +1077,9 @@ export default function RoomView({
             ))}
             {status && <span className="text-accent">{status}</span>}
           </div>
-          <FurnitureManager
-            furniture={furniture}
-            onAdd={addFurniture}
-            onDelete={delFurniture}
-            onTogglePixel={toggleFurniturePixel}
-          />
+          <p className="border-t border-border pt-2 text-[10px] opacity-40">
+            가구(앉는 자리·우체통 등)는 위 메뉴의 ‘🪑 가구’ 모드에서 추가·배치·편집해요.
+          </p>
         </div>
       )}
 
@@ -1107,103 +1118,27 @@ export default function RoomView({
           onChanged={() => router.refresh()}
         />
       )}
-    </div>
-  );
-}
 
-const FURNITURE_ACTIONS: { v: string; ko: string }[] = [
-  { v: "letters", ko: "편지" },
-  { v: "memo", ko: "메모" },
-  { v: "diary", ko: "일기" },
-  { v: "none", ko: "장식" },
-];
-
-// 가구 추가·목록(방 설정 메뉴 내). seat=앉는 가구 / fixture=탭하면 앱 기능 입구.
-function FurnitureManager({
-  furniture,
-  onAdd,
-  onDelete,
-  onTogglePixel,
-}: {
-  furniture: FurnitureVM[];
-  onAdd: (file: File, kind: "seat" | "fixture", actionType: string, type: string) => void;
-  onDelete: (id: number) => void;
-  onTogglePixel: (f: FurnitureVM) => void;
-}) {
-  const [kind, setKind] = useState<"seat" | "fixture">("seat");
-  const [action, setAction] = useState("letters");
-  const [type, setType] = useState("");
-  return (
-    <div className="flex flex-col gap-2 border-t border-border pt-2">
-      <div className="flex flex-wrap items-center gap-2">
-        <span className="w-10 shrink-0 opacity-60">가구</span>
-        {(["seat", "fixture"] as const).map((k) => (
-          <button
-            key={k}
-            onClick={() => setKind(k)}
-            className={`rounded-control px-2.5 py-1 ring-1 ring-border ${kind === k ? "bg-accent text-black" : "bg-surface"}`}
-          >
-            {k === "seat" ? "앉는 가구" : "기능 가구"}
-          </button>
-        ))}
-        {kind === "fixture" && (
-          <select
-            value={action}
-            onChange={(e) => setAction(e.target.value)}
-            className="rounded-control bg-bg px-2 py-1 ring-1 ring-border"
-          >
-            {FURNITURE_ACTIONS.map((a) => (
-              <option key={a.v} value={a.v}>
-                {a.ko}
-              </option>
-            ))}
-          </select>
-        )}
-        <input
-          value={type}
-          onChange={(e) => setType(e.target.value)}
-          placeholder="이름(선택)"
-          maxLength={20}
-          className="w-20 rounded-control bg-bg px-2 py-1 ring-1 ring-border"
+      {(furnAdding || furnEditId != null) && (
+        <FurnitureSheet
+          roomId={room.id}
+          furniture={furnEditId != null ? furniture.find((f) => f.id === furnEditId) ?? null : null}
+          onClose={() => {
+            setFurnAdding(false);
+            setFurnEditId(null);
+          }}
+          onSaved={() => {
+            setFurnAdding(false);
+            setFurnEditId(null);
+            router.refresh();
+          }}
+          onDeleted={(id) => {
+            releaseSeatPets(id); // 앉아있던 펫 idle 복귀
+            setFurnEditId(null);
+            router.refresh();
+          }}
         />
-        <label className="cursor-pointer rounded-control bg-surface px-3 py-1.5 ring-1 ring-border">
-          ＋ 추가
-          <input
-            type="file"
-            accept="image/gif,image/webp,image/png,image/jpeg"
-            className="hidden"
-            onChange={(e) => {
-              const f = e.target.files?.[0];
-              if (f) onAdd(f, kind, action, type);
-              e.target.value = "";
-            }}
-          />
-        </label>
-      </div>
-      {furniture.length > 0 && (
-        <div className="flex flex-wrap gap-2">
-          {furniture.map((f) => (
-            <span key={f.id} className="flex items-center gap-1.5 rounded-control bg-bg px-2 py-1 ring-1 ring-border">
-              <span className="opacity-70">
-                {f.kind === "seat" ? "🪑" : "📦"} {f.type}
-              </span>
-              <button
-                onClick={() => onTogglePixel(f)}
-                title="픽셀 렌더 토글"
-                className={`px-1 ${f.pixelRender ? "text-accent" : "opacity-40"}`}
-              >
-                ▦
-              </button>
-              <button onClick={() => onDelete(f.id)} className="px-1 opacity-50 hover:text-red-400">
-                ×
-              </button>
-            </span>
-          ))}
-        </div>
       )}
-      <p className="text-[10px] opacity-40">
-        앉는 가구 = 펫이 다가가 앉아요(펫에 ‘앉기’ 스프라이트 필요). 기능 가구 = 탭하면 그 화면이 열려요.
-      </p>
     </div>
   );
 }

@@ -545,6 +545,7 @@ export const roomFurniture = pgTable(
     kind: text("kind").notNull(), // 'seat' | 'fixture'
     type: text("type").notNull().default("furniture"), // 라벨: 'bench'|'cushion'|'mailbox' 등
     spritePath: text("sprite_path").notNull(),
+    spriteAltPath: text("sprite_alt_path"), // 상태 'active'(예: 안 읽은 편지)일 때 스프라이트(우체통 열림)
     posX: real("pos_x").notNull().default(50),
     posY: real("pos_y").notNull().default(50),
     pixelRender: boolean("pixel_render").notNull().default(true),

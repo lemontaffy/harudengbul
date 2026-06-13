@@ -52,10 +52,12 @@ export interface FurnitureVM {
   kind: "seat" | "fixture";
   type: string;
   spritePath: string;
+  spriteAltPath: string | null; // 상태 active 일 때 스프라이트(우체통 열림 등)
   posX: number;
   posY: number;
   pixelRender: boolean;
   actionType: string | null; // fixture: 'letters'|'memo'|'diary'|'none'
+  active: boolean; // 상태 활성(예: 안 읽은 편지) — alt 스프라이트로 전환
 }
 
 export interface RelationVM {

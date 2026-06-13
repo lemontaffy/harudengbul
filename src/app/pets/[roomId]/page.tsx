@@ -47,15 +47,21 @@ export default async function RoomPage({ params }: { params: Promise<{ roomId: s
       petsRepo.listByUser(user.id),
     ]);
 
+  // fixture 상태 active 판정. 'letters' = 안 읽은 도착 답장 1건+.
+  // ※ 편지 답장 읽음 추적(letter_replies.read_at/status) 미구현 → 현재 항상 false.
+  //   해당 테이블 도입 시 이 한 줄만 실제 카운트로 교체하면 우체통이 자동 반응.
+  const lettersActive = false;
   const furniture: FurnitureVM[] = furnitureRows.map((f) => ({
     id: f.id,
     kind: f.kind as "seat" | "fixture",
     type: f.type,
     spritePath: f.spritePath,
+    spriteAltPath: f.spriteAltPath,
     posX: f.posX,
     posY: f.posY,
     pixelRender: f.pixelRender,
     actionType: f.actionType,
+    active: f.actionType === "letters" ? lettersActive : false,
   }));
 
   const wasSleeping = isSleeping(settings?.lastActivityAt);
