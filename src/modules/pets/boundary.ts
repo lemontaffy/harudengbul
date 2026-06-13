@@ -45,16 +45,18 @@ export interface PetMiniWidgetData {
   items: PetMiniItem[];
 }
 
-/** 마지막 본 방(없으면 첫 방)의 펫 요약. 펫 0마리면 null(위젯 미표시). */
+/** 마지막 본 방(없으면 펫이 있는 첫 방)의 펫 요약. 어느 방에도 펫이 없으면 null(위젯 미표시). */
 export async function getPetMiniWidget(userId: number): Promise<PetMiniWidgetData | null> {
   const allPets = await petsRepo.listByUser(userId);
-  if (allPets.length === 0) return null;
+  // 펫은 전역 — 대기(roomId null) 펫은 위젯에 안 뜸. 방에 배치된 펫만 대상.
+  const roomed = allPets.filter((p): p is typeof p & { roomId: number } => p.roomId != null);
+  if (roomed.length === 0) return null;
 
   const s = await settingsRepo.getByUser(userId);
   const lastRoomId = s?.petLastRoomId ?? null;
   const roomId =
-    lastRoomId && allPets.some((p) => p.roomId === lastRoomId) ? lastRoomId : allPets[0].roomId;
-  const inRoom = allPets.filter((p) => p.roomId === roomId);
+    lastRoomId && roomed.some((p) => p.roomId === lastRoomId) ? lastRoomId : roomed[0].roomId;
+  const inRoom = roomed.filter((p) => p.roomId === roomId);
   const petSprites = await spritesRepo.listForRoom(userId, roomId);
   const asleep = isSleeping(s?.lastActivityAt);
 

@@ -20,14 +20,17 @@ export async function POST(req: Request) {
   if (!parsed.success) return Response.json({ error: "펫 이름을 입력하세요." }, { status: 400 });
   const d = parsed.data;
 
-  // 방 결정: 지정 방(소유 확인) → 없으면 첫 방 → 방 0개면 기본 방 자동 생성.
-  let roomId = d.roomId ?? null;
-  if (roomId != null) {
-    const r = await roomsRepo.getOne(user.id, roomId);
-    if (!r) return Response.json({ error: "없는 방" }, { status: 400 });
-  } else {
+  // 방 결정(펫은 전역): number=그 방 / 명시적 null=대기(전역) / 미지정=기존 호환(첫 방, 없으면 기본 방 생성).
+  let roomId: number | null;
+  if (d.roomId === undefined) {
     const rooms = await roomsRepo.listByUser(user.id);
     roomId = rooms[0]?.id ?? (await roomsRepo.create(user.id, "내 방")).id;
+  } else if (d.roomId === null) {
+    roomId = null;
+  } else {
+    const r = await roomsRepo.getOne(user.id, d.roomId);
+    if (!r) return Response.json({ error: "없는 방" }, { status: 400 });
+    roomId = d.roomId;
   }
 
   const pet = await petsRepo.create(user.id, {

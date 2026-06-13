@@ -36,7 +36,7 @@ export async function getOne(userId: number, id: number) {
 
 export async function create(
   userId: number,
-  input: { roomId: number; name: string; personality?: string | null },
+  input: { roomId: number | null; name: string; personality?: string | null },
 ) {
   const [row] = await db
     .insert(pets)

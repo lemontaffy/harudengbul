@@ -22,6 +22,20 @@ export async function listForPet(userId: number, petId: number) {
     .where(and(eq(pets.userId, userId), eq(petSprites.petId, petId)));
 }
 
+/** 사용자의 모든 펫 스프라이트(전역 펫 목록 아바타용). */
+export async function listForUser(userId: number) {
+  return db
+    .select({
+      petId: petSprites.petId,
+      stage: petSprites.stage,
+      kind: petSprites.kind,
+      path: petSprites.path,
+    })
+    .from(petSprites)
+    .innerJoin(pets, eq(pets.id, petSprites.petId))
+    .where(eq(pets.userId, userId));
+}
+
 /** 한 방의 모든 펫 스프라이트(렌더용). */
 export async function listForRoom(userId: number, roomId: number) {
   return db

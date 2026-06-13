@@ -50,6 +50,6 @@ export async function setLiveliness(userId: number, id: number, liveliness: numb
 }
 
 export async function remove(userId: number, id: number) {
-  // 펫이 있으면 FK(no action)가 막는다 — 라우트에서 먼저 countByRoom 으로 차단·안내.
+  // 펫은 전역 — FK ON DELETE SET NULL 로 그 방 펫들의 room_id 만 null(대기)로, 펫은 보존.
   await db.delete(petRooms).where(and(eq(petRooms.id, id), eq(petRooms.userId, userId)));
 }

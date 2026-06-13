@@ -491,10 +491,11 @@ export const pets = pgTable(
     userId: bigint("user_id", { mode: "number" })
       .notNull()
       .references(() => users.id, { onDelete: "cascade" }),
-    // 방 삭제는 펫이 있으면 앱에서 차단 + FK no action 으로 DB 도 보호(연쇄 삭제 금지).
-    roomId: bigint("room_id", { mode: "number" })
-      .notNull()
-      .references(() => petRooms.id),
+    // 펫은 전역(user 단위). room_id 는 "어느 방에 있을지" 참조(종속 아님). null = 대기(어느 방에도 없음).
+    // 방 삭제 시 FK SET NULL 로 펫 보존(room_id 만 null). pos_x/y 는 방에 있을 때만 의미.
+    roomId: bigint("room_id", { mode: "number" }).references(() => petRooms.id, {
+      onDelete: "set null",
+    }),
     name: text("name").notNull(),
     personality: text("personality"),
     posX: real("pos_x").notNull().default(50), // % (0~100)

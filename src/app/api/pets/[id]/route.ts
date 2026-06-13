@@ -57,7 +57,7 @@ const patchSchema = z.object({
   pixelRender: z.boolean().optional(),
   teenThreshold: z.number().int().min(1).max(100000).optional(),
   adultThreshold: z.number().int().min(1).max(100000).optional(),
-  roomId: z.number().int().optional(),
+  roomId: z.number().int().nullable().optional(), // null = 대기(어느 방에도 없음)
   talkativeness: z.number().int().min(0).max(100).optional(),
   activeness: z.number().int().min(0).max(100).optional(),
   displayStage: z.enum(["baby", "teen", "adult"]).nullable().optional(),
@@ -76,7 +76,8 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
   if (!parsed.success) return Response.json({ error: "잘못된 입력" }, { status: 400 });
   const d = parsed.data;
 
-  if (d.roomId !== undefined) {
+  // roomId: number=그 방(소유 확인) / null=대기. 둘 다 허용.
+  if (d.roomId != null) {
     const r = await roomsRepo.getOne(user.id, d.roomId);
     if (!r) return Response.json({ error: "없는 방" }, { status: 400 });
   }

@@ -25,7 +25,8 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
   return Response.json({ ok: true });
 }
 
-// 방 삭제 — 펫이 있으면 차단(연쇄 삭제 금지, 최애 증발 방지).
+// 방 삭제 — 펫은 전역이라 지우지 않고 보존(FK SET NULL 로 그 방 펫들의 room_id 만 null=대기).
+// 분리된 펫 수(detached)를 반환해 클라이언트 안내에 사용.
 export async function DELETE(_req: Request, { params }: { params: Promise<{ id: string }> }) {
   const user = await getCurrentUser();
   if (!user) return Response.json({ error: "unauthorized" }, { status: 401 });
@@ -33,13 +34,7 @@ export async function DELETE(_req: Request, { params }: { params: Promise<{ id: 
   if (!Number.isInteger(id)) return Response.json({ error: "잘못된 입력" }, { status: 400 });
   const room = await roomsRepo.getOne(user.id, id);
   if (!room) return Response.json({ error: "없는 방" }, { status: 404 });
-  const count = await petsRepo.countByRoom(user.id, id);
-  if (count > 0) {
-    return Response.json(
-      { error: "펫을 다른 방으로 옮긴 후 삭제할 수 있어요." },
-      { status: 409 },
-    );
-  }
-  await roomsRepo.remove(user.id, id);
-  return Response.json({ ok: true });
+  const detached = await petsRepo.countByRoom(user.id, id); // 보존되는 펫 수
+  await roomsRepo.remove(user.id, id); // FK SET NULL → 펫 room_id null 로 보존
+  return Response.json({ ok: true, detached });
 }

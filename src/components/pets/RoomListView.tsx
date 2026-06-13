@@ -15,7 +15,7 @@ export interface RoomCard {
 
 const input = "w-full rounded-control bg-bg px-3 py-2 text-sm outline-none ring-1 ring-border focus:ring-accent";
 
-export default function RoomListView({ rooms }: { rooms: RoomCard[] }) {
+export default function RoomListView({ rooms, waitingCount = 0 }: { rooms: RoomCard[]; waitingCount?: number }) {
   const router = useRouter();
   const dialog = useDialog();
   const [addPet, setAddPet] = useState(false);
@@ -44,9 +44,10 @@ export default function RoomListView({ rooms }: { rooms: RoomCard[] }) {
     });
     router.refresh();
   }
-  async function deleteRoom(id: number) {
-    if (!(await dialog.confirm({ message: "이 방을 삭제할까요?", danger: true, confirmText: "삭제" }))) return;
-    const res = await fetch(`/api/pet-rooms/${id}`, { method: "DELETE" });
+  async function deleteRoom(r: RoomCard) {
+    const note = r.petCount > 0 ? ` 이 방의 펫 ${r.petCount}마리는 지워지지 않고 대기 상태로 보관돼요.` : "";
+    if (!(await dialog.confirm({ message: `'${r.name}' 방을 삭제할까요?${note}`, danger: true, confirmText: "삭제" }))) return;
+    const res = await fetch(`/api/pet-rooms/${r.id}`, { method: "DELETE" });
     if (res.ok) router.refresh();
     else {
       const j = await res.json().catch(() => ({}));
@@ -77,13 +78,16 @@ export default function RoomListView({ rooms }: { rooms: RoomCard[] }) {
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="flex gap-2">
+      <div className="flex flex-wrap items-center gap-2">
         <button onClick={() => setAddPet((v) => !v)} className="rounded-control bg-accent px-4 py-2 text-sm font-medium text-black">
           펫 추가
         </button>
         <button onClick={createRoom} className="rounded-control bg-surface px-4 py-2 text-sm ring-1 ring-border">
           방 만들기
         </button>
+        <Link href="/pets/manage" className="ml-auto rounded-control bg-surface px-4 py-2 text-sm ring-1 ring-border">
+          🐾 펫 관리{waitingCount > 0 ? ` · 대기 ${waitingCount}` : ""}
+        </Link>
       </div>
 
       {addPet && (
@@ -92,7 +96,8 @@ export default function RoomListView({ rooms }: { rooms: RoomCard[] }) {
             <input value={petName} onChange={(e) => setPetName(e.target.value)} placeholder="펫 이름" className={input} />
             <textarea value={petPersona} onChange={(e) => setPetPersona(e.target.value)} rows={2} placeholder="성격(선택)" className={`${input} resize-none`} />
             {rooms.length > 0 && (
-              <select value={petRoom ?? ""} onChange={(e) => setPetRoom(Number(e.target.value))} className={input}>
+              <select value={petRoom ?? ""} onChange={(e) => setPetRoom(e.target.value ? Number(e.target.value) : null)} className={input}>
+                <option value="">대기(어느 방에도 없음)</option>
                 {rooms.map((r) => (
                   <option key={r.id} value={r.id}>
                     {r.name}
@@ -135,7 +140,7 @@ export default function RoomListView({ rooms }: { rooms: RoomCard[] }) {
                   </div>
                 </Link>
                 <button onClick={() => renameRoom(r.id, r.name)} className="px-1 text-xs opacity-40 hover:opacity-100">이름</button>
-                <button onClick={() => deleteRoom(r.id)} className="px-1 text-xs opacity-40 hover:text-red-400">삭제</button>
+                <button onClick={() => deleteRoom(r)} className="px-1 text-xs opacity-40 hover:text-red-400">삭제</button>
               </div>
             </li>
           ))}

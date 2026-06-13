@@ -27,12 +27,14 @@ export default async function PetsPage() {
     }),
   );
 
+  const waitingCount = allPets.filter((p) => p.roomId == null).length; // 대기(어느 방에도 없는) 펫
+
   return (
     <main className="mx-auto max-w-md p-5">
       <div className="mb-5 flex items-center justify-between">
         <h1 className="font-display text-lg font-semibold">펫 룸</h1>
       </div>
-      <RoomListView rooms={cards} />
+      <RoomListView rooms={cards} waitingCount={waitingCount} />
     </main>
   );
 }
