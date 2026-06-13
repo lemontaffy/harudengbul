@@ -150,7 +150,7 @@ export default function EventsView({
       )}
 
       {view === "calendar" ? (
-        <CalendarView dataVersion={dataVersion} onError={setStatus} />
+        <CalendarView dataVersion={dataVersion} onError={setStatus} onMutated={refresh} />
       ) : (
         <>
           {groups.length === 0 && !adding && (
@@ -232,17 +232,31 @@ export default function EventsView({
 function CalendarView({
   dataVersion,
   onError,
+  onMutated,
 }: {
   dataVersion: number;
   onError: (m: string) => void;
+  onMutated: () => Promise<void> | void;
 }) {
+  const dialog = useDialog();
   const [cur, setCur] = useState(() => {
     const n = new Date();
     return { y: n.getFullYear(), m: n.getMonth() };
   });
   const [monthEvents, setMonthEvents] = useState<EventItem[]>([]);
   const [selDay, setSelDay] = useState<number | null>(null);
+  const [editId, setEditId] = useState<number | null>(null); // 패널에서 펼쳐 편집 중인 일정
   const [loading, setLoading] = useState(false);
+
+  async function del(e: EventItem) {
+    if (!(await dialog.confirm({ message: `'${e.title}' 일정을 삭제할까요?`, danger: true, confirmText: "삭제" }))) return;
+    const res = await fetch(`/api/events/${e.id}`, { method: "DELETE" });
+    if (res.ok) {
+      if (editId === e.id) setEditId(null);
+      onError("삭제됨");
+      await onMutated();
+    } else onError("삭제 실패");
+  }
 
   useEffect(() => {
     const start = new Date(cur.y, cur.m, 1, 0, 0, 0, 0);
@@ -290,6 +304,7 @@ function CalendarView({
 
   function shift(delta: number) {
     setSelDay(null);
+    setEditId(null);
     setCur((c) => {
       const nm = c.m + delta;
       return { y: c.y + Math.floor(nm / 12), m: ((nm % 12) + 12) % 12 };
@@ -326,7 +341,10 @@ function CalendarView({
           return (
             <button
               key={i}
-              onClick={() => setSelDay(sel ? null : d)}
+              onClick={() => {
+                setEditId(null);
+                setSelDay(sel ? null : d);
+              }}
               className={`flex aspect-square flex-col items-center justify-center rounded-control text-xs ring-1 ${
                 sel ? "bg-accent text-black ring-accent" : isToday(d) ? "bg-surface ring-accent" : "bg-surface ring-border"
               }`}
@@ -338,7 +356,7 @@ function CalendarView({
         })}
       </div>
       {loading && <p className="text-center text-[11px] opacity-40">불러오는 중…</p>}
-      {/* 선택일 패널 */}
+      {/* 선택일 패널 — 일정 탭하면 편집 폼으로 펼쳐짐 */}
       {selDay != null && (
         <div className="rounded-card bg-surface p-3 ring-1 ring-border">
           <h3 className="mb-2 text-xs font-semibold opacity-60">
@@ -348,14 +366,41 @@ function CalendarView({
             <p className="py-2 text-center text-xs opacity-40">이 날은 일정이 없어요.</p>
           ) : (
             <ul className="flex flex-col gap-2">
-              {selEvents.map((e) => (
-                <li key={e.id} className="flex items-center gap-3 rounded-xl bg-bg p-2.5 ring-1 ring-border">
-                  <span className="shrink-0 text-[11px] tabular-nums opacity-50">
-                    {new Date(e.startsAt).toLocaleTimeString("ko-KR", { hour: "2-digit", minute: "2-digit" })}
-                  </span>
-                  <span className="min-w-0 flex-1 truncate text-sm">{e.title}</span>
-                </li>
-              ))}
+              {selEvents.map((e) =>
+                editId === e.id ? (
+                  <li key={e.id}>
+                    <EventForm
+                      initial={e}
+                      onCancel={() => setEditId(null)}
+                      onSaved={async () => {
+                        setEditId(null);
+                        onError("저장됨 ✓");
+                        await onMutated();
+                      }}
+                      onError={onError}
+                    />
+                  </li>
+                ) : (
+                  <li key={e.id} className="flex items-center gap-2 rounded-xl bg-bg p-2.5 ring-1 ring-border">
+                    <button
+                      onClick={() => setEditId(e.id)}
+                      className="flex min-w-0 flex-1 items-center gap-3 text-left"
+                      title="탭하면 편집"
+                    >
+                      <span className="shrink-0 text-[11px] tabular-nums opacity-50">
+                        {new Date(e.startsAt).toLocaleTimeString("ko-KR", { hour: "2-digit", minute: "2-digit" })}
+                      </span>
+                      <span className="min-w-0 flex-1 truncate text-sm">{e.title}</span>
+                    </button>
+                    <button
+                      onClick={() => del(e)}
+                      className="shrink-0 px-2 py-1 text-xs opacity-60 hover:text-red-400"
+                    >
+                      삭제
+                    </button>
+                  </li>
+                ),
+              )}
             </ul>
           )}
         </div>
