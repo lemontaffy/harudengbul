@@ -82,10 +82,13 @@ export default function ChatView({
     window.setTimeout(() => setToast(""), 2200);
   }
 
-  async function onPickPhoto(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    e.target.value = "";
-    if (!file) return;
+  // 파일 1장 업로드 → 미리보기(pendingPhoto)로. 파일 선택·붙여넣기 공용.
+  async function uploadPhoto(file: File) {
+    if (!supportsVision) {
+      showToast("이 연결은 사진을 볼 수 없어요");
+      return;
+    }
+    if (uploadingPhoto) return;
     setUploadingPhoto(true);
     try {
       const fd = new FormData();
@@ -98,6 +101,29 @@ export default function ChatView({
       showToast("네트워크 오류");
     } finally {
       setUploadingPhoto(false);
+    }
+  }
+
+  function onPickPhoto(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (file) void uploadPhoto(file);
+  }
+
+  // 클립보드 이미지 붙여넣기(Ctrl/⌘+V) → 첨부. 텍스트 붙여넣기는 그대로 둔다.
+  function onPaste(e: React.ClipboardEvent<HTMLTextAreaElement>) {
+    const items = e.clipboardData?.items;
+    if (!items) return;
+    for (let i = 0; i < items.length; i++) {
+      const it = items[i];
+      if (it.kind === "file" && it.type.startsWith("image/")) {
+        const file = it.getAsFile();
+        if (file) {
+          e.preventDefault();
+          void uploadPhoto(file);
+          return;
+        }
+      }
     }
   }
 
@@ -407,18 +433,25 @@ export default function ChatView({
       {/* 입력 */}
       {configured ? (
         <div className="border-t border-border pt-2 pb-[calc(env(safe-area-inset-bottom)+0.5rem)]">
-          {/* 선택한 사진 미리보기(제거 가능) */}
+          {/* 첨부 사진 미리보기 — 보내기 전 확인·제거 가능. 탭하면 크게. */}
           {pendingPhoto && (
-            <div className="mb-2 inline-block relative">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={pendingPhoto} alt="" className="h-16 w-16 rounded-control object-cover ring-1 ring-border" />
+            <div className="mb-2 flex items-center gap-2 rounded-control bg-bg p-2 ring-1 ring-border">
+              <button
+                type="button"
+                onClick={() => setLightbox(pendingPhoto)}
+                aria-label="첨부 사진 크게 보기"
+                className="relative shrink-0"
+              >
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={pendingPhoto} alt="첨부 사진" className="h-14 w-14 rounded-control object-cover ring-1 ring-border" />
+              </button>
+              <span className="flex-1 text-xs opacity-70">사진 1장 첨부됨 · 보내면 함께 전송돼요</span>
               <button
                 type="button"
                 onClick={() => setPendingPhoto(null)}
-                aria-label="사진 제거"
-                className="absolute -right-1.5 -top-1.5 grid h-5 w-5 place-items-center rounded-full bg-black/75 text-xs text-white ring-1 ring-border"
+                className="shrink-0 rounded-control px-3 py-1.5 text-xs opacity-70 ring-1 ring-border hover:text-red-400"
               >
-                ×
+                제거
               </button>
             </div>
           )}
@@ -453,8 +486,15 @@ export default function ChatView({
               value={input}
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={onKeyDown}
+              onPaste={onPaste}
               rows={1}
-              placeholder={uploadingPhoto ? "사진 올리는 중…" : "메시지…"}
+              placeholder={
+                uploadingPhoto
+                  ? "사진 올리는 중…"
+                  : supportsVision
+                    ? "메시지… (사진 붙여넣기 가능)"
+                    : "메시지…"
+              }
               className="max-h-32 flex-1 resize-none rounded-xl bg-surface px-3 py-2 text-sm outline-none ring-1 ring-border focus:ring-accent"
             />
             <button
