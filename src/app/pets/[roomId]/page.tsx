@@ -8,6 +8,7 @@ import * as spritesRepo from "@/db/repo/petSprites";
 import * as relationsRepo from "@/db/repo/petRelations";
 import * as petLinesRepo from "@/db/repo/petLines";
 import * as customRepo from "@/db/repo/petCustomSprites";
+import * as furnitureRepo from "@/db/repo/roomFurniture";
 import * as settingsRepo from "@/db/repo/settings";
 import {
   stageFor,
@@ -15,12 +16,13 @@ import {
   displayStageFor,
   pickSpritePath,
   pickWalkPath,
+  pickSitPath,
   isLoveLabel,
   DEFAULT_LINES,
 } from "@/lib/pets";
 import { isSleeping } from "@/lib/growth";
 import RoomView from "@/components/pets/RoomView";
-import type { PetVM, RelationVM } from "@/components/pets/types";
+import type { PetVM, RelationVM, FurnitureVM } from "@/components/pets/types";
 
 export const dynamic = "force-dynamic";
 
@@ -31,7 +33,7 @@ export default async function RoomPage({ params }: { params: Promise<{ roomId: s
   const room = await roomsRepo.getOne(user.id, roomId);
   if (!room) notFound();
 
-  const [petsRows, sprites, relations, lines, customs, panels, settings, allRooms, allPetsRows] =
+  const [petsRows, sprites, relations, lines, customs, panels, furnitureRows, settings, allRooms, allPetsRows] =
     await Promise.all([
       petsRepo.listByRoom(user.id, roomId),
       spritesRepo.listForRoom(user.id, roomId),
@@ -39,10 +41,22 @@ export default async function RoomPage({ params }: { params: Promise<{ roomId: s
       petLinesRepo.listForRoom(user.id, roomId),
       customRepo.listForRoom(user.id, roomId),
       bgRepo.listForRoom(user.id, roomId),
+      furnitureRepo.listForRoom(user.id, roomId),
       settingsRepo.getByUser(user.id),
       roomsRepo.listByUser(user.id),
       petsRepo.listByUser(user.id),
     ]);
+
+  const furniture: FurnitureVM[] = furnitureRows.map((f) => ({
+    id: f.id,
+    kind: f.kind as "seat" | "fixture",
+    type: f.type,
+    spritePath: f.spritePath,
+    posX: f.posX,
+    posY: f.posY,
+    pixelRender: f.pixelRender,
+    actionType: f.actionType,
+  }));
 
   const wasSleeping = isSleeping(settings?.lastActivityAt);
 
@@ -73,7 +87,7 @@ export default async function RoomPage({ params }: { params: Promise<{ roomId: s
       displayStage: display,
       spritePath: pickSpritePath(ps, display, "idle"),
       walkPath: pickWalkPath(ps, display), // idle 폴백 없음 — walk 슬롯 있어야 산책
-
+      sitPath: pickSitPath(ps, display), // sit 슬롯 있어야 가구에 앉음
       sleepPath: pickSpritePath(ps, display, "sleep"),
       lovePath: pickSpritePath(ps, display, "love"),
       evolutionPending: p.lastStageSeen !== growthStage,
@@ -114,6 +128,7 @@ export default async function RoomPage({ params }: { params: Promise<{ roomId: s
           name: room.name,
           liveliness: room.liveliness,
           panels: panels.map((b) => ({ id: b.id, path: b.path, pixelRender: b.pixelRender })),
+          furniture,
         }}
         pets={petVMs}
         relations={relVMs}

@@ -20,6 +20,7 @@ export interface PetVM {
   displayStage: Stage; // 표시 스테이지(display_stage 우선)
   spritePath: string | null; // idle(표시 스테이지, 폴백 적용)
   walkPath: string | null; // walk 슬롯(있어야 산책 자격)
+  sitPath: string | null; // sit 슬롯(있어야 가구에 앉음)
   sleepPath: string | null;
   lovePath: string | null;
   evolutionPending: boolean;
@@ -40,6 +41,18 @@ export interface RoomVM {
   name: string;
   liveliness: number; // 방 전역 분주함(0~100)
   panels: RoomPanel[]; // 가로 스트립(정렬됨). 비면 기본 그라데이션.
+  furniture: FurnitureVM[]; // 배치된 가구(seat/fixture)
+}
+
+export interface FurnitureVM {
+  id: number;
+  kind: "seat" | "fixture";
+  type: string;
+  spritePath: string;
+  posX: number;
+  posY: number;
+  pixelRender: boolean;
+  actionType: string | null; // fixture: 'letters'|'memo'|'diary'|'none'
 }
 
 export interface RelationVM {

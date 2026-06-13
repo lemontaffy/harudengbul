@@ -2,8 +2,8 @@
 
 export type Stage = "baby" | "teen" | "adult";
 export const STAGES: Stage[] = ["baby", "teen", "adult"];
-export type SpriteKind = "idle" | "sleep" | "walk" | "love";
-export const SPRITE_KINDS: SpriteKind[] = ["idle", "sleep", "walk", "love"];
+export type SpriteKind = "idle" | "sleep" | "walk" | "love" | "sit";
+export const SPRITE_KINDS: SpriteKind[] = ["idle", "sleep", "walk", "love", "sit"];
 
 /** 성장 포인트 → 스테이지. 감소 없음(후퇴 불가). */
 export function stageFor(points: number, teen: number, adult: number): Stage {
@@ -49,10 +49,27 @@ export function pickWalkPath(
   sprites: { stage: string; kind: string; path: string }[],
   stage: Stage,
 ): string | null {
+  return pickKindStrict(sprites, stage, "walk");
+}
+
+/** sit 전용 조회 — idle 폴백 없음(sit 슬롯 없으면 가구에 앉지 않음). 현재 이하 스테이지의 sit 만. */
+export function pickSitPath(
+  sprites: { stage: string; kind: string; path: string }[],
+  stage: Stage,
+): string | null {
+  return pickKindStrict(sprites, stage, "sit");
+}
+
+/** 특정 kind 만 엄격 조회(폴백 없음) — 현재 이하 스테이지에서 해당 kind 슬롯만. */
+export function pickKindStrict(
+  sprites: { stage: string; kind: string; path: string }[],
+  stage: Stage,
+  kind: string,
+): string | null {
   const ladder: Stage[] = ["baby", "teen", "adult"];
   for (let i = ladder.indexOf(stage); i >= 0; i--) {
-    const w = sprites.find((s) => s.stage === ladder[i] && s.kind === "walk");
-    if (w) return w.path;
+    const hit = sprites.find((s) => s.stage === ladder[i] && s.kind === kind);
+    if (hit) return hit.path;
   }
   return null;
 }

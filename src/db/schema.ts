@@ -529,6 +529,27 @@ export const roomBackgrounds = pgTable(
   (t) => [index("room_bg_room_idx").on(t.roomId, t.sortOrder)],
 );
 
+// 가구 — 방에 배치하는 오브젝트. seat(펫이 앉음) / fixture(탭하면 앱 기능 입구).
+export const roomFurniture = pgTable(
+  "room_furniture",
+  {
+    id: bigint("id", { mode: "number" }).primaryKey().generatedAlwaysAsIdentity(),
+    roomId: bigint("room_id", { mode: "number" })
+      .notNull()
+      .references(() => petRooms.id, { onDelete: "cascade" }),
+    kind: text("kind").notNull(), // 'seat' | 'fixture'
+    type: text("type").notNull().default("furniture"), // 라벨: 'bench'|'cushion'|'mailbox' 등
+    spritePath: text("sprite_path").notNull(),
+    posX: real("pos_x").notNull().default(50),
+    posY: real("pos_y").notNull().default(50),
+    pixelRender: boolean("pixel_render").notNull().default(true),
+    // fixture가 여는 앱 기능(액션 타입): 'letters'|'memo'|'diary'|'none'. seat은 null.
+    // (스펙의 'function'을 JS 예약어 회피 위해 action_type 컬럼으로.)
+    actionType: text("action_type"),
+  },
+  (t) => [index("room_furniture_room_idx").on(t.roomId)],
+);
+
 // 커스텀 모션 스프라이트 — 스테이지별, 빈도 가중 자동/수동 재생. 수치·상태와 무관.
 export const petCustomSprites = pgTable(
   "pet_custom_sprites",

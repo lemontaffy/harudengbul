@@ -15,7 +15,7 @@ import {
   pingpongProb,
 } from "@/lib/petroom";
 import { isHostileLabel } from "@/lib/pets";
-import type { PetVM, RoomVM, RelationVM, PetRef } from "./types";
+import type { PetVM, RoomVM, RelationVM, PetRef, FurnitureVM } from "./types";
 
 function reduced(): boolean {
   return typeof window !== "undefined" && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -23,6 +23,9 @@ function reduced(): boolean {
 const PINGPONG_COOLDOWN_MS = 90_000;
 const STARTLE_LINES = ["꺄앗!", "으냐?!", "깜짝이야!", "헉!", "으아앙"]; // 자다 깨면 놀라는 한 마디
 const PET_RADIUS_PX = 36; // 점유 반경 ≈ 스프라이트(80px) 폭 절반(약간 작게 — 살짝 겹침은 허용)
+const SEAT_TARGET_PROB = 0.25; // 산책 시 빈 seat 가구를 목적지로 고를 확률(낮게 가중)
+// fixture 액션 → 앱 기능 경로. 없거나 'none'이면 순수 장식.
+const FIXTURE_ROUTE: Record<string, string> = { letters: "/letters", memo: "/memos", diary: "/diary" };
 
 // 배경 밝기와 무관하게 텍스트를 분리 — 어두운 칩 + 4방향 검은 외곽선(칩 페이드 중에도 안 묻힘).
 const CHIP_BG = "rgba(0,0,0,0.72)";
@@ -55,6 +58,10 @@ export default function RoomView({
   const [loveUntil, setLoveUntil] = useState<Record<number, number>>({});
   const [napUntil, setNapUntil] = useState<Record<number, number>>({}); // 개별 펫이 잠깐 조는 이벤트(보는 중에도)
   const [startleUntil, setStartleUntil] = useState<Record<number, number>>({}); // 깨우면 짧게 튀는 모션
+  const [sitUntil, setSitUntil] = useState<Record<number, number>>({}); // 가구에 앉아 쉬는 중(sit 스프라이트)
+  const [furniture, setFurniture] = useState<FurnitureVM[]>(room.furniture);
+  useEffect(() => setFurniture(room.furniture), [room.furniture]);
+  const [toast, setToast] = useState(""); // 가구 탭 등 짧은 안내
   const [walking, setWalking] = useState<{ petId: number; ms: number; flip: boolean } | null>(null);
   const [customPlay, setCustomPlay] = useState<{ petId: number; path: string; flip: boolean } | null>(null);
   const [editId, setEditId] = useState<number | null>(null);
@@ -106,6 +113,11 @@ export default function RoomView({
   customRef.current = customPlay;
   const napUntilRef = useRef(napUntil);
   napUntilRef.current = napUntil;
+  const sitUntilRef = useRef(sitUntil);
+  sitUntilRef.current = sitUntil;
+  const furnitureRef = useRef(furniture);
+  furnitureRef.current = furniture;
+  const seatOfRef = useRef<Map<number, number>>(new Map()); // petId → 점유 중인 seat 가구 id
   const seqRef = useRef(0); // 핑퐁 등 비동기 시퀀스 진행중 표시
   const cooldowns = useRef<Map<string, number>>(new Map());
   const view = useRef({ left: 0, right: 100 });
@@ -115,6 +127,15 @@ export default function RoomView({
   }
   function isNapping(petId: number, now = Date.now()): boolean {
     return (napUntilRef.current[petId] ?? 0) > now;
+  }
+  function isSitting(petId: number, now = Date.now()): boolean {
+    return (sitUntilRef.current[petId] ?? 0) > now;
+  }
+  // 빈 seat 가구 하나(없으면 null). 점유는 seatOfRef 로 한 seat 한 펫 보장.
+  function pickEmptySeat(): FurnitureVM | null {
+    const occupied = new Set(seatOfRef.current.values());
+    const seats = furnitureRef.current.filter((f) => f.kind === "seat" && !occupied.has(f.id));
+    return seats.length ? seats[Math.floor(Math.random() * seats.length)] : null;
   }
 
   // ── 펫 겹침(점유 반경) 판정 ── 좌표가 X=스트립%·Y=높이%로 축마다 px 스케일이 달라,
@@ -340,12 +361,18 @@ export default function RoomView({
     }, 1700);
   }
 
-  // 자유 배회 — walk 슬롯 보유 & 머묾(linger) 안 끝난 펫 제외. 실효 활동성 가중·확률.
+  // 자유 배회 — walk 슬롯 보유 & 머묾(linger) 안 끝난 & 앉아있지 않은 펫. 실효 활동성 가중·확률.
   function tryWalk(): boolean {
     const now = Date.now();
     const L = livelinessRef.current;
     const cands = petsRef.current
-      .filter((p) => p.walkPath && !isNapping(p.id, now) && (lingerUntil.current.get(p.id) ?? 0) <= now)
+      .filter(
+        (p) =>
+          p.walkPath &&
+          !isNapping(p.id, now) &&
+          !isSitting(p.id, now) &&
+          (lingerUntil.current.get(p.id) ?? 0) <= now,
+      )
       .map((p) => ({ p, ea: effectiveActiveness(p.activeness, L) }))
       .filter((x) => x.ea > 0);
     if (cands.length === 0) return false;
@@ -353,19 +380,39 @@ export default function RoomView({
     let r = Math.random() * total;
     const chosen = cands.find((x) => (r -= x.ea) < 0) ?? cands[0];
     if (Math.random() >= walkStartProb(chosen.ea)) return false; // 정지 우세
-    // 가까운 랜덤 지점(짧은 이동). 다른 펫 점유 반경 피해 재추첨, 다 실패하면 이번 틱 이동 취소.
+    // 가끔 빈 seat 가구로 향함(sit 슬롯 있는 펫만). 아니면 가까운 랜덤 지점.
+    if (chosen.p.sitPath && Math.random() < SEAT_TARGET_PROB) {
+      const seat = pickEmptySeat();
+      if (seat) {
+        doWalk(chosen.p, { x: seat.posX, y: seat.posY }, seat.id);
+        return true;
+      }
+    }
+    // 다른 펫 점유 반경 피해 재추첨, 다 실패하면 이번 틱 이동 취소.
     const target = pickWalkTarget(chosen.p, chosen.ea);
     if (!target) return false;
     doWalk(chosen.p, target);
     return true;
   }
-  function doWalk(p: PetVM, target: { x: number; y: number }) {
+  function doWalk(p: PetVM, target: { x: number; y: number }, seatId?: number) {
     const ms = walkDurationMs(p.posX, target.x, 7);
     const flip = shouldFlip(p.walkFacing, target.x > p.posX);
     setWalking({ petId: p.id, ms, flip });
     setPets((xs) => xs.map((q) => (q.id === p.id ? { ...q, posX: target.x, posY: target.y } : q)));
     setTimeout(() => {
       setWalking((w) => (w?.petId === p.id ? null : w));
+      if (seatId != null) {
+        // 가구에 앉음 — sit 스프라이트로 전환, 일반 머묾보다 길게 쉼(15~40s). 한 seat 한 펫.
+        seatOfRef.current.set(p.id, seatId);
+        const dur = 15000 + Math.random() * 25000;
+        const until = Date.now() + dur;
+        setSitUntil((m) => ({ ...m, [p.id]: until }));
+        setTimeout(() => {
+          seatOfRef.current.delete(p.id); // 일어나며 seat 비움
+          setSitUntil((m) => (m[p.id] === until ? { ...m, [p.id]: 0 } : m));
+        }, dur);
+        return; // 쉬는 중 — 핑퐁 가중 없음
+      }
       // 도착 후 idle 로 머묾(2~8s) — 다음 산책 보류. 정지 우세.
       lingerUntil.current.set(p.id, Date.now() + 2000 + Math.random() * 6000);
       // 도착 지점이 다른 펫 근처면 핑퐁 가중(산책→조우→대화).
@@ -379,7 +426,7 @@ export default function RoomView({
   function tryNap(): boolean {
     const now = Date.now();
     const cands = petsRef.current.filter(
-      (p) => p.sleepPath && !isNapping(p.id, now) && walkingRef.current?.petId !== p.id,
+      (p) => p.sleepPath && !isNapping(p.id, now) && !isSitting(p.id, now) && walkingRef.current?.petId !== p.id,
     );
     if (cands.length === 0) return false;
     if (Math.random() >= 0.05) return false; // 가끔만(잠이 길어 발생은 드물게)
@@ -400,7 +447,7 @@ export default function RoomView({
     const ps = petsRef.current;
     const playable: { pet: PetVM; path: string; line: string | null; w: number }[] = [];
     for (const p of ps) {
-      if (isNapping(p.id)) continue; // 조는 펫은 커스텀 모션 제외
+      if (isNapping(p.id) || isSitting(p.id)) continue; // 조는·앉은 펫은 커스텀 모션 제외
       for (const c of p.customs) {
         const w = freqWeight(c.frequency);
         if (w > 0) playable.push({ pet: p, path: c.path, line: c.line, w });
@@ -514,6 +561,83 @@ export default function RoomView({
     window.addEventListener("pointerup", up);
   }
 
+  // ── 가구 ──
+  function showToast(msg: string) {
+    setToast(msg);
+    setTimeout(() => setToast((t) => (t === msg ? "" : t)), 1800);
+  }
+  // fixture 탭 → 연결된 앱 기능 열기(편지·메모·일기). 미연결/미구현이면 플레이스홀더. seat은 무동작.
+  function onTapFurniture(f: FurnitureVM) {
+    if (f.kind !== "fixture") return;
+    const route = f.actionType ? FIXTURE_ROUTE[f.actionType] : undefined;
+    if (route) router.push(route);
+    else showToast("곧 여기서 열 수 있어요");
+  }
+  // 펫과 동일한 드래그 패턴(이동 시 PATCH, 안 움직이면 탭).
+  function startDragFurniture(e: React.PointerEvent, f: FurnitureVM) {
+    e.preventDefault();
+    const inner = innerRef.current;
+    if (!inner) return;
+    let moved = false;
+    const start = { x: e.clientX, y: e.clientY };
+    const toPct = (cx: number, cy: number) => {
+      const rect = inner.getBoundingClientRect();
+      return {
+        x: Math.max(2, Math.min(98, ((cx - rect.left) / rect.width) * 100)),
+        y: Math.max(6, Math.min(96, ((cy - rect.top) / rect.height) * 100)),
+      };
+    };
+    const move = (ev: PointerEvent) => {
+      if (Math.abs(ev.clientX - start.x) + Math.abs(ev.clientY - start.y) > 6) moved = true;
+      const { x, y } = toPct(ev.clientX, ev.clientY);
+      setFurniture((xs) => xs.map((q) => (q.id === f.id ? { ...q, posX: x, posY: y } : q)));
+    };
+    const up = (ev: PointerEvent) => {
+      window.removeEventListener("pointermove", move);
+      window.removeEventListener("pointerup", up);
+      if (!moved) {
+        onTapFurniture(furnitureRef.current.find((q) => q.id === f.id) ?? f);
+        return;
+      }
+      const { x, y } = toPct(ev.clientX, ev.clientY);
+      setFurniture((xs) => xs.map((q) => (q.id === f.id ? { ...q, posX: x, posY: y } : q)));
+      fetch(`/api/furniture/${f.id}`, {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ posX: x, posY: y }),
+      }).catch(() => {});
+    };
+    window.addEventListener("pointermove", move);
+    window.addEventListener("pointerup", up);
+  }
+  async function addFurniture(file: File, kind: "seat" | "fixture", actionType: string, type: string) {
+    const fd = new FormData();
+    fd.append("file", file);
+    fd.append("kind", kind);
+    fd.append("actionType", actionType);
+    if (type.trim()) fd.append("type", type.trim());
+    const res = await fetch(`/api/pet-rooms/${room.id}/furniture`, { method: "POST", body: fd });
+    if (res.ok) router.refresh();
+    else alertErr(res);
+  }
+  async function delFurniture(id: number) {
+    const res = await fetch(`/api/furniture/${id}`, { method: "DELETE" });
+    if (res.ok) {
+      // 이 seat을 점유 중인 펫이 있으면 점유 해제(seatOfRef: petId→furnitureId).
+      for (const [petId, seatId] of seatOfRef.current) if (seatId === id) seatOfRef.current.delete(petId);
+      setFurniture((xs) => xs.filter((f) => f.id !== id));
+    } else alertErr(res);
+  }
+  async function toggleFurniturePixel(f: FurnitureVM) {
+    const next = !f.pixelRender;
+    setFurniture((xs) => xs.map((q) => (q.id === f.id ? { ...q, pixelRender: next } : q)));
+    fetch(`/api/furniture/${f.id}`, {
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ pixelRender: next }),
+    }).catch(() => {});
+  }
+
   // ── 패널 관리 ──
   async function addPanel(file: File) {
     const fd = new FormData();
@@ -620,21 +744,43 @@ export default function RoomView({
             ))
           )}
 
+          {/* 가구 — 펫보다 뒤 레이어(앉으면 펫이 가구 위에 그려짐). 드래그 배치, fixture 탭→기능. */}
+          {furniture.map((f) => (
+            <div
+              key={f.id}
+              className="absolute -translate-x-1/2 -translate-y-1/2 touch-none select-none"
+              style={{ left: `${f.posX}%`, top: `${f.posY}%` }}
+              onPointerDown={(e) => startDragFurniture(e, f)}
+            >
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={f.spritePath}
+                alt={f.type}
+                draggable={false}
+                className="h-20 w-20 object-contain"
+                style={{ ...pixel(f.pixelRender) }}
+              />
+            </div>
+          ))}
+
           {pets.map((p) => {
             const loving = (loveUntil[p.id] ?? 0) > Date.now();
             const isWalking = walking?.petId === p.id;
             const custom = customPlay?.petId === p.id ? customPlay : null;
             const sleeping = asleep || (napUntil[p.id] ?? 0) > Date.now(); // 전역 잠 또는 개별 졸기
+            const sitting = (sitUntil[p.id] ?? 0) > Date.now(); // 가구에 앉아 쉬는 중
             const startled = (startleUntil[p.id] ?? 0) > Date.now(); // 깨우면 짧게 튀는 모션
             const src = sleeping
               ? p.sleepPath ?? p.spritePath
-              : custom
-                ? custom.path
-                : isWalking
-                  ? p.walkPath ?? p.spritePath
-                  : loving
-                    ? p.lovePath ?? p.spritePath
-                    : p.spritePath;
+              : sitting
+                ? p.sitPath ?? p.spritePath
+                : custom
+                  ? custom.path
+                  : isWalking
+                    ? p.walkPath ?? p.spritePath
+                    : loving
+                      ? p.lovePath ?? p.spritePath
+                      : p.spritePath;
             const flip = isWalking ? walking!.flip : false;
             return (
               <div
@@ -698,6 +844,17 @@ export default function RoomView({
           })}
 
           <PetEffects effects={effects} />
+
+          {toast && (
+            <div className="pointer-events-none absolute bottom-2 left-1/2 -translate-x-1/2">
+              <span
+                className="rounded-full px-3 py-1 text-[11px] text-white"
+                style={{ background: CHIP_BG, textShadow: TEXT_OUTLINE }}
+              >
+                {toast}
+              </span>
+            </div>
+          )}
         </div>
       </div>
 
@@ -776,6 +933,12 @@ export default function RoomView({
             ))}
             {status && <span className="text-accent">{status}</span>}
           </div>
+          <FurnitureManager
+            furniture={furniture}
+            onAdd={addFurniture}
+            onDelete={delFurniture}
+            onTogglePixel={toggleFurniturePixel}
+          />
         </div>
       )}
 
@@ -806,6 +969,103 @@ export default function RoomView({
           onChanged={() => router.refresh()}
         />
       )}
+    </div>
+  );
+}
+
+const FURNITURE_ACTIONS: { v: string; ko: string }[] = [
+  { v: "letters", ko: "편지" },
+  { v: "memo", ko: "메모" },
+  { v: "diary", ko: "일기" },
+  { v: "none", ko: "장식" },
+];
+
+// 가구 추가·목록(방 설정 메뉴 내). seat=앉는 가구 / fixture=탭하면 앱 기능 입구.
+function FurnitureManager({
+  furniture,
+  onAdd,
+  onDelete,
+  onTogglePixel,
+}: {
+  furniture: FurnitureVM[];
+  onAdd: (file: File, kind: "seat" | "fixture", actionType: string, type: string) => void;
+  onDelete: (id: number) => void;
+  onTogglePixel: (f: FurnitureVM) => void;
+}) {
+  const [kind, setKind] = useState<"seat" | "fixture">("seat");
+  const [action, setAction] = useState("letters");
+  const [type, setType] = useState("");
+  return (
+    <div className="flex flex-col gap-2 border-t border-border pt-2">
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="w-10 shrink-0 opacity-60">가구</span>
+        {(["seat", "fixture"] as const).map((k) => (
+          <button
+            key={k}
+            onClick={() => setKind(k)}
+            className={`rounded-control px-2.5 py-1 ring-1 ring-border ${kind === k ? "bg-accent text-black" : "bg-surface"}`}
+          >
+            {k === "seat" ? "앉는 가구" : "기능 가구"}
+          </button>
+        ))}
+        {kind === "fixture" && (
+          <select
+            value={action}
+            onChange={(e) => setAction(e.target.value)}
+            className="rounded-control bg-bg px-2 py-1 ring-1 ring-border"
+          >
+            {FURNITURE_ACTIONS.map((a) => (
+              <option key={a.v} value={a.v}>
+                {a.ko}
+              </option>
+            ))}
+          </select>
+        )}
+        <input
+          value={type}
+          onChange={(e) => setType(e.target.value)}
+          placeholder="이름(선택)"
+          maxLength={20}
+          className="w-20 rounded-control bg-bg px-2 py-1 ring-1 ring-border"
+        />
+        <label className="cursor-pointer rounded-control bg-surface px-3 py-1.5 ring-1 ring-border">
+          ＋ 추가
+          <input
+            type="file"
+            accept="image/gif,image/webp,image/png,image/jpeg"
+            className="hidden"
+            onChange={(e) => {
+              const f = e.target.files?.[0];
+              if (f) onAdd(f, kind, action, type);
+              e.target.value = "";
+            }}
+          />
+        </label>
+      </div>
+      {furniture.length > 0 && (
+        <div className="flex flex-wrap gap-2">
+          {furniture.map((f) => (
+            <span key={f.id} className="flex items-center gap-1.5 rounded-control bg-bg px-2 py-1 ring-1 ring-border">
+              <span className="opacity-70">
+                {f.kind === "seat" ? "🪑" : "📦"} {f.type}
+              </span>
+              <button
+                onClick={() => onTogglePixel(f)}
+                title="픽셀 렌더 토글"
+                className={`px-1 ${f.pixelRender ? "text-accent" : "opacity-40"}`}
+              >
+                ▦
+              </button>
+              <button onClick={() => onDelete(f.id)} className="px-1 opacity-50 hover:text-red-400">
+                ×
+              </button>
+            </span>
+          ))}
+        </div>
+      )}
+      <p className="text-[10px] opacity-40">
+        앉는 가구 = 펫이 다가가 앉아요(펫에 ‘앉기’ 스프라이트 필요). 기능 가구 = 탭하면 그 화면이 열려요.
+      </p>
     </div>
   );
 }

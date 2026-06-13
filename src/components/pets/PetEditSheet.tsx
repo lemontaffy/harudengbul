@@ -7,9 +7,9 @@ import { shouldFlip } from "@/lib/petroom";
 import type { PetRef } from "./types";
 
 const STAGES = ["baby", "teen", "adult"] as const;
-const KINDS = ["idle", "sleep", "walk", "love"] as const;
+const KINDS = ["idle", "sleep", "walk", "love", "sit"] as const;
 const STAGE_KO: Record<string, string> = { baby: "새끼", teen: "청소년", adult: "어른" };
-const KIND_KO: Record<string, string> = { idle: "기본", sleep: "잠", walk: "걷기", love: "연인" };
+const KIND_KO: Record<string, string> = { idle: "기본", sleep: "잠", walk: "걷기", love: "연인", sit: "앉기" };
 
 interface Detail {
   pet: {

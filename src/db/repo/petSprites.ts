@@ -3,6 +3,7 @@ import { db } from "../client";
 import { petSprites, pets, petRooms } from "../schema";
 import * as roomBackgroundsRepo from "./roomBackgrounds";
 import * as petCustomSpritesRepo from "./petCustomSprites";
+import * as roomFurnitureRepo from "./roomFurniture";
 
 export type PetSpriteRow = typeof petSprites.$inferSelect;
 
@@ -64,6 +65,7 @@ export async function pathBelongsToUser(userId: number, urlPath: string): Promis
   if (sprite) return true;
   if (await roomBackgroundsRepo.pathBelongsToUser(userId, urlPath)) return true;
   if (await petCustomSpritesRepo.pathBelongsToUser(userId, urlPath)) return true;
+  if (await roomFurnitureRepo.pathBelongsToUser(userId, urlPath)) return true;
   // 레거시(이행 전) 배경 경로도 호환.
   const [bg] = await db
     .select({ id: petRooms.id })
