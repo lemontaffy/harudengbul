@@ -482,8 +482,35 @@ function LinesTab({ d, allPets, reload, onChanged }: { d: Detail; allPets: PetRe
   const [stage, setStage] = useState<string>(d.pet.stage);
   const [content, setContent] = useState("");
   const [about, setAbout] = useState<number | null>(null);
+  const [regenBusy, setRegenBusy] = useState(false);
+  const [msg, setMsg] = useState<string | null>(null);
   const others = allPets.filter((p) => p.id !== d.pet.id);
   const list = d.lines.filter((l) => l.stage === stage);
+
+  // 자동 대사 풀 전체 재생성(보조 모델). 수동 대사는 보존.
+  async function regenerate() {
+    setRegenBusy(true);
+    setMsg(null);
+    try {
+      const res = await fetch(`/api/pets/${d.pet.id}/lines/regenerate`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ stage }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok) {
+        setMsg(`재생성 완료 — 자동 대사 ${data.count ?? 0}개`);
+        reload();
+        onChanged();
+      } else {
+        setMsg(data.error ?? "재생성에 실패했어요.");
+      }
+    } catch {
+      setMsg("재생성에 실패했어요.");
+    } finally {
+      setRegenBusy(false);
+    }
+  }
 
   async function add() {
     if (!content.trim()) return;
@@ -508,13 +535,22 @@ function LinesTab({ d, allPets, reload, onChanged }: { d: Detail; allPets: PetRe
 
   return (
     <div className="flex flex-col gap-2">
-      <div className="flex gap-1.5 text-xs">
+      <div className="flex items-center gap-1.5 text-xs">
         {STAGES.map((s) => (
           <button key={s} onClick={() => setStage(s)} className={`rounded-control px-3 py-1 ${stage === s ? "bg-accent text-black" : "bg-bg ring-1 ring-border"}`}>
             {STAGE_KO[s]}
           </button>
         ))}
+        <button
+          onClick={regenerate}
+          disabled={regenBusy}
+          title="이 단계의 자동 대사를 보조 모델로 전체 재생성(직접 추가한 대사는 보존)"
+          className="ml-auto shrink-0 rounded-control bg-bg px-3 py-1 ring-1 ring-border disabled:opacity-50"
+        >
+          {regenBusy ? "재생성 중…" : "↻ 전체 재생성"}
+        </button>
       </div>
+      {msg && <p className="text-[11px] text-accent">{msg}</p>}
       <ul className="flex max-h-48 flex-col gap-1 overflow-y-auto">
         {list.length === 0 && <li className="text-[11px] opacity-40">아직 대사가 없어요(없으면 기본 대사로 동작).</li>}
         {list.map((l) => (

@@ -51,6 +51,7 @@ export default function RoomView({
   const [effects, setEffects] = useState<ActiveEffect[]>([]);
   const [bubble, setBubble] = useState<{ petId: number; text: string } | null>(null);
   const [loveUntil, setLoveUntil] = useState<Record<number, number>>({});
+  const [napUntil, setNapUntil] = useState<Record<number, number>>({}); // 개별 펫이 잠깐 조는 이벤트(보는 중에도)
   const [walking, setWalking] = useState<{ petId: number; ms: number; flip: boolean } | null>(null);
   const [customPlay, setCustomPlay] = useState<{ petId: number; path: string; flip: boolean } | null>(null);
   const [editId, setEditId] = useState<number | null>(null);
@@ -100,12 +101,17 @@ export default function RoomView({
   walkingRef.current = walking;
   const customRef = useRef(customPlay);
   customRef.current = customPlay;
+  const napUntilRef = useRef(napUntil);
+  napUntilRef.current = napUntil;
   const seqRef = useRef(0); // 핑퐁 등 비동기 시퀀스 진행중 표시
   const cooldowns = useRef<Map<string, number>>(new Map());
   const view = useRef({ left: 0, right: 100 });
 
   function busy(): boolean {
     return !!bubbleRef.current || !!walkingRef.current || !!customRef.current || seqRef.current > 0;
+  }
+  function isNapping(petId: number, now = Date.now()): boolean {
+    return (napUntilRef.current[petId] ?? 0) > now;
   }
   function isVisible(posX: number): boolean {
     return posX >= view.current.left - 2 && posX <= view.current.right + 2;
@@ -229,6 +235,9 @@ export default function RoomView({
       return;
     }
 
+    // 개별 졸기 — 분주함과 무관(차분한 방에서도). sleep 슬롯 있는 펫이 가끔.
+    if (tryNap()) return;
+
     // 이동·핑퐁은 liveliness 가 0이면 완전 정지(자발 발화는 talkativeness 로 별개).
     if (L > 0 && !reduced()) {
       if (tryPingpong(false)) return; // 근접 상호 about — 실효 활동성 기반 확률
@@ -245,6 +254,7 @@ export default function RoomView({
     for (let i = 0; i < ps.length; i++) {
       for (let j = i + 1; j < ps.length; j++) {
         const a = ps[i], b = ps[j];
+        if (isNapping(a.id) || isNapping(b.id)) continue; // 조는 펫은 대화 안 함
         if (Math.abs(a.posX - b.posX) > 30) continue;
         if (!isVisible(a.posX) || !isVisible(b.posX)) continue;
         if (!aboutLineFor(a, b.id) || !aboutLineFor(b, a.id)) continue;
@@ -289,7 +299,7 @@ export default function RoomView({
     const now = Date.now();
     const L = livelinessRef.current;
     const cands = petsRef.current
-      .filter((p) => p.walkPath && (lingerUntil.current.get(p.id) ?? 0) <= now)
+      .filter((p) => p.walkPath && !isNapping(p.id, now) && (lingerUntil.current.get(p.id) ?? 0) <= now)
       .map((p) => ({ p, ea: effectiveActiveness(p.activeness, L) }))
       .filter((x) => x.ea > 0);
     if (cands.length === 0) return false;
@@ -320,10 +330,32 @@ export default function RoomView({
     }, ms);
   }
 
+  // 개별 졸기 — 보고 있어도 가끔 한 마리가 잠깐 존다(sleep 슬롯 있을 때만, 의미 있게).
+  function tryNap(): boolean {
+    const now = Date.now();
+    const cands = petsRef.current.filter(
+      (p) => p.sleepPath && !isNapping(p.id, now) && walkingRef.current?.petId !== p.id,
+    );
+    if (cands.length === 0) return false;
+    if (Math.random() >= 0.12) return false; // 가끔만
+    doNap(cands[Math.floor(Math.random() * cands.length)]);
+    return true;
+  }
+  function doNap(p: PetVM) {
+    const dur = 3000 + Math.random() * 5000; // 3~8초 졸기
+    const until = Date.now() + dur;
+    setNapUntil((m) => ({ ...m, [p.id]: until }));
+    spawnEffect("zzz", p.posX, p.posY - 8);
+    setTimeout(() => {
+      setNapUntil((m) => (m[p.id] === until ? { ...m, [p.id]: 0 } : m)); // 탭으로 일찍 깼으면 건드리지 않음
+    }, dur + 50);
+  }
+
   function tryCustom(): boolean {
     const ps = petsRef.current;
     const playable: { pet: PetVM; path: string; line: string | null; w: number }[] = [];
     for (const p of ps) {
+      if (isNapping(p.id)) continue; // 조는 펫은 커스텀 모션 제외
       for (const c of p.customs) {
         const w = freqWeight(c.frequency);
         if (w > 0) playable.push({ pet: p, path: c.path, line: c.line, w });
@@ -345,7 +377,7 @@ export default function RoomView({
   }
 
   function trySpontaneous() {
-    const ps = petsRef.current.filter((p) => p.talkativeness > 0);
+    const ps = petsRef.current.filter((p) => p.talkativeness > 0 && !isNapping(p.id));
     if (ps.length === 0) return;
     const total = ps.reduce((s, p) => s + p.talkativeness, 0);
     let r = Math.random() * total;
@@ -365,6 +397,8 @@ export default function RoomView({
       setAsleep(false);
       return;
     }
+    // 조는 중이면 만지는 즉시 깨우고(아래서 한 마디) 이어서 일반 반응.
+    if (isNapping(p.id)) setNapUntil((m) => ({ ...m, [p.id]: 0 }));
     // 산책 중이면 그 자리 정지
     if (walkingRef.current?.petId === p.id) setWalking(null);
     const line = pickLine(p);
@@ -475,7 +509,8 @@ export default function RoomView({
             const loving = (loveUntil[p.id] ?? 0) > Date.now();
             const isWalking = walking?.petId === p.id;
             const custom = customPlay?.petId === p.id ? customPlay : null;
-            const src = asleep
+            const sleeping = asleep || (napUntil[p.id] ?? 0) > Date.now(); // 전역 잠 또는 개별 졸기
+            const src = sleeping
               ? p.sleepPath ?? p.spritePath
               : custom
                 ? custom.path
@@ -519,7 +554,7 @@ export default function RoomView({
                     </div>
                   </div>
                 )}
-                <div className={`relative ${asleep ? "opacity-60" : ""}`}>
+                <div className={`relative ${sleeping ? "opacity-60" : ""}`}>
                   {src ? (
                     // eslint-disable-next-line @next/next/no-img-element
                     <img
@@ -532,7 +567,7 @@ export default function RoomView({
                   ) : (
                     <div className="flex h-20 w-20 items-center justify-center rounded-full bg-surface text-3xl">🐾</div>
                   )}
-                  {asleep && <span className="absolute -top-1 right-0 text-sm">💤</span>}
+                  {sleeping && <span className="absolute -top-1 right-0 text-sm">💤</span>}
                 </div>
                 {(showNames || hover === p.id || bubble?.petId === p.id) && (
                   <div className="mt-1 flex justify-center">

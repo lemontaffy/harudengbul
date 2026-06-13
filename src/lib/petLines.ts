@@ -55,13 +55,13 @@ function parseLines(text: string): string[] {
 /**
  * 해당 (펫, 스테이지) 자동 대사 풀 재생성. solo 15 + 관계 상대별 about_other 5.
  * 금지(죽음/자해·비속어) 필터. aux 미설정/실패 시 스킵(렌더 시 DEFAULT 폴백).
- * best-effort — 호출부는 void 로 fire-and-forget.
+ * 생성·저장한 대사 수를 반환(0=미설정/실패로 미변경). 자동 훅 호출부는 void 로 fire-and-forget.
  */
-export async function regenerateLines(userId: number, petId: number, stage: Stage): Promise<void> {
+export async function regenerateLines(userId: number, petId: number, stage: Stage): Promise<number> {
   const pet = await petsRepo.getOne(userId, petId);
-  if (!pet) return;
+  if (!pet) return 0;
   const cfg = await getPetAuxConfig(userId);
-  if (!cfg.configured) return;
+  if (!cfg.configured) return 0;
 
   const out: { kind: "solo" | "about_other"; aboutPetId: number | null; content: string }[] = [];
 
@@ -101,6 +101,7 @@ export async function regenerateLines(userId: number, petId: number, stage: Stag
   }
 
   if (out.length) await petLinesRepo.replaceAuto(petId, stage, out);
+  return out.length;
 }
 
 /** 펫의 모든 관계 상대에 대해, 그리고 자기 자신 stage 풀을 재생성(관계 변경 시 양쪽 갱신용). */
