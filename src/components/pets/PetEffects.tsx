@@ -1,6 +1,6 @@
 "use client";
 
-export type EffectType = "hearts" | "sparkle" | "notes" | "zzz" | "anger";
+export type EffectType = "hearts" | "sparkle" | "notes" | "zzz" | "anger" | "startle";
 export interface ActiveEffect {
   id: number;
   type: EffectType;
@@ -14,7 +14,11 @@ const EMOJI: Record<EffectType, string> = {
   notes: "♪",
   zzz: "💤",
   anger: "💢",
+  startle: "😲", // 깨우기 — 렌더에서 ‼️와 번갈아 표시
 };
+
+// startle 은 ‼️ 😲 ‼️ 를 가로로 — 자다 깬 깜짝 표현.
+const STARTLE_GLYPHS = ["‼️", "😲", "‼️"];
 
 // CSS만(transform/opacity). 동시 개수 제한·reduced-motion 게이트는 호출부(RoomView)가 담당.
 export default function PetEffects({ effects }: { effects: ActiveEffect[] }) {
@@ -40,11 +44,11 @@ export default function PetEffects({ effects }: { effects: ActiveEffect[] }) {
               className="absolute text-lg"
               style={{
                 left: `${(i - 1) * 13}px`,
-                animation: `${e.type === "sparkle" || e.type === "anger" ? "petPop" : "petFloat"} 1.25s ease-out forwards`,
+                animation: `${e.type === "sparkle" || e.type === "anger" || e.type === "startle" ? "petPop" : "petFloat"} 1.25s ease-out forwards`,
                 animationDelay: `${i * 0.12}s`,
               }}
             >
-              {EMOJI[e.type]}
+              {e.type === "startle" ? STARTLE_GLYPHS[i] : EMOJI[e.type]}
             </span>
           ))}
         </div>

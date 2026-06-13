@@ -398,7 +398,7 @@ export default function RoomView({
   function startleWake(p: PetVM) {
     const pool = p.wakeLines.length ? p.wakeLines : p.soloLines.length ? p.soloLines : STARTLE_LINES;
     showBubble(p.id, pool[Math.floor(Math.random() * pool.length)], 1800, true);
-    spawnEffect("sparkle", p.posX, p.posY - 8);
+    spawnEffect("startle", p.posX, p.posY - 8);
     if (!reduced()) {
       setStartleUntil((m) => ({ ...m, [p.id]: Date.now() + 480 }));
       setTimeout(() => setStartleUntil((m) => (m[p.id] && m[p.id] <= Date.now() ? { ...m, [p.id]: 0 } : m)), 520);
