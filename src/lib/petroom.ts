@@ -23,3 +23,27 @@ export function freqWeight(freq: string): number {
   if (freq === "sometimes") return 1;
   return 0; // manual
 }
+
+/**
+ * 실효 활동성 = activeness × (liveliness/50). 곱셈이라 펫 간 상대비는 보존(기질 차이 유지).
+ * liveliness 0 → 0(완전 정지), 50 → activeness 그대로, 100 → 2배.
+ */
+export function effectiveActiveness(activeness: number, liveliness: number): number {
+  return Math.max(0, activeness) * (Math.max(0, liveliness) / 50);
+}
+
+/** 배회 거리 — 실효 활동성에 따라 늘되 짧게(전체 횡단 방지, 최대 30%). */
+export function wanderRange(ea: number): number {
+  return Math.min(30, 10 + ea * 0.12);
+}
+
+/** 틱당 산책 시작 확률(0~0.85) — 정지 우세. */
+export function walkStartProb(ea: number): number {
+  return Math.max(0, Math.min(0.85, ea / 150));
+}
+
+/** 틱당 핑퐁 확률 — 페어 평균 실효 활동성 기준. boost(산책 조우)면 상향. */
+export function pingpongProb(eaAvg: number, boost = false): number {
+  const base = Math.max(0, Math.min(0.7, eaAvg / 130));
+  return boost ? Math.min(0.9, base + 0.3) : base;
+}

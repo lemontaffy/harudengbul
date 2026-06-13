@@ -39,6 +39,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
       adultThreshold: pet.adultThreshold,
       stage,
       talkativeness: pet.talkativeness,
+      activeness: pet.activeness,
       displayStage: pet.displayStage,
       walkFacing: pet.walkFacing,
       reachedStages: reachedStages(pet.growthPoints, pet.teenThreshold, pet.adultThreshold),
@@ -58,6 +59,7 @@ const patchSchema = z.object({
   adultThreshold: z.number().int().min(1).max(100000).optional(),
   roomId: z.number().int().optional(),
   talkativeness: z.number().int().min(0).max(100).optional(),
+  activeness: z.number().int().min(0).max(100).optional(),
   displayStage: z.enum(["baby", "teen", "adult"]).nullable().optional(),
   walkFacing: z.enum(["left", "right"]).optional(),
 });
@@ -93,6 +95,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
     ...(d.adultThreshold !== undefined ? { adultThreshold: d.adultThreshold } : {}),
     ...(d.roomId !== undefined ? { roomId: d.roomId } : {}),
     ...(d.talkativeness !== undefined ? { talkativeness: d.talkativeness } : {}),
+    ...(d.activeness !== undefined ? { activeness: d.activeness } : {}),
     ...(d.displayStage !== undefined ? { displayStage: d.displayStage } : {}),
     ...(d.walkFacing !== undefined ? { walkFacing: d.walkFacing } : {}),
   });

@@ -64,6 +64,7 @@ export async function update(
       | "adultThreshold"
       | "roomId"
       | "talkativeness"
+      | "activeness"
       | "displayStage"
       | "walkFacing"
     >

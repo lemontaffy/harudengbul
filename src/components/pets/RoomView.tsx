@@ -4,7 +4,16 @@ import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import PetEffects, { type ActiveEffect, type EffectType } from "./PetEffects";
 import PetEditSheet from "./PetEditSheet";
-import { walkDurationMs, shouldFlip, pairKey, freqWeight } from "@/lib/petroom";
+import {
+  walkDurationMs,
+  shouldFlip,
+  pairKey,
+  freqWeight,
+  effectiveActiveness,
+  wanderRange,
+  walkStartProb,
+  pingpongProb,
+} from "@/lib/petroom";
 import type { PetVM, RoomVM, RelationVM, PetRef } from "./types";
 
 function reduced(): boolean {
@@ -46,7 +55,20 @@ export default function RoomView({
   const [editId, setEditId] = useState<number | null>(null);
   const [showNames, setShowNames] = useState(true); // 이름 항상 표시 on/off(끄면 탭/호버 시만)
   const [hover, setHover] = useState<number | null>(null);
+  const [liveliness, setLiveliness] = useState(room.liveliness); // 방 분주함(즉시 반영)
   const effectSeq = useRef(0);
+  const livelinessRef = useRef(liveliness);
+  livelinessRef.current = liveliness;
+  const lingerUntil = useRef<Map<number, number>>(new Map()); // 산책 후 머묾(2~8s)
+
+  function changeLiveliness(v: number) {
+    setLiveliness(v);
+    fetch(`/api/pet-rooms/${room.id}`, {
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ liveliness: v }),
+    }).catch(() => {});
+  }
 
   useEffect(() => {
     const v = localStorage.getItem("petShowNames");
@@ -164,11 +186,15 @@ export default function RoomView({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // ── 앰비언트 루프 ──
+  // ── 앰비언트 루프 ── 틱 간격은 liveliness 에 따라 짧아짐(분주함의 맥박).
   useEffect(() => {
     let timer: ReturnType<typeof setTimeout>;
     const schedule = () => {
-      timer = setTimeout(tick, 8000 + Math.random() * 12000); // 8~20s
+      const L = livelinessRef.current;
+      // L=50→~7s, 100→~4s, 25→~12s, 10→~24s. 자발 발화도 이 틱에 편승.
+      const base = 7000 / Math.max(0.3, L / 50);
+      const interval = Math.max(3500, Math.min(24000, base)) * (0.7 + Math.random() * 0.6);
+      timer = setTimeout(tick, interval);
     };
     const tick = () => {
       if (document.visibilityState === "visible" && !busy()) runTick();
@@ -182,6 +208,7 @@ export default function RoomView({
   function runTick() {
     const ps = petsRef.current;
     if (ps.length === 0) return;
+    const L = livelinessRef.current;
 
     // 잠든 방: 잠꼬대만(틱당 3%).
     if (asleepRef.current) {
@@ -193,13 +220,13 @@ export default function RoomView({
       return;
     }
 
-    // 1) 핑퐁(근접 상호 about) — 낮은 확률
-    if (tryPingpong(0.2)) return;
-    // 2) 산책 — walk 슬롯 보유 펫
-    if (!reduced() && Math.random() < 0.15 && tryWalk()) return;
-    // 3) 커스텀 모션 — 빈도 가중
-    if (!reduced() && Math.random() < 0.12 && tryCustom()) return;
-    // 4) 자발 발화 — talkativeness 가중 선정 후 talkativeness/100 확률
+    // 이동·핑퐁은 liveliness 가 0이면 완전 정지(자발 발화는 talkativeness 로 별개).
+    if (L > 0 && !reduced()) {
+      if (tryPingpong(false)) return; // 근접 상호 about — 실효 활동성 기반 확률
+      if (tryWalk()) return; // 자유 배회(짧은 이동) — 실효 활동성 기반
+      if (Math.random() < 0.12 && tryCustom()) return; // 커스텀 모션
+    }
+    // 자발 발화 — talkativeness 가중(분주함과 무관, 잠 안 든 방).
     trySpontaneous();
   }
 
@@ -220,10 +247,14 @@ export default function RoomView({
     void boost;
     return pairs;
   }
-  function tryPingpong(prob: number): boolean {
+  function tryPingpong(boost: boolean): boolean {
     const pairs = eligiblePingpongPairs();
-    if (pairs.length === 0 || Math.random() >= prob) return false;
-    doPingpong(pairs[Math.floor(Math.random() * pairs.length)].a, pairs[Math.floor(Math.random() * pairs.length)].b);
+    if (pairs.length === 0) return false;
+    const L = livelinessRef.current;
+    const pair = pairs[Math.floor(Math.random() * pairs.length)];
+    const eaAvg = (effectiveActiveness(pair.a.activeness, L) + effectiveActiveness(pair.b.activeness, L)) / 2;
+    if (Math.random() >= pingpongProb(eaAvg, boost)) return false;
+    doPingpong(pair.a, pair.b);
     return true;
   }
   function doPingpong(a: PetVM, b: PetVM) {
@@ -241,14 +272,26 @@ export default function RoomView({
     }, 1700);
   }
 
+  // 자유 배회 — walk 슬롯 보유 & 머묾(linger) 안 끝난 펫 제외. 실효 활동성 가중·확률.
   function tryWalk(): boolean {
-    const cands = petsRef.current.filter((p) => p.walkPath);
+    const now = Date.now();
+    const L = livelinessRef.current;
+    const cands = petsRef.current
+      .filter((p) => p.walkPath && (lingerUntil.current.get(p.id) ?? 0) <= now)
+      .map((p) => ({ p, ea: effectiveActiveness(p.activeness, L) }))
+      .filter((x) => x.ea > 0);
     if (cands.length === 0) return false;
-    doWalk(cands[Math.floor(Math.random() * cands.length)]);
+    const total = cands.reduce((s, x) => s + x.ea, 0);
+    let r = Math.random() * total;
+    const chosen = cands.find((x) => (r -= x.ea) < 0) ?? cands[0];
+    if (Math.random() >= walkStartProb(chosen.ea)) return false; // 정지 우세
+    doWalk(chosen.p, chosen.ea);
     return true;
   }
-  function doWalk(p: PetVM) {
-    const targetX = 3 + Math.random() * 94;
+  function doWalk(p: PetVM, ea: number) {
+    // 가까운 랜덤 지점(짧은 이동, 전체 횡단 X). 거리는 실효 활동성에 비례.
+    const range = wanderRange(ea);
+    const targetX = Math.max(3, Math.min(97, p.posX + (Math.random() * 2 - 1) * range));
     const targetY = Math.max(6, Math.min(96, p.posY + (Math.random() * 10 - 5)));
     const ms = walkDurationMs(p.posX, targetX, 7);
     const flip = shouldFlip(p.walkFacing, targetX > p.posX);
@@ -256,9 +299,11 @@ export default function RoomView({
     setPets((xs) => xs.map((q) => (q.id === p.id ? { ...q, posX: targetX, posY: targetY } : q)));
     setTimeout(() => {
       setWalking((w) => (w?.petId === p.id ? null : w));
-      // 도착 지점이 다른 펫 근처면 대화 가중(산책→조우→대화)
+      // 도착 후 idle 로 머묾(2~8s) — 다음 산책 보류. 정지 우세.
+      lingerUntil.current.set(p.id, Date.now() + 2000 + Math.random() * 6000);
+      // 도착 지점이 다른 펫 근처면 핑퐁 가중(산책→조우→대화).
       setTimeout(() => {
-        if (!busy()) tryPingpong(0.6);
+        if (!busy()) tryPingpong(true);
       }, 200);
     }, ms);
   }
@@ -489,6 +534,25 @@ export default function RoomView({
 
           <PetEffects effects={effects} />
         </div>
+      </div>
+
+      {/* 분주함(방 전역, 즉시 반영) */}
+      <div className="flex items-center gap-2 text-xs">
+        <span className="shrink-0 opacity-60">분주함</span>
+        {[
+          { l: "정지", v: 0 },
+          { l: "차분", v: 25 },
+          { l: "보통", v: 50 },
+          { l: "활발", v: 90 },
+        ].map((o) => (
+          <button
+            key={o.v}
+            onClick={() => changeLiveliness(o.v)}
+            className={`rounded-control px-3 py-1 ${liveliness === o.v ? "bg-accent text-black" : "bg-surface ring-1 ring-border"}`}
+          >
+            {o.l}
+          </button>
+        ))}
       </div>
 
       {/* 패널 관리 */}

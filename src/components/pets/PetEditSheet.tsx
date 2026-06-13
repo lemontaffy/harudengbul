@@ -23,6 +23,7 @@ interface Detail {
     adultThreshold: number;
     stage: string;
     talkativeness: number;
+    activeness: number;
     displayStage: string | null;
     walkFacing: "left" | "right";
     reachedStages: string[];
@@ -166,6 +167,7 @@ function InfoTab({ d, rooms, onChanged, reload }: { d: Detail; rooms: PetRef[]; 
   const [pixel, setPixel] = useState(d.pet.pixelRender);
   const [roomId, setRoomId] = useState(d.pet.roomId);
   const [talkativeness, setTalk] = useState(d.pet.talkativeness);
+  const [activeness, setActive] = useState(d.pet.activeness);
   const [displayStage, setDisplayStage] = useState<string>(d.pet.displayStage ?? "");
   const [walkFacing, setWalkFacing] = useState<"left" | "right">(d.pet.walkFacing);
   const [saving, setSaving] = useState(false);
@@ -181,6 +183,7 @@ function InfoTab({ d, rooms, onChanged, reload }: { d: Detail; rooms: PetRef[]; 
         pixelRender: pixel,
         roomId,
         talkativeness,
+        activeness,
         displayStage: displayStage || null,
         walkFacing,
       }),
@@ -243,6 +246,22 @@ function InfoTab({ d, rooms, onChanged, reload }: { d: Detail; rooms: PetRef[]; 
           className="w-full accent-[color:var(--accent)]"
         />
         <p className="text-[11px] opacity-40">0이면 자발 발화 없음(탭 반응은 유지).</p>
+      </div>
+      {/* 활동성(기질) — 방 분주함과 곱해져 배회·핑퐁 빈도 결정 */}
+      <div>
+        <div className="mb-1 flex justify-between text-xs opacity-60">
+          <span>활동성(배회·기질)</span>
+          <span>{activeness}</span>
+        </div>
+        <input
+          type="range"
+          min={0}
+          max={100}
+          value={activeness}
+          onChange={(e) => setActive(Number(e.target.value))}
+          className="w-full accent-[color:var(--accent)]"
+        />
+        <p className="text-[11px] opacity-40">방의 ‘분주함’과 곱해져 배회·대화 빈도가 정해져요.</p>
       </div>
       {/* walk GIF 기본 진행 방향 + 미리보기(이동 시 어느 쪽을 보는지 즉석 확인) */}
       <div className="flex flex-col gap-2">

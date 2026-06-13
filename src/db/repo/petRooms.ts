@@ -42,6 +42,13 @@ export async function setBackground(
     .where(and(eq(petRooms.id, id), eq(petRooms.userId, userId)));
 }
 
+export async function setLiveliness(userId: number, id: number, liveliness: number) {
+  await db
+    .update(petRooms)
+    .set({ liveliness: Math.max(0, Math.min(100, liveliness)) })
+    .where(and(eq(petRooms.id, id), eq(petRooms.userId, userId)));
+}
+
 export async function remove(userId: number, id: number) {
   // 펫이 있으면 FK(no action)가 막는다 — 라우트에서 먼저 countByRoom 으로 차단·안내.
   await db.delete(petRooms).where(and(eq(petRooms.id, id), eq(petRooms.userId, userId)));

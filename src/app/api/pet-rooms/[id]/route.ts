@@ -6,7 +6,10 @@ import * as petsRepo from "@/db/repo/pets";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-const patchSchema = z.object({ name: z.string().trim().min(1).max(40) });
+const patchSchema = z.object({
+  name: z.string().trim().min(1).max(40).optional(),
+  liveliness: z.number().int().min(0).max(100).optional(),
+});
 
 export async function PATCH(req: Request, { params }: { params: Promise<{ id: string }> }) {
   const user = await getCurrentUser();
@@ -14,10 +17,11 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
   const id = Number((await params).id);
   if (!Number.isInteger(id)) return Response.json({ error: "잘못된 입력" }, { status: 400 });
   const parsed = patchSchema.safeParse(await req.json().catch(() => null));
-  if (!parsed.success) return Response.json({ error: "방 이름을 입력하세요." }, { status: 400 });
+  if (!parsed.success) return Response.json({ error: "잘못된 입력" }, { status: 400 });
   const room = await roomsRepo.getOne(user.id, id);
   if (!room) return Response.json({ error: "없는 방" }, { status: 404 });
-  await roomsRepo.rename(user.id, id, parsed.data.name);
+  if (parsed.data.name !== undefined) await roomsRepo.rename(user.id, id, parsed.data.name);
+  if (parsed.data.liveliness !== undefined) await roomsRepo.setLiveliness(user.id, id, parsed.data.liveliness);
   return Response.json({ ok: true });
 }
 

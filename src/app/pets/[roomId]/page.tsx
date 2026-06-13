@@ -66,6 +66,7 @@ export default async function RoomPage({ params }: { params: Promise<{ roomId: s
       pixelRender: p.pixelRender,
       walkFacing: (p.walkFacing as "left" | "right") ?? "left",
       talkativeness: p.talkativeness,
+      activeness: p.activeness,
       displayStage: display,
       spritePath: pickSpritePath(ps, display, "idle"),
       walkPath: pickWalkPath(ps, display), // idle 폴백 없음 — walk 슬롯 있어야 산책
@@ -107,6 +108,7 @@ export default async function RoomPage({ params }: { params: Promise<{ roomId: s
         room={{
           id: room.id,
           name: room.name,
+          liveliness: room.liveliness,
           panels: panels.map((b) => ({ id: b.id, path: b.path, pixelRender: b.pixelRender })),
         }}
         pets={petVMs}

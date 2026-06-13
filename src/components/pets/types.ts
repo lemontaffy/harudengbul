@@ -16,6 +16,7 @@ export interface PetVM {
   pixelRender: boolean;
   walkFacing: "left" | "right";
   talkativeness: number;
+  activeness: number; // 펫별 기질(배회·핑퐁 빈도)
   displayStage: Stage; // 표시 스테이지(display_stage 우선)
   spritePath: string | null; // idle(표시 스테이지, 폴백 적용)
   walkPath: string | null; // walk 슬롯(있어야 산책 자격)
@@ -36,6 +37,7 @@ export interface RoomPanel {
 export interface RoomVM {
   id: number;
   name: string;
+  liveliness: number; // 방 전역 분주함(0~100)
   panels: RoomPanel[]; // 가로 스트립(정렬됨). 비면 기본 그라데이션.
 }
 
