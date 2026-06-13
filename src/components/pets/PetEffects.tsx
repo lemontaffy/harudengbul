@@ -1,6 +1,6 @@
 "use client";
 
-export type EffectType = "hearts" | "sparkle" | "notes" | "zzz";
+export type EffectType = "hearts" | "sparkle" | "notes" | "zzz" | "anger";
 export interface ActiveEffect {
   id: number;
   type: EffectType;
@@ -13,6 +13,7 @@ const EMOJI: Record<EffectType, string> = {
   sparkle: "✨",
   notes: "♪",
   zzz: "💤",
+  anger: "💢",
 };
 
 // CSS만(transform/opacity). 동시 개수 제한·reduced-motion 게이트는 호출부(RoomView)가 담당.
@@ -39,7 +40,7 @@ export default function PetEffects({ effects }: { effects: ActiveEffect[] }) {
               className="absolute text-lg"
               style={{
                 left: `${(i - 1) * 13}px`,
-                animation: `${e.type === "sparkle" ? "petPop" : "petFloat"} 1.25s ease-out forwards`,
+                animation: `${e.type === "sparkle" || e.type === "anger" ? "petPop" : "petFloat"} 1.25s ease-out forwards`,
                 animationDelay: `${i * 0.12}s`,
               }}
             >

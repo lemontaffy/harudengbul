@@ -14,6 +14,7 @@ import {
   walkStartProb,
   pingpongProb,
 } from "@/lib/petroom";
+import { isHostileLabel } from "@/lib/pets";
 import type { PetVM, RoomVM, RelationVM, PetRef } from "./types";
 
 function reduced(): boolean {
@@ -134,6 +135,14 @@ export default function RoomView({
   function isLovePair(a: number, b: number): boolean {
     return relations.some(
       (r) => r.isLove && ((r.petAId === a && r.petBId === b) || (r.petAId === b && r.petBId === a)),
+    );
+  }
+  // 적대 관계 페어 — 연인(isLovePair)과 대칭. 라벨 키워드로 판정(빠직 anger 트리거).
+  function isHostilePair(a: number, b: number): boolean {
+    return relations.some(
+      (r) =>
+        isHostileLabel(r.label) &&
+        ((r.petAId === a && r.petBId === b) || (r.petAId === b && r.petBId === a)),
     );
   }
   function aboutLineFor(p: PetVM, otherId: number): string | null {
@@ -261,11 +270,14 @@ export default function RoomView({
     cooldowns.current.set(pairKey(a.id, b.id), Date.now());
     seqRef.current++;
     const love = isLovePair(a.id, b.id);
+    const hostile = !love && isHostilePair(a.id, b.id);
     showBubble(a.id, aboutLineFor(a, b.id) ?? "…", 1700);
     if (love) loveBurst(a.id, a.posX, a.posY);
+    else if (hostile) spawnEffect("anger", a.posX, a.posY - 8);
     setTimeout(() => {
       showBubble(b.id, aboutLineFor(b, a.id) ?? "…", 2200);
       if (love) loveBurst(b.id, b.posX, b.posY);
+      else if (hostile) spawnEffect("anger", b.posX, b.posY - 8);
       setTimeout(() => {
         seqRef.current = Math.max(0, seqRef.current - 1);
       }, 2300);
@@ -341,8 +353,9 @@ export default function RoomView({
     if (Math.random() >= p.talkativeness / 100) return;
     const line = pickLine(p);
     showBubble(p.id, line.content);
-    if (line.kind === "about_other" && line.aboutPetId != null && isLovePair(p.id, line.aboutPetId)) {
-      loveBurst(p.id, p.posX, p.posY);
+    if (line.kind === "about_other" && line.aboutPetId != null) {
+      if (isLovePair(p.id, line.aboutPetId)) loveBurst(p.id, p.posX, p.posY);
+      else if (isHostilePair(p.id, line.aboutPetId)) spawnEffect("anger", p.posX, p.posY - 8);
     }
   }
 
@@ -356,8 +369,11 @@ export default function RoomView({
     if (walkingRef.current?.petId === p.id) setWalking(null);
     const line = pickLine(p);
     showBubble(p.id, line.content, 3200, true);
-    const lovely = line.kind === "about_other" && line.aboutPetId != null && isLovePair(p.id, line.aboutPetId);
+    const about = line.kind === "about_other" && line.aboutPetId != null ? line.aboutPetId : null;
+    const lovely = about != null && isLovePair(p.id, about);
+    const hostile = about != null && !lovely && isHostilePair(p.id, about);
     if (lovely) loveBurst(p.id, p.posX, p.posY);
+    else if (hostile) spawnEffect("anger", p.posX, p.posY - 8);
     else spawnEffect(Math.random() < 0.5 ? "sparkle" : "notes", p.posX, p.posY - 8);
   }
 

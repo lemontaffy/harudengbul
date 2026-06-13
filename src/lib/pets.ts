@@ -62,6 +62,11 @@ export function isLoveLabel(label: string): boolean {
   return /연인|사랑|커플|love|연애/i.test(label);
 }
 
+/** 관계 라벨이 '적대' 결인지(빠직 anger 이펙트 트리거). isLoveLabel과 대칭. */
+export function isHostileLabel(label: string): boolean {
+  return /혐관|라이벌|앙숙|적대|견제|rival/i.test(label);
+}
+
 /** 자동 생성 대사가 금지(죽음/자해·비속어)에 걸리면 true → 제외. */
 export function forbiddenLine(s: string): boolean {
   const t = s.normalize("NFC");
