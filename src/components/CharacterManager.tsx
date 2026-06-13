@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useDialog } from "@/components/ui/Dialog";
 import AvatarPicker from "@/components/AvatarPicker";
 
 type Role = "counselor" | "secretary" | "nutritionist" | "study_mate" | "friend";
@@ -50,6 +51,7 @@ export default function CharacterManager({
   initialCharacters: Character[];
   initialTriggers: TriggerAssignments;
 }) {
+  const dialog = useDialog();
   const [chars, setChars] = useState<Character[]>(initialCharacters);
   const [triggers, setTriggers] = useState<TriggerAssignments>(initialTriggers);
   const [editingId, setEditingId] = useState<number | null>(null);
@@ -77,7 +79,7 @@ export default function CharacterManager({
   }
 
   async function archive(c: Character) {
-    if (!confirm(`'${dn(c.name)}' 캐릭터를 보관할까요? (대화 기록은 남아요)`)) return;
+    if (!(await dialog.confirm({ message: `'${dn(c.name)}' 캐릭터를 보관할까요?\n대화 기록은 남아요.`, confirmText: "보관" }))) return;
     const res = await fetch(`/api/personas/${c.id}`, { method: "DELETE" });
     const data = await res.json().catch(() => ({}));
     if (!res.ok) {

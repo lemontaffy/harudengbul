@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
+import { useDialog } from "@/components/ui/Dialog";
 import type { PetRef } from "./types";
 
 const STAGES = ["baby", "teen", "adult"] as const;
@@ -103,6 +104,7 @@ function GrowthBar({ d }: { d: Detail }) {
 }
 
 function InfoTab({ d, rooms, onChanged, reload }: { d: Detail; rooms: PetRef[]; onChanged: () => void; reload: () => void }) {
+  const dialog = useDialog();
   const [name, setName] = useState(d.pet.name);
   const [personality, setPersonality] = useState(d.pet.personality ?? "");
   const [pixel, setPixel] = useState(d.pet.pixelRender);
@@ -121,7 +123,7 @@ function InfoTab({ d, rooms, onChanged, reload }: { d: Detail; rooms: PetRef[]; 
     onChanged();
   }
   async function remove() {
-    if (!confirm("이 펫을 삭제할까요? 되돌릴 수 없어요.")) return;
+    if (!(await dialog.confirm({ message: "이 펫을 삭제할까요? 되돌릴 수 없어요.", danger: true, confirmText: "삭제" }))) return;
     await fetch(`/api/pets/${d.pet.id}`, { method: "DELETE" });
     onChanged();
   }

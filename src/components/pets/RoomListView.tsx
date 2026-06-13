@@ -3,6 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { useDialog } from "@/components/ui/Dialog";
 import type { PetRef } from "./types";
 
 export interface RoomCard {
@@ -16,6 +17,7 @@ const input = "w-full rounded-control bg-bg px-3 py-2 text-sm outline-none ring-
 
 export default function RoomListView({ rooms }: { rooms: RoomCard[] }) {
   const router = useRouter();
+  const dialog = useDialog();
   const [addPet, setAddPet] = useState(false);
   const [petName, setPetName] = useState("");
   const [petPersona, setPetPersona] = useState("");
@@ -23,7 +25,7 @@ export default function RoomListView({ rooms }: { rooms: RoomCard[] }) {
   const [status, setStatus] = useState("");
 
   async function createRoom() {
-    const name = prompt("방 이름");
+    const name = await dialog.prompt({ title: "방 만들기", placeholder: "방 이름", confirmText: "만들기" });
     if (!name?.trim()) return;
     const res = await fetch("/api/pet-rooms", {
       method: "POST",
@@ -33,7 +35,7 @@ export default function RoomListView({ rooms }: { rooms: RoomCard[] }) {
     if (res.ok) router.refresh();
   }
   async function renameRoom(id: number, cur: string) {
-    const name = prompt("새 방 이름", cur);
+    const name = await dialog.prompt({ title: "방 이름 변경", defaultValue: cur, confirmText: "변경" });
     if (!name?.trim()) return;
     await fetch(`/api/pet-rooms/${id}`, {
       method: "PATCH",
@@ -43,12 +45,12 @@ export default function RoomListView({ rooms }: { rooms: RoomCard[] }) {
     router.refresh();
   }
   async function deleteRoom(id: number) {
-    if (!confirm("이 방을 삭제할까요?")) return;
+    if (!(await dialog.confirm({ message: "이 방을 삭제할까요?", danger: true, confirmText: "삭제" }))) return;
     const res = await fetch(`/api/pet-rooms/${id}`, { method: "DELETE" });
     if (res.ok) router.refresh();
     else {
       const j = await res.json().catch(() => ({}));
-      alert(j.error ?? "삭제할 수 없어요.");
+      await dialog.alert({ message: j.error ?? "삭제할 수 없어요." });
     }
   }
   async function createPet() {

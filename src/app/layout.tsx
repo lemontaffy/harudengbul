@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import TabBar from "@/components/TabBar";
 import CustomCss from "@/components/CustomCss";
+import { DialogProvider } from "@/components/ui/Dialog";
 import { getAppearance, sanitizeCss } from "@/lib/theme";
 
 export const metadata: Metadata = {
@@ -33,8 +34,10 @@ export default async function RootLayout({
   return (
     <html lang="ko" data-theme={theme}>
       <body>
-        {children}
-        <TabBar />
+        <DialogProvider>
+          {children}
+          <TabBar />
+        </DialogProvider>
         <CustomCss css={customCss ? sanitizeCss(customCss) : null} />
       </body>
     </html>

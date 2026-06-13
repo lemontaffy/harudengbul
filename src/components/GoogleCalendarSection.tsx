@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useDialog } from "@/components/ui/Dialog";
 
 export interface GoogleInitial {
   configured: boolean; // 서버에 GOOGLE_CLIENT_ID/SECRET 설정됨
@@ -11,6 +12,7 @@ export interface GoogleInitial {
 }
 
 export default function GoogleCalendarSection({ initial }: { initial: GoogleInitial }) {
+  const dialog = useDialog();
   const [connected, setConnected] = useState(initial.connected);
   const [status, setStatus] = useState(initial.flash ?? "");
   const [busy, setBusy] = useState(false);
@@ -30,7 +32,7 @@ export default function GoogleCalendarSection({ initial }: { initial: GoogleInit
   }
 
   async function disconnect() {
-    if (!confirm("Google 캘린더 연결을 해제할까요? (이미 동기화된 일정은 남아요)")) return;
+    if (!(await dialog.confirm({ message: "Google 캘린더 연결을 해제할까요?\n이미 동기화된 일정은 남아요.", confirmText: "연결 해제", danger: true }))) return;
     setBusy(true);
     try {
       const res = await fetch("/api/google/disconnect", { method: "POST" });

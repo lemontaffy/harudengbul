@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
+import { useDialog } from "@/components/ui/Dialog";
 
 /**
  * 클립보드 복사 — HTTPS(보안 컨텍스트)에선 Clipboard API, 아니면(예: http/localhost)
@@ -42,6 +43,7 @@ function CopyButton({
   className?: string;
   label?: string;
 }) {
+  const dialog = useDialog();
   const [done, setDone] = useState(false);
   async function onClick() {
     const ok = await copyText(text);
@@ -50,7 +52,12 @@ function CopyButton({
       setTimeout(() => setDone(false), 1500);
     } else {
       // 복사 자체가 막힌 환경 — 수동 복사할 수 있게 노출
-      prompt("복사가 막혀 있어요. 아래 내용을 길게 눌러 복사하세요:", text);
+      await dialog.prompt({
+        title: "복사가 막혀 있어요",
+        message: "아래 내용을 길게 눌러 복사하세요.",
+        defaultValue: text,
+        confirmText: "닫기",
+      });
     }
   }
   return (
@@ -81,6 +88,7 @@ interface UserRow {
 }
 
 export default function AdminPanel() {
+  const dialog = useDialog();
   const [invites, setInvites] = useState<Invite[]>([]);
   const loadInvites = useCallback(async () => {
     const res = await fetch("/api/admin/invites");
@@ -112,7 +120,7 @@ export default function AdminPanel() {
     await loadUsers();
   }
   async function resetPassword(u: UserRow) {
-    if (!confirm(`${u.username}의 비밀번호를 초기화할까요?`)) return;
+    if (!(await dialog.confirm({ message: `${u.username}의 비밀번호를 초기화할까요?`, danger: true, confirmText: "초기화" }))) return;
     const res = await fetch("/api/admin/users/reset-password", {
       method: "POST",
       headers: { "content-type": "application/json" },
@@ -120,7 +128,7 @@ export default function AdminPanel() {
     });
     const data = await res.json();
     if (res.ok) setTempPw((m) => ({ ...m, [u.id]: data.tempPassword }));
-    else alert(data.error ?? "초기화 실패");
+    else await dialog.alert({ message: data.error ?? "초기화 실패" });
   }
 
   useEffect(() => {

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useDialog } from "@/components/ui/Dialog";
 
 export interface EventItem {
   id: number;
@@ -71,6 +72,7 @@ export default function EventsView({
   initial: EventItem[];
   emptyCta?: { text: string; href: string };
 }) {
+  const dialog = useDialog();
   const [events, setEvents] = useState<EventItem[]>(initial);
   const [adding, setAdding] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
@@ -82,7 +84,7 @@ export default function EventsView({
   }
 
   async function remove(ev: EventItem) {
-    if (!confirm(`'${ev.title}' 일정을 삭제할까요?`)) return;
+    if (!(await dialog.confirm({ message: `'${ev.title}' 일정을 삭제할까요?`, danger: true, confirmText: "삭제" }))) return;
     const res = await fetch(`/api/events/${ev.id}`, { method: "DELETE" });
     if (res.ok) {
       setStatus("삭제됨");

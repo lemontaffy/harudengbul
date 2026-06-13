@@ -4,6 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { isReopenable } from "@/lib/timecapsule";
 import GenerateLetterButton from "@/components/GenerateLetterButton";
+import { useDialog } from "@/components/ui/Dialog";
 
 export interface PersonaOption {
   id: number;
@@ -73,6 +74,7 @@ export default function LettersView({
   receivedCapsules: ReceivedCapsule[];
   weeklyLetters: WeeklyLetter[];
 }) {
+  const dialog = useDialog();
   const [sealed, setSealed] = useState<SealedCapsule[]>(initialSealed);
   const [editing, setEditing] = useState<number | null>(null);
 
@@ -120,7 +122,7 @@ export default function LettersView({
   }
 
   async function del(id: number) {
-    if (!confirm("이 편지를 삭제할까요? 되돌릴 수 없어요.")) return;
+    if (!(await dialog.confirm({ message: "이 편지를 삭제할까요? 되돌릴 수 없어요.", danger: true, confirmText: "삭제" }))) return;
     const res = await fetch(`/api/letters/capsules/${id}`, { method: "DELETE" });
     if (res.ok) setSealed((xs) => xs.filter((c) => c.id !== id));
   }

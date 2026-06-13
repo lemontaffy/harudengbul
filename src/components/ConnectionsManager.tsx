@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { useDialog } from "@/components/ui/Dialog";
 
 interface Conn {
   id: number;
@@ -50,6 +51,7 @@ const EMPTY = {
 };
 
 export default function ConnectionsManager() {
+  const dialog = useDialog();
   const [conns, setConns] = useState<Conn[]>([]);
   const [activeId, setActiveId] = useState<number | null>(null);
   const [auxId, setAuxId] = useState<number | null>(null);
@@ -143,7 +145,7 @@ export default function ConnectionsManager() {
   }
 
   async function del(id: number, name: string) {
-    if (!confirm(`'${name}' 연결을 삭제할까요?`)) return;
+    if (!(await dialog.confirm({ message: `'${name}' 연결을 삭제할까요?`, danger: true, confirmText: "삭제" }))) return;
     await fetch(`/api/connections/${id}`, { method: "DELETE" });
     await load();
   }

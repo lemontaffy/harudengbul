@@ -1,10 +1,12 @@
 "use client";
 
 import { useState } from "react";
+import { useDialog } from "@/components/ui/Dialog";
 
 type Card = { id: number; body: string };
 
 export default function PocketCards({ initial }: { initial: Card[] }) {
+  const dialog = useDialog();
   const [cards, setCards] = useState<Card[]>(initial);
   const [adding, setAdding] = useState(false);
   const [text, setText] = useState("");
@@ -32,7 +34,7 @@ export default function PocketCards({ initial }: { initial: Card[] }) {
   }
 
   async function del(id: number) {
-    if (!confirm("이 카드를 지울까요?")) return;
+    if (!(await dialog.confirm({ message: "이 카드를 지울까요?", danger: true, confirmText: "지우기" }))) return;
     await fetch(`/api/pocket/cards?id=${id}`, { method: "DELETE" });
     setCards((c) => c.filter((x) => x.id !== id));
   }

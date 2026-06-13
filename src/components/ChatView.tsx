@@ -1,6 +1,7 @@
 "use client";
 
 import { Fragment, useEffect, useRef, useState, useCallback } from "react";
+import { useDialog } from "@/components/ui/Dialog";
 import { ImagePlus } from "lucide-react";
 import ConnectionSwitcher from "@/components/ConnectionSwitcher";
 
@@ -60,6 +61,7 @@ export default function ChatView({
   configured: boolean;
   supportsVision: boolean;
 }) {
+  const dialog = useDialog();
   const personaId = persona.id;
   const current = persona;
   const [messages, setMessages] = useState<Msg[]>([]);
@@ -264,7 +266,7 @@ export default function ChatView({
         ? "이 메시지와 그에 대한 답장을 삭제할까요?"
         : "이 메시지를 삭제할까요?";
     const text = base + (warnTools ? "\n(등록된 일정·가계부 기록은 삭제되지 않아요.)" : "");
-    if (!confirm(text)) return;
+    if (!(await dialog.confirm({ message: text, danger: true, confirmText: "삭제" }))) return;
     setMenuFor(null);
     await fetch(`/api/messages/${msg.id}`, { method: "DELETE" });
     if (personaId != null) await loadHistory(personaId);
