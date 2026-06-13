@@ -24,6 +24,20 @@ function soloPrompt(stage: Stage, personality: string | null): string {
     .join("\n");
 }
 
+function wakePrompt(stage: Stage, personality: string | null): string {
+  return [
+    `펫이 자다가 주인이 깨워서 화들짝 놀라 깨는 순간의 짧은 한 마디 6개를 만들어.`,
+    `- 톤: ${STAGE_TONE[stage]}`,
+    personality ? `- 성격 참고: ${personality}` : "",
+    `- 귀여운 깜짝 놀람이다("!", "으냐?!", "…깼다", "헉, 깜짝이야" 류). 잠이 덜 깬 느낌도 좋다.`,
+    `- 중요: 깨워줘서 반가운 쪽이다. "왜 깨워" 같은 책망·짜증·불쾌 표현 절대 금지.`,
+    `- 각 12자 내외. 죽음·자해 언급 금지, 비속어 원문 금지.`,
+    `- 출력은 JSON 문자열 배열만. 예: ["으냐?!","…깼다"]`,
+  ]
+    .filter(Boolean)
+    .join("\n");
+}
+
 function aboutPrompt(stage: Stage, selfName: string, otherName: string, label: string): string {
   return [
     `'${selfName}'(이 펫)가 다른 펫 '${otherName}'에 대해 하는 짧은 혼잣말 5개를 만들어.`,
@@ -63,7 +77,20 @@ export async function regenerateLines(userId: number, petId: number, stage: Stag
   const cfg = await getPetAuxConfig(userId);
   if (!cfg.configured) return 0;
 
-  const out: { kind: "solo" | "about_other"; aboutPetId: number | null; content: string }[] = [];
+  const out: { kind: "solo" | "about_other" | "wake"; aboutPetId: number | null; content: string }[] = [];
+
+  // wake — 자다 깨면 놀라는 한 마디(귀여운 깜짝, 책망 금지)
+  try {
+    const text = await completeChat(cfg, [
+      { role: "system", content: "너는 펫 대사 생성기다. 요청 형식(JSON 배열)만 출력한다." },
+      { role: "user", content: wakePrompt(stage, pet.personality) },
+    ]);
+    for (const line of parseLines(text)) {
+      if (!forbiddenLine(line)) out.push({ kind: "wake", aboutPetId: null, content: line });
+    }
+  } catch {
+    /* wake 실패 — 그대로 진행 */
+  }
 
   // solo
   try {

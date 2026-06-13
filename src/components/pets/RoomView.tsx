@@ -53,6 +53,7 @@ export default function RoomView({
   const [bubble, setBubble] = useState<{ petId: number; text: string } | null>(null);
   const [loveUntil, setLoveUntil] = useState<Record<number, number>>({});
   const [napUntil, setNapUntil] = useState<Record<number, number>>({}); // 개별 펫이 잠깐 조는 이벤트(보는 중에도)
+  const [startleUntil, setStartleUntil] = useState<Record<number, number>>({}); // 깨우면 짧게 튀는 모션
   const [walking, setWalking] = useState<{ petId: number; ms: number; flip: boolean } | null>(null);
   const [customPlay, setCustomPlay] = useState<{ petId: number; path: string; flip: boolean } | null>(null);
   const [editId, setEditId] = useState<number | null>(null);
@@ -392,10 +393,16 @@ export default function RoomView({
     }
   }
 
-  // 자다 깨면 놀라는 리액션(말풍선 + 팟 이펙트). 깨우는 탭에서만.
+  // 자다 깨면 놀라는 리액션(놀람 대사 + 팟 이펙트 + 짧게 튀는 모션). 깨우는 탭에서만.
+  // 톤: 귀여운 깜짝, 책망 아님. 대사 풀: wake → solo → 기본 감탄사 순.
   function startleWake(p: PetVM) {
-    showBubble(p.id, STARTLE_LINES[Math.floor(Math.random() * STARTLE_LINES.length)], 1800, true);
+    const pool = p.wakeLines.length ? p.wakeLines : p.soloLines.length ? p.soloLines : STARTLE_LINES;
+    showBubble(p.id, pool[Math.floor(Math.random() * pool.length)], 1800, true);
     spawnEffect("sparkle", p.posX, p.posY - 8);
+    if (!reduced()) {
+      setStartleUntil((m) => ({ ...m, [p.id]: Date.now() + 480 }));
+      setTimeout(() => setStartleUntil((m) => (m[p.id] && m[p.id] <= Date.now() ? { ...m, [p.id]: 0 } : m)), 520);
+    }
   }
 
   // ── 탭/드래그 ──
@@ -548,6 +555,14 @@ export default function RoomView({
 
   return (
     <div className="flex flex-col gap-3">
+      <style>{`
+        @keyframes petStartle {
+          0% { transform: translateY(0) scale(1); }
+          25% { transform: translateY(-18%) scale(1.1); }
+          55% { transform: translateY(0) scale(0.95); }
+          100% { transform: translateY(0) scale(1); }
+        }
+      `}</style>
       {/* 무대(스트립) */}
       <div
         ref={scrollRef}
@@ -576,6 +591,7 @@ export default function RoomView({
             const isWalking = walking?.petId === p.id;
             const custom = customPlay?.petId === p.id ? customPlay : null;
             const sleeping = asleep || (napUntil[p.id] ?? 0) > Date.now(); // 전역 잠 또는 개별 졸기
+            const startled = (startleUntil[p.id] ?? 0) > Date.now(); // 깨우면 짧게 튀는 모션
             const src = sleeping
               ? p.sleepPath ?? p.spritePath
               : custom
@@ -618,7 +634,7 @@ export default function RoomView({
                     </div>
                   </div>
                 )}
-                <div className="relative">
+                <div className="relative" style={{ animation: startled ? "petStartle 0.45s ease-out" : undefined }}>
                   {src ? (
                     // eslint-disable-next-line @next/next/no-img-element
                     <img

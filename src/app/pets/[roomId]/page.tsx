@@ -55,6 +55,9 @@ export default async function RoomPage({ params }: { params: Promise<{ roomId: s
     const solo = lines
       .filter((l) => l.petId === p.id && l.stage === growthStage && l.kind === "solo")
       .map((l) => l.content);
+    const wake = lines
+      .filter((l) => l.petId === p.id && l.stage === growthStage && l.kind === "wake")
+      .map((l) => l.content);
     const about = lines
       .filter((l) => l.petId === p.id && l.stage === growthStage && l.kind === "about_other" && l.aboutPetId != null)
       .map((l) => ({ aboutPetId: l.aboutPetId as number, content: l.content }));
@@ -75,6 +78,7 @@ export default async function RoomPage({ params }: { params: Promise<{ roomId: s
       lovePath: pickSpritePath(ps, display, "love"),
       evolutionPending: p.lastStageSeen !== growthStage,
       soloLines: solo.length ? solo : DEFAULT_LINES[growthStage],
+      wakeLines: wake,
       aboutLines: about,
       customs: customs
         .filter((c) => c.petId === p.id && c.stage === display)

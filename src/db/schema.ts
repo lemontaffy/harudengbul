@@ -587,7 +587,7 @@ export const petLines = pgTable(
       .notNull()
       .references(() => pets.id, { onDelete: "cascade" }),
     stage: text("stage").notNull(),
-    kind: text("kind").notNull(), // 'solo' | 'about_other'
+    kind: text("kind").notNull(), // 'solo' | 'about_other' | 'wake'
     aboutPetId: bigint("about_pet_id", { mode: "number" }).references(() => pets.id, {
       onDelete: "set null",
     }),

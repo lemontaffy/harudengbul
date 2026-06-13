@@ -24,6 +24,7 @@ export interface PetVM {
   lovePath: string | null;
   evolutionPending: boolean;
   soloLines: string[];
+  wakeLines: string[]; // 자다 깨면 놀라는 대사(없으면 solo 폴백)
   aboutLines: { aboutPetId: number; content: string }[];
   customs: PetCustomVM[]; // 표시 스테이지에 해당하는 커스텀 모션
 }

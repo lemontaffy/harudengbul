@@ -68,7 +68,7 @@ export async function removeOne(userId: number, id: number) {
 export async function replaceAuto(
   petId: number,
   stage: string,
-  lines: { kind: "solo" | "about_other"; aboutPetId: number | null; content: string }[],
+  lines: { kind: "solo" | "about_other" | "wake"; aboutPetId: number | null; content: string }[],
 ) {
   await db.transaction(async (tx) => {
     await tx
