@@ -267,6 +267,13 @@
       "when": 1781400900000,
       "tag": "0037_css_themes",
       "breakpoints": true
+    },
+    {
+      "idx": 38,
+      "version": "7",
+      "when": 1781401000000,
+      "tag": "0038_memory_scope",
+      "breakpoints": true
     }
   ]
 }

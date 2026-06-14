@@ -20,7 +20,14 @@ import * as usageRepo from "../src/db/repo/usage";
 import * as petsRepo from "../src/db/repo/pets";
 import * as petRelationsRepo from "../src/db/repo/petRelations";
 import * as letterRepliesRepo from "../src/db/repo/petLetterReplies";
-import { buildReplyMessages, fallbackReply, type ReplyRelation } from "../src/lib/petLetter";
+import {
+  buildReplyMessages,
+  buildMemoryExtractMessages,
+  sanitizePetMemory,
+  fallbackReply,
+  type ReplyRelation,
+} from "../src/lib/petLetter";
+import { recallPetMemories, savePetMemory } from "../src/lib/petMemory";
 import { getLetterConfig } from "../src/lib/config";
 import { getPetBriefingLine } from "../src/modules/pets/boundary";
 import {
@@ -282,10 +289,13 @@ async function deliverDueLetterReplies() {
       if (pet) {
         const cfg = await getLetterConfig(r.userId);
         if (cfg.configured) {
+          // 그 펫이 사용자와 쌓은 'pet' 추억만 회수(사적·메타·타 영역 기억은 절대 안 섞임).
+          const petMems = await recallPetMemories(r.userId, pet.id, r.letterContent).catch(() => []);
           const msgs = buildReplyMessages(
             { name: pet.name, personality: pet.personality },
             r.letterContent,
             await buildReplyRels(r.userId, pet.id),
+            petMems,
           );
           let content = "";
           for (let attempt = 0; attempt < 2 && !content; attempt++) {
@@ -295,7 +305,20 @@ async function deliverDueLetterReplies() {
               /* 재시도 */
             }
           }
-          if (content) await letterRepliesRepo.setContent(r.id, content);
+          if (content) {
+            await letterRepliesRepo.setContent(r.id, content);
+            // 이번 편지 교환에서 펫 추억 한 줄 추출·저장(scope='pet'). 민감/사적 정보는 추출 프롬프트가 배제. best-effort.
+            try {
+              const memRaw = (await completeChat(cfg, buildMemoryExtractMessages({ name: pet.name }, r.letterContent, content))).trim();
+              const mem = sanitizePetMemory(memRaw);
+              if (mem) {
+                await savePetMemory(r.userId, pet.id, mem);
+                log(`  letter-reply mem+ user#${r.userId} pet#${pet.id}: ${mem.slice(0, 40)}`);
+              }
+            } catch (e) {
+              log(`  letter-reply mem 추출 실패 #${r.id}: ${(e as Error)?.message}`);
+            }
+          }
         }
       }
 

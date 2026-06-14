@@ -672,7 +672,14 @@ async function executeToolImpl(
     }
     if (name === "save_memory") {
       const a = saveMemArgs.parse(args);
-      const row = await memoriesRepo.add(userId, a.content, "chat", a.importance ?? 3);
+      // 출처 페르소나의 주 역할을 scope 로(테오→'secretary' 등). 펫 스코프와 절대 안 섞이게 비-펫 보장.
+      let scope = "chat";
+      if (opts?.personaId) {
+        const p = await personasRepo.getOne(userId, opts.personaId);
+        const role = (p?.roles as string[] | undefined)?.[0];
+        if (role) scope = role;
+      }
+      const row = await memoriesRepo.add(userId, a.content, "chat", a.importance ?? 3, { scope });
       return `OK: 기억 저장(id=${row.id})`;
     }
     if (name === "add_memo") {

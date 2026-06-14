@@ -393,14 +393,22 @@ export const memories = pgTable(
       .notNull()
       .references(() => users.id, { onDelete: "cascade" }),
     content: text("content").notNull(),
-    source: text("source"), // 'chat' | 'diary'
+    source: text("source"), // 'chat' | 'diary' | 'pet_letter' 등(출처 종류)
     importance: integer("importance").default(3), // 1~5
+    // 영역 스코프 — 회수 격리용. 'legacy'(기존, 소급분류 안 함) | 'pet'(펫과 쌓은 추억) |
+    //   'secretary'/'counselor'/... (페르소나 역할). 펫 LLM 은 scope='pet'만, 페르소나는 scope<>'pet'만 본다.
+    scope: text("scope").notNull().default("legacy"),
+    // scope='pet' 일 때 어느 펫의 추억인지(펫별 한정 회수). 펫 삭제 시 SET NULL(추억 보존하되 회수 대상에서 빠짐).
+    petId: bigint("pet_id", { mode: "number" }).references(() => pets.id, { onDelete: "set null" }),
     // 의미 검색용 임베딩(text-embedding-3-small 등 1536차원). null이면 importance 폴백.
     embedding: vector("embedding", { dimensions: 1536 }),
     lastReferenced: timestamp("last_referenced", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
   },
-  (t) => [index("memories_user_idx").on(t.userId, t.importance, t.createdAt)],
+  (t) => [
+    index("memories_user_idx").on(t.userId, t.importance, t.createdAt),
+    index("memories_user_scope_idx").on(t.userId, t.scope, t.petId),
+  ],
 );
 
 export const pushSubscriptions = pgTable("push_subscriptions", {
