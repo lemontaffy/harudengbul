@@ -457,6 +457,44 @@ export const handoffSuggestions = pgTable(
   (t) => [index("handoff_user_status_idx").on(t.userId, t.status)],
 );
 
+// 업적판 — 사용자가 '해낸 일'. 상담 맥락/사유는 절대 저장 안 함(추출 텍스트 한 줄만).
+export const achievements = pgTable(
+  "achievements",
+  {
+    id: bigint("id", { mode: "number" }).primaryKey().generatedAlwaysAsIdentity(),
+    userId: bigint("user_id", { mode: "number" })
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    title: text("title").notNull(), // 해낸 일 한 줄
+    sourcePersonaId: bigint("source_persona_id", { mode: "number" }).references(() => personas.id, {
+      onDelete: "set null",
+    }),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
+  },
+  (t) => [index("achievements_user_idx").on(t.userId, t.createdAt)],
+);
+
+// 상담→업적판 핸드오프 제안(동의 기반). 핸드오프와 동형 — 해낸 일 한 줄만, 맥락 비전이.
+export const achievementSuggestions = pgTable(
+  "achievement_suggestions",
+  {
+    id: bigint("id", { mode: "number" }).primaryKey().generatedAlwaysAsIdentity(),
+    userId: bigint("user_id", { mode: "number" })
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    sourcePersonaId: bigint("source_persona_id", { mode: "number" }).references(() => personas.id),
+    suggestedText: text("suggested_text").notNull(), // "며칠 만에 일어나 밥을 챙겨 먹음" 같은 한 줄
+    status: text("status").notNull().default("pending"), // pending|accepted|dismissed|expired
+    createdAchievementId: bigint("created_achievement_id", { mode: "number" }).references(
+      () => achievements.id,
+      { onDelete: "set null" },
+    ),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
+    resolvedAt: timestamp("resolved_at", { withTimezone: true }),
+  },
+  (t) => [index("achievement_sugg_user_status_idx").on(t.userId, t.status)],
+);
+
 // 만능 캡처 인박스 — 떠오른 모든 것을 1초 안에. 분류·마감·우선순위 없음(마찰 제로).
 export const memos = pgTable(
   "memos",

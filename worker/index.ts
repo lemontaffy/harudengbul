@@ -12,6 +12,7 @@ import * as messagesRepo from "../src/db/repo/messages";
 import * as diaryRepo from "../src/db/repo/diary";
 import * as memoriesRepo from "../src/db/repo/memories";
 import * as handoffsRepo from "../src/db/repo/handoffs";
+import * as achievementSuggRepo from "../src/db/repo/achievementSuggestions";
 import * as googleRepo from "../src/db/repo/google";
 import * as capsulesRepo from "../src/db/repo/timeCapsules";
 import * as memosRepo from "../src/db/repo/memos";
@@ -586,6 +587,8 @@ async function handoffExpiryJob() {
   try {
     const n = await handoffsRepo.expireOld();
     if (n > 0) log(`handoffExpiryJob: ${n}건 만료(조용히)`);
+    const a = await achievementSuggRepo.expireOld();
+    if (a > 0) log(`achievementExpiry: ${a}건 만료(조용히)`);
   } catch (err) {
     log(`handoffExpiryJob 오류: ${(err as Error)?.message}`);
   }

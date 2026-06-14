@@ -6,6 +6,7 @@ import * as eventsRepo from "@/db/repo/events";
 import * as diaryRepo from "@/db/repo/diary";
 import * as messagesRepo from "@/db/repo/messages";
 import * as handoffsRepo from "@/db/repo/handoffs";
+import * as achievementSuggRepo from "@/db/repo/achievementSuggestions";
 import * as memosRepo from "@/db/repo/memos";
 import { phraseForDate } from "@/lib/phrases";
 import { findSecretary } from "@/lib/cta";
@@ -17,6 +18,7 @@ import MoodChips from "@/components/MoodChips";
 import WeatherSlot from "@/components/WeatherSlot";
 import PhraseCard from "@/components/PhraseCard";
 import HandoffCard, { type HandoffItem } from "@/components/HandoffCard";
+import AchievementCard, { type AchievementSuggestion } from "@/components/AchievementCard";
 import MemoCapture, { type MemoPreview } from "@/components/MemoCapture";
 
 export const dynamic = "force-dynamic";
@@ -47,16 +49,22 @@ export default async function DashboardPage() {
   const end = new Date(start);
   end.setDate(end.getDate() + 1);
 
-  const [personaRows, todayEvents, todayDiary, handoffRows] = await Promise.all([
+  const [personaRows, todayEvents, todayDiary, handoffRows, achSuggRows] = await Promise.all([
     personasRepo.listActiveByUser(user.id),
     eventsRepo.getBetween(user.id, start, end),
     diaryRepo.getByDate(user.id, today),
     handoffsRepo.listPending(user.id),
+    achievementSuggRepo.listPending(user.id),
   ]);
   const handoffs: HandoffItem[] = handoffRows.map((h) => ({
     id: h.id,
     suggestedText: h.suggestedText,
     personaName: h.personaName,
+  }));
+  const achievementSuggestions: AchievementSuggestion[] = achSuggRows.map((a) => ({
+    id: a.id,
+    suggestedText: a.suggestedText,
+    personaName: a.personaName,
   }));
 
   // 주머니 메모 — 홈 캡처 박스용 최근 미완료 3개(카운트·뱃지 없음).
@@ -137,6 +145,7 @@ export default async function DashboardPage() {
 
       {/* 핸드오프(상담가가 전달한 항목) — pending 있을 때만 */}
       <HandoffCard initial={handoffs} />
+      <AchievementCard initial={achievementSuggestions} />
 
       {petMini && <PetMiniWidget roomId={petMini.roomId} items={petMini.items} />}
 

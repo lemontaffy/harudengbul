@@ -5,6 +5,7 @@ import * as memoriesRepo from "@/db/repo/memories";
 import * as memosRepo from "@/db/repo/memos";
 import * as settingsRepo from "@/db/repo/settings";
 import * as handoffsRepo from "@/db/repo/handoffs";
+import * as achievementSuggestionsRepo from "@/db/repo/achievementSuggestions";
 import * as messagesRepo from "@/db/repo/messages";
 import * as personasRepo from "@/db/repo/personas";
 import { pushCreate, pushUpdate, pushDelete } from "@/lib/googlesync";
@@ -215,6 +216,27 @@ export const HANDOFF_TOOL: ToolDef = {
   },
 };
 
+// 상담가 전용 — 사용자가 해낸 일을 업적판에 남길 후보로 '전달'. 추출 텍스트 한 줄만(맥락 비전이).
+export const ACHIEVEMENT_TOOL: ToolDef = {
+  type: "function",
+  function: {
+    name: "suggest_achievement",
+    description:
+      "사용자가 해낸 일·잘한 일·극복한 것을 업적판에 남길 후보로 전달한다. 추론으로 발견했으면 사용자 동의를 먼저 받고, 명시적으로 '기록해줘'면 바로 호출한다. 작은 것도 충분하다. 대화 맥락·감정·사유는 절대 넘기지 말고 '해낸 일' 한 줄만.",
+    parameters: {
+      type: "object",
+      properties: {
+        items: {
+          type: "array",
+          items: { type: "string" },
+          description: '해낸 일 한 줄들(예: ["며칠 만에 일어나 밥을 챙겨 먹음"]). 사유·맥락 금지.',
+        },
+      },
+      required: ["items"],
+    },
+  },
+};
+
 // 과거 대화 검색 — 모든 역할 공통. 실제 검색 대상(상담 격리)은 도구 핸들러가 서버에서
 // 강제하므로 LLM 이 인자로 우회할 수 없다(아래 executeTool 참고).
 export const SEARCH_TOOL: ToolDef = {
@@ -268,6 +290,8 @@ export function toolsForRoles(roles: Role[], handoffEnabled: boolean): ToolDef[]
   } else if (handoffEnabled) {
     add(HANDOFF_TOOL);
   }
+  // 상담가 — 업적판 핸드오프(해낸 일 인정·전달). 단독 역할이라 secretary 와 안 섞임.
+  if (roles.includes("counselor")) add(ACHIEVEMENT_TOOL);
   // 영양사·스터디는 어떤 조합이든 장기기억 + 웹검색을 가진다(상담가는 단독이라 해당 없음).
   if (roles.includes("nutritionist") || roles.includes("study_mate")) {
     add(SAVE_MEMORY_TOOL);
@@ -319,6 +343,9 @@ const addMemoArgs = z.object({ content: z.string().trim().min(1).max(2000) });
 const listMemosArgs = z.object({ limit: z.number().int().min(1).max(50).nullish() });
 const handoffArgs = z.object({
   items: z.array(z.string().trim().min(1).max(200)).min(1).max(10),
+});
+const achievementArgs = z.object({
+  items: z.array(z.string().trim().min(1).max(200)).min(1).max(5),
 });
 
 function todayInTz(tz: string): string {
@@ -423,6 +450,17 @@ export async function executeTool(
       }
       const dup = a.items.length - created;
       return `OK: ${created}건 비서에게 전달${dup > 0 ? ` (중복 ${dup}건 제외)` : ""}`;
+    }
+    if (name === "suggest_achievement") {
+      const a = achievementArgs.parse(args);
+      let created = 0;
+      for (const item of a.items) {
+        if (await achievementSuggestionsRepo.createPending(userId, opts?.personaId ?? null, item)) {
+          created++;
+        }
+      }
+      const dup = a.items.length - created;
+      return `OK: 업적 후보 ${created}건 남김${dup > 0 ? ` (중복 ${dup}건 제외)` : ""}`;
     }
     if (name === "add_event") {
       const a = addEventArgs.parse(args);

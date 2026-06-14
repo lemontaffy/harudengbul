@@ -17,6 +17,7 @@ import {
   Shield,
   PawPrint,
   Inbox,
+  Award,
   type LucideIcon,
 } from "lucide-react";
 
@@ -32,6 +33,7 @@ const MORE: { href: string; label: string; Icon: LucideIcon; admin?: boolean }[]
   { href: "/letters", label: "편지", Icon: Mail },
   { href: "/memos", label: "주머니 메모", Icon: Inbox },
   { href: "/pets", label: "펫 룸", Icon: PawPrint },
+  { href: "/achievements", label: "업적판", Icon: Award },
   { href: "/pocket", label: "비상 주머니", Icon: LifeBuoy },
   { href: "/characters", label: "캐릭터", Icon: Users },
   { href: "/settings", label: "설정", Icon: Settings },

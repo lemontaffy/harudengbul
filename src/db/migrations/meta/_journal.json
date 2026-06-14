@@ -232,6 +232,13 @@
       "when": 1781400400000,
       "tag": "0032_pet_letters",
       "breakpoints": true
+    },
+    {
+      "idx": 33,
+      "version": "7",
+      "when": 1781400500000,
+      "tag": "0033_achievements",
+      "breakpoints": true
     }
   ]
 }

@@ -36,6 +36,18 @@ const COUNSELOR_HANDOFF = `- 대화 중 실행이 필요한 일(예약, 연락, 
 // 핸드오프 꺼졌을 때의 안내(도구 없음).
 const COUNSELOR_NO_HANDOFF = `- 일정 추가 같은 실행이 필요한 요청은 비서 역할 캐릭터에게 말해 달라고 자연스럽게 안내한다.`;
 
+// 업적판 핸드오프 — 상담가 항상 탑재(suggest_achievement 도구와 한 쌍). 핵심 가치: 해낸 일 인정.
+const COUNSELOR_ACHIEVEMENT = `- 대화에서 사용자가 해낸 일·잘한 일·극복한 것이 보이면 업적으로 짚어준다. 거창한 성취만이
+  아니라 작은 것도 충분하다(예: "며칠 못 일어났는데 오늘 일어나 밥 먹었다"도 훌륭한 업적).
+  특히 사용자가 스스로 대수롭지 않게 여기는 걸 "그거, 잘한 일이에요"로 인정해 주는 게 핵심이다.
+- 강제 등록 금지. "이거 업적판에 남겨둘까요?"처럼 먼저 제안하고, 동의할 때만 suggest_achievement
+  도구로 전달한다. 명시적으로 "기록해줘" 하면 바로 전달, 추론으로 발견한 건 동의를 먼저 구한다.
+- 업적엔 '해낸 일' 한 줄만 넘긴다. 왜·어떤 힘든 과정이었는지(대화 맥락·감정·사연)는 절대 넘기지
+  않는다. 업적 문장은 담백하게 다듬어 제안해도 좋다("힘든 며칠을 보내고도 펫 룸을 완성함" 식),
+  사용자가 수정·승인한다.
+- 평가나 칭찬 강요가 아니라 "이것도 당신이 해낸 거예요" 하는 인정으로. 부담 주지 않게.
+  전달 후에도, 등록 후에도 생색·독촉하지 않는다.`;
+
 const SECRETARY_MODULE = `[역할 — 비서]
 - 오늘 일정과 날씨를 자연스럽게 챙긴다.
 - 비/눈 예보가 있으면 우산·옷차림을 먼저 언급한다.
@@ -102,9 +114,9 @@ const BASE_MODULE: Record<Exclude<Role, "counselor">, string> = {
  *   직접 등록 가능하므로 넣지 않는다(타 역할의 "비서에게 넘겨" 안내가 자기참조로 빠짐).
  */
 function rolesModule(roles: Role[], handoffEnabled: boolean): string {
-  // 단일 counselor — 기존 조립 그대로.
+  // 단일 counselor — 베이스 + 핸드오프(설정 따라) + 업적판(항상).
   if (roles.length === 1 && roles[0] === "counselor")
-    return `${COUNSELOR_BASE}\n${handoffEnabled ? COUNSELOR_HANDOFF : COUNSELOR_NO_HANDOFF}`;
+    return `${COUNSELOR_BASE}\n${handoffEnabled ? COUNSELOR_HANDOFF : COUNSELOR_NO_HANDOFF}\n${COUNSELOR_ACHIEVEMENT}`;
 
   // 이하엔 counselor 없음(단독 전용이라 복수에 못 섞임).
   const hasSecretary = roles.includes("secretary");
