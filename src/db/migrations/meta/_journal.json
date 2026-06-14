@@ -239,6 +239,13 @@
       "when": 1781400500000,
       "tag": "0033_achievements",
       "breakpoints": true
+    },
+    {
+      "idx": 34,
+      "version": "7",
+      "when": 1781400600000,
+      "tag": "0034_pet_diaries",
+      "breakpoints": true
     }
   ]
 }

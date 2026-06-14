@@ -637,6 +637,28 @@ export const petLetterReplies = pgTable(
   (t) => [index("pet_letter_replies_due_idx").on(t.status, t.deliverAt)],
 );
 
+// 펫 일기 — 펫이 '안 볼 때' 쓴 것 같은 짧은 일기. 하루 1회 5인분 생성·고정(읽기 전용).
+// ※ 사용자 작성 일기(diary 테이블)와 완전 별개 — 절대 안 섞임.
+export const petDiaries = pgTable(
+  "pet_diaries",
+  {
+    id: bigint("id", { mode: "number" }).primaryKey().generatedAlwaysAsIdentity(),
+    userId: bigint("user_id", { mode: "number" })
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    petId: bigint("pet_id", { mode: "number" })
+      .notNull()
+      .references(() => pets.id, { onDelete: "cascade" }),
+    content: text("content").notNull(),
+    date: text("date").notNull(), // YYYY-MM-DD(사용자 tz 자정 기준)
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
+  },
+  (t) => [
+    uniqueIndex("pet_diaries_user_pet_date_idx").on(t.userId, t.petId, t.date), // 1일 1펫 1편(중복 생성 방지)
+    index("pet_diaries_user_date_idx").on(t.userId, t.date),
+  ],
+);
+
 // 커스텀 모션 스프라이트 — 스테이지별, 빈도 가중 자동/수동 재생. 수치·상태와 무관.
 export const petCustomSprites = pgTable(
   "pet_custom_sprites",

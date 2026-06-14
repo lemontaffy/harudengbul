@@ -8,11 +8,12 @@ const ACTIONS: { v: string; ko: string }[] = [
   { v: "letters", ko: "편지" },
   { v: "memo", ko: "메모" },
   { v: "diary", ko: "일기" },
+  { v: "pet_diary", ko: "펫 일기장" },
   { v: "achievements", ko: "업적판" },
   { v: "none", ko: "장식" },
 ];
-// 상태(알림 스프라이트)를 가지는 액션 — 편지만 도착/읽음 상태가 있음.
-const hasState = (a: string) => a === "letters";
+// 상태(알림 스프라이트)를 가지는 액션 — 편지(도착/읽음), 펫 일기장(오늘 안 들여다봄).
+const hasState = (a: string) => a === "letters" || a === "pet_diary";
 const ACCEPT = "image/gif,image/webp,image/png,image/jpeg";
 const input = "w-full rounded-control bg-bg px-3 py-2 text-sm outline-none ring-1 ring-border focus:ring-accent";
 

@@ -10,7 +10,9 @@ import * as petLinesRepo from "@/db/repo/petLines";
 import * as customRepo from "@/db/repo/petCustomSprites";
 import * as furnitureRepo from "@/db/repo/roomFurniture";
 import * as letterRepliesRepo from "@/db/repo/petLetterReplies";
+import * as petDiariesRepo from "@/db/repo/petDiaries";
 import * as settingsRepo from "@/db/repo/settings";
+import { diaryDateInTz } from "@/lib/petDiary";
 import {
   stageFor,
   reachedStages,
@@ -48,8 +50,16 @@ export default async function RoomPage({ params }: { params: Promise<{ roomId: s
       petsRepo.listByUser(user.id),
     ]);
 
-  // fixture 상태 active 판정. 'letters' = 안 읽은 도착 답장 1건+ → 우체통 열림 스프라이트.
-  const lettersActive = (await letterRepliesRepo.countUnread(user.id)) > 0;
+  // fixture 상태 active 판정:
+  //  'letters'  = 안 읽은 도착 답장 1건+ → 우체통 열림 스프라이트.
+  //  'pet_diary'= 오늘 펫 일기 아직 안 들여다봄 → 책갈피 꽂힌 일기장(alt).
+  const hasPetDiary = furnitureRows.some((f) => f.actionType === "pet_diary");
+  const [lettersUnread, petDiaryToday] = await Promise.all([
+    letterRepliesRepo.countUnread(user.id),
+    hasPetDiary ? petDiariesRepo.existsForDate(user.id, diaryDateInTz(settings?.timezone ?? "Asia/Seoul")) : Promise.resolve(true),
+  ]);
+  const activeFor = (a: string | null) =>
+    a === "letters" ? lettersUnread > 0 : a === "pet_diary" ? !petDiaryToday : false;
   const furniture: FurnitureVM[] = furnitureRows.map((f) => ({
     id: f.id,
     kind: f.kind as "seat" | "fixture",
@@ -60,7 +70,7 @@ export default async function RoomPage({ params }: { params: Promise<{ roomId: s
     posY: f.posY,
     pixelRender: f.pixelRender,
     actionType: f.actionType,
-    active: f.actionType === "letters" ? lettersActive : false,
+    active: activeFor(f.actionType),
   }));
 
   const wasSleeping = isSleeping(settings?.lastActivityAt);

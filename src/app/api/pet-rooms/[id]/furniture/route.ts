@@ -6,7 +6,7 @@ import { saveSprite, SpriteError } from "@/lib/petSprites";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-const ACTIONS = ["letters", "memo", "diary", "achievements", "none"];
+const ACTIONS = ["letters", "memo", "diary", "pet_diary", "achievements", "none"];
 
 export async function GET(_req: Request, { params }: { params: Promise<{ id: string }> }) {
   const user = await getCurrentUser();
