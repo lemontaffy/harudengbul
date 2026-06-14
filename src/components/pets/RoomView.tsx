@@ -172,6 +172,7 @@ export default function RoomView({
   const furnitureRef = useRef(furniture);
   furnitureRef.current = furniture;
   const seatOfRef = useRef<Map<number, number>>(new Map()); // petId → 점유 중인 seat 가구 id
+  const crossingRef = useRef<Set<number>>(new Set()); // 패널 경계 넘는 중(과도기) — 양쪽 패널 어디에도 안 속함
   const seqRef = useRef(0); // 핑퐁 등 비동기 시퀀스 진행중 표시
   const cooldowns = useRef<Map<string, number>>(new Map());
   const view = useRef({ left: 0, right: 100 });
@@ -291,9 +292,10 @@ export default function RoomView({
   }
   // 그 펫의 연인 중 '지금 다른 패널에 있는' 펫 id(없으면 null). 그리움·찾아가기용(연인 전용 — isLove 만).
   function loverInOtherPanel(p: PetVM): number | null {
+    if (crossingRef.current.has(p.id)) return null; // 이동 중엔 그리움·찾아가기 판단 보류
     const myPanel = panelOf(p.posX);
     for (const o of petsRef.current) {
-      if (o.id === p.id) continue;
+      if (o.id === p.id || crossingRef.current.has(o.id)) continue; // 이동 중인 연인은 대상서 제외
       if (isLovePair(p.id, o.id) && panelOf(o.posX) !== myPanel) return o.id;
     }
     return null;
@@ -316,8 +318,12 @@ export default function RoomView({
   // 탭/자발 발화 공용 — 풀(solo + 같은 방 상대 about ×2)에서 랜덤 1개(kind 포함).
   function pickLine(p: PetVM): { content: string; kind: "solo" | "about_other"; aboutPetId: number | null } {
     // about_other 는 '같은 패널에 있는 상대'에 대해서만(다른 패널 펫은 인식 못 함 → 벽 너머 언급 차단).
-    const myPanel = panelOf(p.posX);
-    const panelById = new Map(petsRef.current.map((x) => [x.id, panelOf(x.posX)]));
+    //   이동 중(crossing) 펫은 어느 패널에도 안 속함 — 말하는 쪽이든 대상이든 제외.
+    const crossing = crossingRef.current;
+    const myPanel = crossing.has(p.id) ? -1 : panelOf(p.posX);
+    const panelById = new Map(
+      petsRef.current.filter((x) => !crossing.has(x.id)).map((x) => [x.id, panelOf(x.posX)] as const),
+    );
     const pool: { content: string; kind: "solo" | "about_other"; aboutPetId: number | null }[] =
       p.soloLines.map((content) => ({ content, kind: "solo", aboutPetId: null }));
     for (const a of p.aboutLines) {
@@ -415,6 +421,7 @@ export default function RoomView({
       for (let j = i + 1; j < ps.length; j++) {
         const a = ps[i], b = ps[j];
         if (isNapping(a.id) || isNapping(b.id)) continue; // 조는 펫은 대화 안 함
+        if (crossingRef.current.has(a.id) || crossingRef.current.has(b.id)) continue; // 이동 중(과도기) 펫은 인식 보류
         if (panelOf(a.posX) !== panelOf(b.posX)) continue; // 다른 패널은 서로 인식 안 함(벽 너머 핑퐁·❤️·💢 차단)
         if (Math.abs(a.posX - b.posX) > 30) continue;
         if (!isVisible(a.posX) || !isVisible(b.posX)) continue;
@@ -483,35 +490,41 @@ export default function RoomView({
       const Lf = Math.max(0, Math.min(1, L / 50));
       const loverId = loverInOtherPanel(chosen.p);
       if (loverId != null && Math.random() < SEEK_LOVER_PROB * Lf) {
+        // ② 확실한 이동 — 작정하고 연인 패널로(도착 시 재회 ❤️). 보수적(낮은 확률·liveliness 곱).
         const lp = petsRef.current.find((x) => x.id === loverId);
-        if (lp) targetPanel = panelOf(lp.posX); // 연인 패널로 찾아가기 → 같은 패널 되면 ❤️·핑퐁 자연 발동
-      } else if (Math.random() < CROSS_PANEL_PROB * Lf) {
+        if (lp) targetPanel = panelOf(lp.posX);
+      } else if (Math.random() < CROSS_PANEL_PROB * Math.max(0, Math.min(1, chosen.ea / 60))) {
+        // ① 약한 이동 — 목적 없이 '마실' 나가 옆 패널 구경. 활동성(ea) 높을수록 자주.
         const adj: number[] = [];
         if (curPanel > 0) adj.push(curPanel - 1);
         if (curPanel < nP - 1) adj.push(curPanel + 1);
         if (adj.length) targetPanel = adj[Math.floor(Math.random() * adj.length)];
       }
     }
+    const crossing = targetPanel !== curPanel; // 경계를 넘는 walk → 도착까지 과도기(인식 보류)
     // 가끔 빈 seat 가구로 향함(sit 슬롯 있는 ground 펫만). 목적 패널 내 seat 만(기본=현재 패널).
     if (chosen.p.locomotion !== "air" && chosen.p.sitPath && Math.random() < SEAT_TARGET_PROB) {
       const seat = pickEmptySeat(targetPanel);
       if (seat) {
-        doWalk(chosen.p, seatSitTarget(seat), seat.id); // 좌석면(seat_y) 정렬
+        doWalk(chosen.p, seatSitTarget(seat), seat.id, crossing); // 좌석면(seat_y) 정렬
         return true;
       }
     }
     // 다른 펫 점유 반경 피해 재추첨, 다 실패하면 이번 틱 이동 취소.
     const target = pickWalkTarget(chosen.p, chosen.ea, targetPanel);
     if (!target) return false;
-    doWalk(chosen.p, target);
+    doWalk(chosen.p, target, undefined, crossing);
     return true;
   }
-  function doWalk(p: PetVM, target: { x: number; y: number }, seatId?: number) {
+  function doWalk(p: PetVM, target: { x: number; y: number }, seatId?: number, crossing = false) {
     const ms = walkDurationMs(p.posX, target.x, 7);
     const flip = shouldFlip(p.walkFacing, target.x > p.posX);
+    // 경계를 넘는 중이면 '이동 중'으로 표시 — 도착까지 양쪽 패널 어디에도 안 속함(발화·인식 보류).
+    if (crossing) crossingRef.current.add(p.id);
     setWalking({ petId: p.id, ms, flip });
     setPets((xs) => xs.map((q) => (q.id === p.id ? { ...q, posX: target.x, posY: target.y } : q)));
     setTimeout(() => {
+      crossingRef.current.delete(p.id); // 도착 — 그 패널 소속으로 확정, 인식 갱신(이후 핑퐁·❤️ 가능)
       setWalking((w) => (w?.petId === p.id ? null : w));
       if (seatId != null) {
         // 가구에 앉음 — sit 스프라이트로 전환, 일반 머묾보다 길게 쉼(15~40s). 한 seat 한 펫.
@@ -631,7 +644,10 @@ export default function RoomView({
       return;
     }
     // 산책 중이면 그 자리 정지
-    if (walkingRef.current?.petId === p.id) setWalking(null);
+    if (walkingRef.current?.petId === p.id) {
+      setWalking(null);
+      crossingRef.current.delete(p.id); // 강제 정지 = 그 자리(=목적지) 도착 처리
+    }
     const line = pickLine(p);
     showBubble(p.id, line.content, 3200, true);
     const about = line.kind === "about_other" && line.aboutPetId != null ? line.aboutPetId : null;
@@ -644,7 +660,10 @@ export default function RoomView({
 
   function startDrag(e: React.PointerEvent, p: PetVM) {
     e.preventDefault();
-    if (walkingRef.current?.petId === p.id) setWalking(null);
+    if (walkingRef.current?.petId === p.id) {
+      setWalking(null);
+      crossingRef.current.delete(p.id); // 강제 정지 = 그 자리(=목적지) 도착 처리
+    }
     const inner = innerRef.current;
     if (!inner) return;
     let moved = false;
