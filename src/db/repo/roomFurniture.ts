@@ -22,6 +22,8 @@ export async function listForRoom(userId: number, roomId: number) {
       pixelRender: roomFurniture.pixelRender,
       facing: roomFurniture.facing,
       seatY: roomFurniture.seatY,
+      scale: roomFurniture.scale,
+      rotation: roomFurniture.rotation,
       actionType: roomFurniture.actionType,
     })
     .from(roomFurniture)
@@ -77,6 +79,8 @@ export async function updateMeta(
     actionType?: string | null;
     facing?: "left" | "right";
     seatY?: number;
+    scale?: number;
+    rotation?: number;
   },
 ) {
   if (Object.keys(patch).length === 0) return;

@@ -253,6 +253,13 @@
       "when": 1781400700000,
       "tag": "0035_sit_facing",
       "breakpoints": true
+    },
+    {
+      "idx": 36,
+      "version": "7",
+      "when": 1781400800000,
+      "tag": "0036_furniture_transform",
+      "breakpoints": true
     }
   ]
 }

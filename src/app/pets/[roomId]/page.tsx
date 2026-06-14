@@ -71,6 +71,8 @@ export default async function RoomPage({ params }: { params: Promise<{ roomId: s
     pixelRender: f.pixelRender,
     facing: (f.facing as "left" | "right") ?? "left",
     seatY: f.seatY,
+    scale: f.scale,
+    rotation: f.rotation,
     actionType: f.actionType,
     active: activeFor(f.actionType),
   }));

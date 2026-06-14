@@ -14,6 +14,8 @@ const patchSchema = z.object({
   actionType: z.enum(["letters", "memo", "diary", "pet_diary", "achievements", "none"]).nullable().optional(),
   facing: z.enum(["left", "right"]).optional(), // seat: 앉은 펫 방향
   seatY: z.number().min(0).max(100).optional(), // seat: 좌석면 높이(%)
+  scale: z.number().min(0.3).max(3).optional(), // 크기 배율
+  rotation: z.number().min(-180).max(180).optional(), // 회전(도)
 });
 
 // 위치 이동(드래그) · pixel_render 토글 · 메타(유형·라벨·액션) 편집.
@@ -34,6 +36,8 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
     actionType?: string | null;
     facing?: "left" | "right";
     seatY?: number;
+    scale?: number;
+    rotation?: number;
   } = {};
   if (d.kind !== undefined) {
     metaPatch.kind = d.kind;
@@ -43,6 +47,8 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
   if (d.actionType !== undefined && metaPatch.actionType === undefined) metaPatch.actionType = d.actionType;
   if (d.facing !== undefined) metaPatch.facing = d.facing;
   if (d.seatY !== undefined) metaPatch.seatY = d.seatY;
+  if (d.scale !== undefined) metaPatch.scale = d.scale;
+  if (d.rotation !== undefined) metaPatch.rotation = d.rotation;
   if (Object.keys(metaPatch).length > 0) await furnitureRepo.updateMeta(user.id, id, metaPatch);
   return Response.json({ ok: true });
 }

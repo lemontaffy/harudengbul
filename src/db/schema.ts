@@ -597,6 +597,9 @@ export const roomFurniture = pgTable(
     // seat 전용: 앉은 펫이 바라볼 방향 + 좌석면 높이(가구 박스 0=위 ~ 100=아래, 펫 엉덩이 기준선).
     facing: text("facing").notNull().default("left"),
     seatY: real("seat_y").notNull().default(40),
+    // 배치 후 수동조정 — 크기 배율(0.3~3) · 회전(도, -180~180).
+    scale: real("scale").notNull().default(1),
+    rotation: real("rotation").notNull().default(0),
     // fixture가 여는 앱 기능(액션 타입): 'letters'|'memo'|'diary'|'none'. seat은 null.
     // (스펙의 'function'을 JS 예약어 회피 위해 action_type 컬럼으로.)
     actionType: text("action_type"),

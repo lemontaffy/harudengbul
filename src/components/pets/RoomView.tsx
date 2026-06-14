@@ -133,9 +133,10 @@ export default function RoomView({
   // 원근 스케일(ground 한정, 2단계 — 도트 뭉갬 최소화): 앞(아래)이면 살짝 크게.
   function petScale(p: PetVM): number {
     if (p.locomotion !== "ground") return 1;
-    const z = floorZoneAt(p.posX);
-    const t = (p.posY - z.top) / Math.max(1, z.bottom - z.top); // 0 뒤 .. 1 앞
-    return t > 0.55 ? 1.2 : 1.0;
+    // 화면 절대 y 기준 '연속' 원근. 패널별 floor zone 으로 계산하면 경계/구역 차이에서
+    // 크기가 점프(특정 위치에서 갑자기 작아짐)하므로 절대 posY 로 매끄럽게. 60%→1.0 ~ 96%→1.15.
+    const t = Math.max(0, Math.min(1, (p.posY - 60) / 36));
+    return 1 + t * 0.15;
   }
 
   // ── 루프용 refs(타이머에서 최신값 읽기) ──
@@ -179,7 +180,8 @@ export default function RoomView({
   function seatSitTarget(seat: FurnitureVM): { x: number; y: number } {
     const { H } = roomDims();
     if (!H) return { x: seat.posX, y: seat.posY };
-    const seatSurfacePx = (seat.posY / 100) * H - 40 + (seat.seatY / 100) * 80; // 가구 박스 위에서 seat_y%
+    const box = 80 * (seat.scale || 1); // 스케일 반영한 가구 박스 px
+    const seatSurfacePx = (seat.posY / 100) * H - box / 2 + (seat.seatY / 100) * box; // 박스 위에서 seat_y%
     const petCenterPx = seatSurfacePx - 40; // 펫(80px) 하단이 좌석면에 닿게 → 중심은 40px 위
     return { x: seat.posX, y: Math.max(2, Math.min(98, (petCenterPx / H) * 100)) };
   }
@@ -878,7 +880,11 @@ export default function RoomView({
                   alt={f.type}
                   draggable={false}
                   className={`h-20 w-20 object-contain ${furnitureMode ? "rounded ring-2 ring-accent/60" : ""}`}
-                  style={{ objectPosition: "bottom", ...pixel(f.pixelRender) }}
+                  style={{
+                    objectPosition: "bottom",
+                    ...pixel(f.pixelRender),
+                    transform: `rotate(${f.rotation}deg) scale(${f.scale})`,
+                  }}
                 />
               </div>
             );

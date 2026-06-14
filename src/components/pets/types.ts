@@ -59,6 +59,8 @@ export interface FurnitureVM {
   pixelRender: boolean;
   facing: "left" | "right"; // seat: 앉은 펫이 바라볼 방향
   seatY: number; // seat: 좌석면 높이(가구 박스 %, 0=위~100=아래)
+  scale: number; // 크기 배율(수동조정)
+  rotation: number; // 회전(도, 수동조정)
   actionType: string | null; // fixture: 'letters'|'memo'|'diary'|'none'
   active: boolean; // 상태 활성(예: 안 읽은 편지) — alt 스프라이트로 전환
 }

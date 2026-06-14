@@ -38,6 +38,8 @@ export default function FurnitureSheet({
   const [action, setAction] = useState(furniture?.actionType ?? "letters");
   const [facing, setFacing] = useState<"left" | "right">(furniture?.facing ?? "left");
   const [seatY, setSeatY] = useState(furniture?.seatY ?? 40);
+  const [scale, setScale] = useState(furniture?.scale ?? 1);
+  const [rotation, setRotation] = useState(furniture?.rotation ?? 0);
   const [file, setFile] = useState<File | null>(null);
   const [altFile, setAltFile] = useState<File | null>(null);
   const [busy, setBusy] = useState(false);
@@ -73,6 +75,8 @@ export default function FurnitureSheet({
             type: type.trim() || undefined,
             actionType: kind === "fixture" ? action : null,
             ...(kind === "seat" ? { facing, seatY: Math.round(seatY) } : {}),
+            scale: Math.round(scale * 100) / 100,
+            rotation: Math.round(rotation),
           }),
         });
         if (!res.ok) return setMsg((await res.json().catch(() => ({})))?.error ?? "저장 실패");
@@ -165,6 +169,22 @@ export default function FurnitureSheet({
                 <span className="w-8 shrink-0 text-right text-xs opacity-60">{Math.round(seatY)}</span>
               </div>
               <p className="text-[10px] opacity-40">좌석면 높이(0=위, 100=아래) — 펫 엉덩이가 닿을 선. 떠 보이면 ↓, 파묻히면 ↑.</p>
+            </>
+          )}
+          {/* 등록 후 수동조정 — 크기·회전(편집 시) */}
+          {editing && (
+            <>
+              <div className="flex items-center gap-2">
+                <span className="w-12 shrink-0 text-xs opacity-60">크기</span>
+                <input type="range" min={0.3} max={3} step={0.05} value={scale} onChange={(e) => setScale(Number(e.target.value))} className="flex-1 accent-accent" />
+                <span className="w-10 shrink-0 text-right text-xs opacity-60">{scale.toFixed(2)}×</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="w-12 shrink-0 text-xs opacity-60">회전</span>
+                <input type="range" min={-180} max={180} step={5} value={rotation} onChange={(e) => setRotation(Number(e.target.value))} className="flex-1 accent-accent" />
+                <span className="w-10 shrink-0 text-right text-xs opacity-60">{Math.round(rotation)}°</span>
+                <button onClick={() => setRotation(0)} className="shrink-0 rounded-control px-2 py-0.5 text-[10px] ring-1 ring-border">0°</button>
+              </div>
             </>
           )}
           {/* 라벨 */}
