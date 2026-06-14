@@ -9,6 +9,7 @@ import * as relationsRepo from "@/db/repo/petRelations";
 import * as petLinesRepo from "@/db/repo/petLines";
 import * as customRepo from "@/db/repo/petCustomSprites";
 import * as furnitureRepo from "@/db/repo/roomFurniture";
+import * as itemsRepo from "@/db/repo/petItems";
 import * as letterRepliesRepo from "@/db/repo/petLetterReplies";
 import * as petDiariesRepo from "@/db/repo/petDiaries";
 import * as settingsRepo from "@/db/repo/settings";
@@ -25,7 +26,7 @@ import {
 } from "@/lib/pets";
 import { isSleeping } from "@/lib/growth";
 import RoomView from "@/components/pets/RoomView";
-import type { PetVM, RelationVM, FurnitureVM } from "@/components/pets/types";
+import type { PetVM, RelationVM, FurnitureVM, ItemVM } from "@/components/pets/types";
 
 export const dynamic = "force-dynamic";
 
@@ -49,6 +50,18 @@ export default async function RoomPage({ params }: { params: Promise<{ roomId: s
       roomsRepo.listByUser(user.id),
       petsRepo.listByUser(user.id),
     ]);
+  const itemRows = await itemsRepo.listForRoom(user.id, roomId);
+  const items: ItemVM[] = itemRows.map((it) => ({
+    id: it.id,
+    name: it.name,
+    spritePath: it.spritePath,
+    pixelRender: it.pixelRender,
+    posX: it.posX,
+    posY: it.posY,
+    durabilityMax: it.durabilityMax,
+    durabilityNow: it.durabilityNow,
+    heldByPetId: it.heldByPetId,
+  }));
 
   // fixture 상태 active 판정:
   //  'letters'  = 안 읽은 도착 답장 1건+ → 우체통 열림 스프라이트.
@@ -156,6 +169,7 @@ export default async function RoomPage({ params }: { params: Promise<{ roomId: s
             floorBottomY: b.floorBottomY,
           })),
           furniture,
+          items,
         }}
         pets={petVMs}
         relations={relVMs}

@@ -16,7 +16,7 @@ import {
   pingpongProb,
 } from "@/lib/petroom";
 import { isHostileLabel } from "@/lib/pets";
-import type { PetVM, RoomVM, RelationVM, PetRef, FurnitureVM } from "./types";
+import type { PetVM, RoomVM, RelationVM, PetRef, FurnitureVM, ItemVM } from "./types";
 
 function reduced(): boolean {
   return typeof window !== "undefined" && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -74,6 +74,13 @@ export default function RoomView({
   const [furnitureMode, setFurnitureMode] = useState(false); // 가구 배치 모드(드래그·편집)
   const [furnAdding, setFurnAdding] = useState(false); // 가구 추가 시트
   const [furnEditId, setFurnEditId] = useState<number | null>(null); // 가구 편집 시트
+  const [items, setItems] = useState<ItemVM[]>(room.items); // 배치/지급 아이템
+  useEffect(() => setItems(room.items), [room.items]);
+  const [itemMode, setItemMode] = useState(false); // 아이템 배치 모드(드래그)
+  const [itemAdding, setItemAdding] = useState(false); // 아이템 추가 폼
+  const [itemSheetId, setItemSheetId] = useState<number | null>(null); // 아이템 액션 시트(수리·버리기)
+  const itemsRef = useRef(items);
+  itemsRef.current = items;
   const [toast, setToast] = useState(""); // 가구 탭 등 짧은 안내
   const [walking, setWalking] = useState<{ petId: number; ms: number; flip: boolean } | null>(null);
   const [customPlay, setCustomPlay] = useState<{ petId: number; path: string; flip: boolean } | null>(null);
@@ -406,6 +413,7 @@ export default function RoomView({
 
     // 이동·핑퐁은 liveliness 가 0이면 완전 정지(자발 발화는 talkativeness 로 별개).
     if (L > 0 && !reduced()) {
+      if (Math.random() < 0.08 && tryItemWear()) return; // 아이템 마모(개그) — 보는 중에만, 낮은 확률
       if (tryPingpong(false)) return; // 근접 상호 about — 실효 활동성 기반 확률
       if (tryWalk()) return; // 자유 배회(짧은 이동) — 실효 활동성 기반
       if (Math.random() < 0.12 && tryCustom()) return; // 커스텀 모션
@@ -763,6 +771,142 @@ export default function RoomView({
     if (freed.length) setSitUntil((m) => ({ ...m, ...Object.fromEntries(freed.map((id) => [id, 0])) }));
   }
 
+  // ── 아이템 ── 내구도=개그 타이머. 마모는 '방 볼 때'만(visibility 가드=틱 스케줄러), 수리 무료 1탭.
+  // 파손 시 같은 패널 둘째 펫의 관계 반영 페어 반응(혐관 💢 / 연인 ❤️ / 가족 투닥). 순수 템플릿.
+  function pairBreakLineLocal(
+    label: string | null,
+    isLove: boolean,
+    otherName: string,
+  ): { content: string; effect: "anger" | "hearts" | null } {
+    const l = (label ?? "").toLowerCase();
+    if (/혐관|앙숙|라이벌|rival|적|싫/.test(l)) return { content: `${otherName}가 그랬어! 난 안 그랬어`, effect: "anger" };
+    if (isLove) return { content: `우리… 못 본 걸로 하자`, effect: "hearts" };
+    if (/형제|남매|자매|가족|sibling|brother|sister|family|쌍둥이/.test(l)) return { content: `야 ${otherName}, 네가 깼지!`, effect: null };
+    return { content: `${otherName}, 봤어? 깨졌어…`, effect: null };
+  }
+  // 반응 대사 1줄(서버 캐시-또는-생성) → 말풍선.
+  async function reactItem(itemId: number, petId: number, kind: "receive" | "break") {
+    try {
+      const res = await fetch(`/api/pet-items/${itemId}/reactions`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ petId, kind }),
+      });
+      if (!res.ok) return;
+      const d = await res.json();
+      if (d.content) showBubble(petId, d.content, 3000, true);
+    } catch {
+      /* ignore */
+    }
+  }
+  function onItemBreak(it: ItemVM, breaker: PetVM) {
+    void reactItem(it.id, breaker.id, "break");
+    const other = petsRef.current.find(
+      (o) => o.id !== breaker.id && panelOf(o.posX) === panelOf(it.posX) && !isNapping(o.id),
+    );
+    if (!other) return;
+    const rel = relations.find(
+      (r) => (r.petAId === breaker.id && r.petBId === other.id) || (r.petAId === other.id && r.petBId === breaker.id),
+    );
+    const pair = pairBreakLineLocal(rel?.label ?? null, !!rel?.isLove, breaker.name);
+    setTimeout(() => {
+      showBubble(other.id, pair.content, 2600);
+      if (pair.effect === "anger") spawnEffect("anger", other.posX, other.posY - 8);
+      else if (pair.effect === "hearts") loveBurst(other.id, other.posX, other.posY);
+    }, 1500);
+  }
+  // 마모 1회 시도(개그) — 보이는 마모성 아이템 근처의 깨어있는 펫이 '떨어뜨림'. 0 되면 파손.
+  function tryItemWear(): boolean {
+    const wearable = itemsRef.current.filter(
+      (it) => it.durabilityMax != null && it.durabilityNow > 0 && isVisible(it.posX),
+    );
+    if (wearable.length === 0) return false;
+    const it = wearable[Math.floor(Math.random() * wearable.length)];
+    const near = petsRef.current.filter(
+      (p) =>
+        panelOf(p.posX) === panelOf(it.posX) &&
+        Math.abs(p.posX - it.posX) < 22 &&
+        !isNapping(p.id) &&
+        walkingRef.current?.petId !== p.id,
+    );
+    if (near.length === 0) return false;
+    const p = near[Math.floor(Math.random() * near.length)];
+    spawnEffect(Math.random() < 0.5 ? "notes" : "sparkle", it.posX, it.posY - 8);
+    showBubble(p.id, "앗… 떨어뜨렸어", 2200);
+    fetch(`/api/pet-items/${it.id}/wear`, { method: "POST" })
+      .then((r) => r.json())
+      .then((d) => {
+        if (d.durabilityNow == null) return; // 무한 등
+        setItems((xs) => xs.map((q) => (q.id === it.id ? { ...q, durabilityNow: d.durabilityNow } : q)));
+        if (d.broke) onItemBreak(it, p);
+      })
+      .catch(() => {});
+    return true;
+  }
+  // 아이템 드래그(아이템 모드) — 펫·가구와 동일 패턴. 안 움직이면 액션 시트.
+  function startDragItem(e: React.PointerEvent, it: ItemVM) {
+    e.preventDefault();
+    const inner = innerRef.current;
+    if (!inner) return;
+    let moved = false;
+    const start = { x: e.clientX, y: e.clientY };
+    const toPct = (cx: number, cy: number) => {
+      const rect = inner.getBoundingClientRect();
+      return {
+        x: Math.max(2, Math.min(98, ((cx - rect.left) / rect.width) * 100)),
+        y: Math.max(6, Math.min(96, ((cy - rect.top) / rect.height) * 100)),
+      };
+    };
+    const move = (ev: PointerEvent) => {
+      if (Math.abs(ev.clientX - start.x) + Math.abs(ev.clientY - start.y) > 6) moved = true;
+      const { x, y } = toPct(ev.clientX, ev.clientY);
+      setItems((xs) => xs.map((q) => (q.id === it.id ? { ...q, posX: x, posY: y } : q)));
+    };
+    const up = (ev: PointerEvent) => {
+      window.removeEventListener("pointermove", move);
+      window.removeEventListener("pointerup", up);
+      if (!moved) {
+        setItemSheetId(it.id);
+        return;
+      }
+      const { x, y } = toPct(ev.clientX, ev.clientY);
+      setItems((xs) => xs.map((q) => (q.id === it.id ? { ...q, posX: x, posY: y } : q)));
+      fetch(`/api/pet-items/${it.id}`, {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ posX: x, posY: y }),
+      }).catch(() => {});
+    };
+    window.addEventListener("pointermove", move);
+    window.addEventListener("pointerup", up);
+  }
+  async function repairItem(it: ItemVM) {
+    setItemSheetId(null);
+    const res = await fetch(`/api/pet-items/${it.id}/repair`, { method: "POST" }).catch(() => null);
+    if (res?.ok) {
+      const d = await res.json();
+      setItems((xs) => xs.map((q) => (q.id === it.id ? { ...q, durabilityNow: d.durabilityNow ?? q.durabilityMax ?? 0 } : q)));
+    }
+  }
+  function deleteItem(it: ItemVM) {
+    setItemSheetId(null);
+    setItems((xs) => xs.filter((q) => q.id !== it.id));
+    fetch(`/api/pet-items/${it.id}`, { method: "DELETE" }).catch(() => {});
+  }
+  function setItemPixel(it: ItemVM, v: boolean) {
+    setItems((xs) => xs.map((q) => (q.id === it.id ? { ...q, pixelRender: v } : q)));
+    fetch(`/api/pet-items/${it.id}`, {
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ pixelRender: v }),
+    }).catch(() => {});
+  }
+  function onItemAdded(row: ItemVM, heldPetId: number | null) {
+    setItems((xs) => [...xs, row]);
+    const target = heldPetId ?? petsRef.current[0]?.id;
+    if (target) setTimeout(() => void reactItem(row.id, target, "receive"), 400); // 지급/배치 순간 receive 반응
+  }
+
   // ── 바닥 구역 경계 드래그(패널별 위/아래 선) ──
   function dragFloor(e: React.PointerEvent, panelId: number, which: "top" | "bottom") {
     e.preventDefault();
@@ -981,6 +1125,38 @@ export default function RoomView({
             );
           })}
 
+          {/* 아이템 — 가구처럼 펫보다 뒤 레이어. 파손(durability 0)이면 금 간 오버레이(CSS 선 2개).
+              아이템 모드=드래그·탭 시트 / 일반=탭하면 수리·버리기 시트. */}
+          {items.map((it) => {
+            const broken = it.durabilityMax != null && it.durabilityNow === 0;
+            return (
+              <div
+                key={`item-${it.id}`}
+                className="absolute -translate-x-1/2 -translate-y-1/2 touch-none select-none"
+                style={{ left: `${it.posX}%`, top: `${it.posY}%` }}
+                onPointerDown={itemMode ? (e) => startDragItem(e, it) : undefined}
+                onClick={itemMode ? undefined : () => setItemSheetId(it.id)}
+              >
+                <div className="relative h-16 w-16">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={it.spritePath}
+                    alt={it.name}
+                    draggable={false}
+                    className={`h-16 w-16 object-contain ${itemMode ? "rounded ring-2 ring-accent/60" : ""}`}
+                    style={{ objectPosition: "bottom", ...pixel(it.pixelRender), filter: broken ? "grayscale(0.5) brightness(0.92)" : undefined }}
+                  />
+                  {broken && (
+                    <span className="pointer-events-none absolute inset-0" aria-hidden>
+                      <span className="absolute left-1/2 top-1/2 h-12 w-px -translate-x-1/2 -translate-y-1/2 rotate-[20deg] bg-black/55" />
+                      <span className="absolute left-1/2 top-1/2 h-9 w-px -translate-x-[2px] -translate-y-1/2 -rotate-[35deg] bg-black/55" />
+                    </span>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+
           {pets.map((p) => {
             const loving = (loveUntil[p.id] ?? 0) > Date.now();
             const isWalking = walking?.petId === p.id;
@@ -1101,11 +1277,22 @@ export default function RoomView({
         <button
           onClick={() => {
             setFurnitureMode((v) => !v);
+            setItemMode(false);
             setMenu(null);
           }}
           className={`rounded-control px-3 py-1.5 ring-1 ring-border ${furnitureMode ? "bg-accent text-black" : "bg-surface"}`}
         >
           🪑 가구
+        </button>
+        <button
+          onClick={() => {
+            setItemMode((v) => !v);
+            setFurnitureMode(false);
+            setMenu(null);
+          }}
+          className={`rounded-control px-3 py-1.5 ring-1 ring-border ${itemMode ? "bg-accent text-black" : "bg-surface"}`}
+        >
+          🎁 아이템
         </button>
         <button
           onClick={captureRoom}
@@ -1126,6 +1313,25 @@ export default function RoomView({
           <button onClick={() => setFurnitureMode(false)} className="rounded-control bg-surface px-3 py-1.5 ring-1 ring-border">
             완료
           </button>
+        </div>
+      ) : itemMode ? (
+        <div className="flex flex-col gap-2 rounded-card bg-surface-2 p-2 text-xs ring-1 ring-border">
+          <div className="flex items-center gap-2">
+            <span className="opacity-60">아이템 배치 중 — 끌어 옮기고, 탭하면 수리·버리기</span>
+            <button onClick={() => setItemAdding((v) => !v)} className="ml-auto rounded-control bg-accent px-3 py-1.5 font-medium text-black">
+              ＋ 아이템
+            </button>
+            <button onClick={() => { setItemMode(false); setItemAdding(false); }} className="rounded-control bg-surface px-3 py-1.5 ring-1 ring-border">
+              완료
+            </button>
+          </div>
+          {itemAdding && (
+            <ItemAddForm
+              roomId={room.id}
+              pets={pets.map((p) => ({ id: p.id, name: p.name }))}
+              onAdded={(row, held) => { onItemAdded(row, held); setItemAdding(false); }}
+            />
+          )}
         </div>
       ) : (
         <span className="text-[11px] opacity-40">{N > 1 ? "옆으로 스와이프 · " : ""}펫을 끌어 배치 · 탭하면 반응</span>
@@ -1251,6 +1457,126 @@ export default function RoomView({
           }}
         />
       )}
+
+      {/* 아이템 액션 시트 — 수리(무료 1탭)·버리기·픽셀·소지 펫. 파손/마모 시 수리로 즉시 복구. */}
+      {itemSheetId != null && (() => {
+        const it = items.find((q) => q.id === itemSheetId);
+        if (!it) return null;
+        const infinite = it.durabilityMax == null;
+        const needsRepair = !infinite && it.durabilityNow < (it.durabilityMax ?? 0);
+        return (
+          <div className="fixed inset-0 z-40 flex items-end justify-center bg-black/40 p-3" onClick={() => setItemSheetId(null)}>
+            <div className="w-full max-w-sm rounded-card bg-surface p-3 ring-1 ring-border" onClick={(e) => e.stopPropagation()}>
+              <div className="mb-2 flex items-center justify-between">
+                <span className="text-sm font-medium">{it.name}</span>
+                <span className="text-xs opacity-60">
+                  {infinite ? "내구도 무한" : `내구도 ${it.durabilityNow}/${it.durabilityMax}${it.durabilityNow === 0 ? " · 파손" : ""}`}
+                </span>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {needsRepair && (
+                  <button onClick={() => repairItem(it)} className="rounded-control bg-accent px-3 py-1.5 text-sm font-medium text-black">
+                    🔧 수리(무료)
+                  </button>
+                )}
+                <button
+                  onClick={() => setItemPixel(it, !it.pixelRender)}
+                  className="rounded-control bg-surface-2 px-3 py-1.5 text-sm ring-1 ring-border"
+                >
+                  픽셀 {it.pixelRender ? "끄기" : "켜기"}
+                </button>
+                <button onClick={() => deleteItem(it)} className="rounded-control px-3 py-1.5 text-sm text-danger ring-1 ring-border">
+                  버리기
+                </button>
+                <button onClick={() => setItemSheetId(null)} className="ml-auto rounded-control bg-surface-2 px-3 py-1.5 text-sm ring-1 ring-border">
+                  닫기
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+    </div>
+  );
+}
+
+// 아이템 추가 폼 — 스프라이트 + 이름 + 내구도 상한(무한 옵션) + (선택) 특정 펫에게 주기 + 픽셀.
+function ItemAddForm({
+  roomId,
+  pets,
+  onAdded,
+}: {
+  roomId: number;
+  pets: PetRef[];
+  onAdded: (row: ItemVM, heldPetId: number | null) => void;
+}) {
+  const [file, setFile] = useState<File | null>(null);
+  const [name, setName] = useState("");
+  const [infinite, setInfinite] = useState(false);
+  const [dur, setDur] = useState(5);
+  const [held, setHeld] = useState<string>("");
+  const [pixel, setPixel] = useState(true);
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState("");
+
+  async function submit() {
+    if (!file) return setErr("스프라이트를 선택하세요.");
+    if (!name.trim()) return setErr("이름을 입력하세요.");
+    setBusy(true);
+    setErr("");
+    const fd = new FormData();
+    fd.set("file", file);
+    fd.set("name", name.trim());
+    fd.set("durabilityMax", infinite ? "infinite" : String(Math.max(1, dur)));
+    fd.set("pixelRender", String(pixel));
+    if (held) fd.set("heldByPetId", held);
+    try {
+      const res = await fetch(`/api/pet-rooms/${roomId}/items`, { method: "POST", body: fd });
+      const d = await res.json().catch(() => ({}));
+      if (res.ok && d.item) {
+        onAdded(d.item as ItemVM, held ? Number(held) : null);
+        setName("");
+        setFile(null);
+      } else {
+        setErr(d.error ?? "추가 실패");
+      }
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="flex flex-col gap-2 border-t border-border pt-2">
+      <div className="flex flex-wrap items-center gap-2">
+        <input type="file" accept="image/png,image/webp,image/gif,image/jpeg" onChange={(e) => setFile(e.target.files?.[0] ?? null)} className="text-[11px]" />
+        <input value={name} onChange={(e) => setName(e.target.value)} maxLength={60} placeholder="이름(예: 공)" className="w-28 rounded-control bg-bg px-2 py-1.5 ring-1 ring-border" />
+      </div>
+      <div className="flex flex-wrap items-center gap-2">
+        <label className="flex items-center gap-1 opacity-80">
+          <input type="checkbox" checked={infinite} onChange={(e) => setInfinite(e.target.checked)} /> 무한(안 깨짐)
+        </label>
+        {!infinite && (
+          <label className="flex items-center gap-1 opacity-80">
+            내구도
+            <input type="number" min={1} max={999} value={dur} onChange={(e) => setDur(Number(e.target.value) || 1)} className="w-16 rounded-control bg-bg px-2 py-1 ring-1 ring-border" />
+          </label>
+        )}
+        <label className="flex items-center gap-1 opacity-80">
+          <input type="checkbox" checked={pixel} onChange={(e) => setPixel(e.target.checked)} /> 픽셀
+        </label>
+      </div>
+      <div className="flex flex-wrap items-center gap-2">
+        <select value={held} onChange={(e) => setHeld(e.target.value)} className="rounded-control bg-bg px-2 py-1.5 ring-1 ring-border" disabled={pets.length === 0}>
+          <option value="">방에 두기</option>
+          {pets.map((p) => (
+            <option key={p.id} value={p.id}>{p.name}에게 주기</option>
+          ))}
+        </select>
+        <button onClick={submit} disabled={busy} className="ml-auto rounded-control bg-accent px-3 py-1.5 font-medium text-black disabled:opacity-50">
+          {busy ? "추가 중…" : "추가"}
+        </button>
+      </div>
+      {err && <span className="text-[11px] text-danger">{err}</span>}
     </div>
   );
 }

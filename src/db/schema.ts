@@ -104,6 +104,8 @@ export const settings = pgTable("settings", {
   memoryLastDiaryId: bigint("memory_last_diary_id", { mode: "number" }).default(0),
   // 상담→비서 핸드오프 제안 기능 on/off(기본 on). off면 도구·프롬프트 모두 미주입.
   handoffEnabled: boolean("handoff_enabled").default(true),
+  // 아이템 반응 대사 LLM 생성 빈도 — 'always'|'sometimes'|'never'. never면 기본 템플릿만(LLM 미호출).
+  itemReactionFreq: text("item_reaction_freq").notNull().default("sometimes"),
   locationLat: numeric("location_lat"),
   locationLon: numeric("location_lon"),
   kmaNx: integer("kma_nx"),
@@ -755,4 +757,45 @@ export const petLines = pgTable(
     source: text("source").notNull().default("auto"), // 'auto'(재생성 교체 대상) | 'manual'(보존)
   },
   (t) => [index("pet_lines_pet_stage_idx").on(t.petId, t.stage)],
+);
+
+// 아이템 — 방에 두거나 특정 펫에게 준 오브젝트. 내구도는 게임 시스템이 아니라 '개그 타이머'
+// (안 볼 때 안 닳음·수리 무료). durability_max null = 무한(안 깨짐). durability_now 0 = 파손(금 간 상태로 남음).
+export const petItems = pgTable(
+  "pet_items",
+  {
+    id: bigint("id", { mode: "number" }).primaryKey().generatedAlwaysAsIdentity(),
+    userId: bigint("user_id", { mode: "number" })
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    roomId: bigint("room_id", { mode: "number" }).references(() => petRooms.id, { onDelete: "set null" }),
+    name: text("name").notNull(),
+    spritePath: text("sprite_path").notNull(),
+    pixelRender: boolean("pixel_render").notNull().default(true),
+    posX: real("pos_x").notNull().default(50),
+    posY: real("pos_y").notNull().default(70),
+    durabilityMax: integer("durability_max"), // null = 무한(마모·파손 없음)
+    durabilityNow: integer("durability_now").notNull().default(0),
+    heldByPetId: bigint("held_by_pet_id", { mode: "number" }).references(() => pets.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
+  },
+  (t) => [index("pet_items_user_room_idx").on(t.userId, t.roomId)],
+);
+
+// 캐싱된 아이템 반응 대사 풀 — (이 펫 × 이 아이템 × kind) 조합당 1회 생성 후 저장, 이후 풀에서 랜덤(재호출 X).
+export const itemReactions = pgTable(
+  "item_reactions",
+  {
+    id: bigint("id", { mode: "number" }).primaryKey().generatedAlwaysAsIdentity(),
+    itemId: bigint("item_id", { mode: "number" })
+      .notNull()
+      .references(() => petItems.id, { onDelete: "cascade" }),
+    petId: bigint("pet_id", { mode: "number" })
+      .notNull()
+      .references(() => pets.id, { onDelete: "cascade" }),
+    kind: text("kind").notNull(), // 'receive' | 'break' | 'idle'
+    content: text("content").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
+  },
+  (t) => [index("item_reactions_item_pet_kind_idx").on(t.itemId, t.petId, t.kind)],
 );

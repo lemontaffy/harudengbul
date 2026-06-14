@@ -16,6 +16,7 @@ import GoogleCalendarSection, { type GoogleInitial } from "@/components/GoogleCa
 import PasswordChange from "@/components/PasswordChange";
 import LogoutButton from "@/components/LogoutButton";
 import AppearanceSection from "@/components/AppearanceSection";
+import PetSettingsSection from "@/components/PetSettingsSection";
 import { googleConfigured } from "@/lib/google";
 import * as googleRepo from "@/db/repo/google";
 
@@ -145,6 +146,9 @@ export default async function SettingsPage({
         </Section>
         <Section title="프로필" status={sum.profile}>
           <ProfileSection initial={profile} />
+        </Section>
+        <Section title="펫">
+          <PetSettingsSection initialFreq={s?.itemReactionFreq ?? "sometimes"} />
         </Section>
         <Section title="알림" status={sum.noti}>
           <div className="flex flex-col gap-3">

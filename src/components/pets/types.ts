@@ -46,6 +46,19 @@ export interface RoomVM {
   liveliness: number; // 방 전역 분주함(0~100)
   panels: RoomPanel[]; // 가로 스트립(정렬됨). 비면 기본 그라데이션.
   furniture: FurnitureVM[]; // 배치된 가구(seat/fixture)
+  items: ItemVM[]; // 배치/지급된 아이템(내구도=개그 타이머)
+}
+
+export interface ItemVM {
+  id: number;
+  name: string;
+  spritePath: string;
+  pixelRender: boolean;
+  posX: number;
+  posY: number;
+  durabilityMax: number | null; // null=무한(안 깨짐)
+  durabilityNow: number; // 0=파손(금 간 상태)
+  heldByPetId: number | null; // 특정 펫에게 준 경우
 }
 
 export interface FurnitureVM {

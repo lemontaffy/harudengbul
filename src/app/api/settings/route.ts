@@ -50,6 +50,8 @@ const bodySchema = z.object({
   // 화면 — 프리셋 테마 + 커스텀 CSS(20KB).
   theme: z.enum(["lantern", "dawn", "paper"]).optional(),
   customCss: z.string().max(20480).nullable().optional(),
+  // 아이템 반응 대사 LLM 생성 빈도.
+  itemReactionFreq: z.enum(["always", "sometimes", "never"]).optional(),
 });
 
 async function snapshot(userId: number) {
@@ -70,6 +72,7 @@ async function snapshot(userId: number) {
     diaryReminderTime: s?.diaryReminderTime ?? "21:30",
     proactiveEnabled: s?.proactiveEnabled ?? false,
     handoffEnabled: s?.handoffEnabled ?? true,
+    itemReactionFreq: s?.itemReactionFreq ?? "sometimes",
     morningTime: s?.morningTime ?? "08:00",
     eveningTime: s?.eveningTime ?? "22:00",
     locationLat: s?.locationLat != null ? Number(s.locationLat) : null,
@@ -126,6 +129,7 @@ export async function POST(req: Request) {
   // 화면: 테마 프리셋 / 커스텀 CSS(원문 저장, 렌더 시 sanitize).
   if (typeof d.theme === "string") set.theme = d.theme;
   if (d.customCss !== undefined) set.customCss = d.customCss?.trim() || null;
+  if (typeof d.itemReactionFreq === "string") set.itemReactionFreq = d.itemReactionFreq;
 
   // 보조 모델 연결: null=해제, 숫자=본인 소유 연결만.
   if (d.auxConnectionId !== undefined) {
