@@ -407,6 +407,19 @@ export async function executeTool(
   argsJson: string,
   opts?: { personaId?: number },
 ): Promise<string> {
+  const result = await executeToolImpl(userId, name, argsJson, opts);
+  // 도구 호출·결과 1줄 로그 — 환각 의심 시 "도구를 실제로 불렀나 / 결과(id·ERROR)가 뭐였나"를
+  // 로그만으로 즉시 판별. (모델이 도구 없이 'OK #43' 같은 가짜 성공을 지어내면 이 줄이 안 찍힌다.)
+  console.log(`[tool] u${userId} ${name} -> ${result.replace(/\s+/g, " ").slice(0, 200)}`);
+  return result;
+}
+
+async function executeToolImpl(
+  userId: number,
+  name: string,
+  argsJson: string,
+  opts?: { personaId?: number },
+): Promise<string> {
   let args: unknown;
   try {
     args = JSON.parse(argsJson || "{}");
@@ -502,6 +515,10 @@ export async function executeTool(
         startsAt: when,
         alarmMinutesBefore: a.alarm_minutes_before ?? null,
       });
+      // 등록 직후 같은 id 재조회로 '실제로 DB에 존재'를 확인하고서만 OK 를 돌려준다.
+      // (insert 가 어떤 이유로 반영 안 됐는데 성공 문자열만 나가는 일을 차단 — 환각 가짜 id 방지의 마지막 빗장.)
+      const verified = await eventsRepo.getOne(userId, row.id);
+      if (!verified) return "ERROR: 일정 저장은 됐지만 확인에 실패했어요. 다시 시도해 주세요.";
       // Google 연결돼 있으면 미러링(best-effort, 미연동이면 no-op).
       // await 금지 — 도구 응답을 막지 않는다. 실패는 다음 동기화의 미동기분 보정이 줍는다.
       void pushCreate(userId, {
