@@ -86,6 +86,23 @@ export default function EventsView({
     setDataVersion((v) => v + 1);
   }
 
+  // 마운트 + 화면 복귀(PWA 백그라운드 복귀·탭 전환·포커스) 시 최신화.
+  //   비서(테오)가 채팅 화면에서 서버측으로 등록한 일정은 이 화면의 SSR 시점 이후 생기므로,
+  //   재요청 없이는 stale 로 남아 "등록했다는데 안 보인다" 가 된다. 자동 자가복구.
+  useEffect(() => {
+    void refresh();
+    const onVisible = () => {
+      if (document.visibilityState === "visible") void refresh();
+    };
+    document.addEventListener("visibilitychange", onVisible);
+    window.addEventListener("focus", onVisible);
+    return () => {
+      document.removeEventListener("visibilitychange", onVisible);
+      window.removeEventListener("focus", onVisible);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   async function remove(ev: EventItem) {
     if (!(await dialog.confirm({ message: `'${ev.title}' 일정을 삭제할까요?`, danger: true, confirmText: "삭제" }))) return;
     const res = await fetch(`/api/events/${ev.id}`, { method: "DELETE" });
