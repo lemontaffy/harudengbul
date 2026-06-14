@@ -10,6 +10,7 @@ import * as messagesRepo from "@/db/repo/messages";
 import * as personasRepo from "@/db/repo/personas";
 import { pushCreate, pushUpdate, pushDelete } from "@/lib/googlesync";
 import { searchWeb } from "@/lib/websearch";
+import { convert, isCurrencyCode } from "@/lib/fx";
 import type { Role } from "@/lib/persona";
 
 // SPEC §7 — 비서 도구. OpenAI 호환 tool-use 스펙.
@@ -111,17 +112,37 @@ export const SECRETARY_TOOLS: ToolDef[] = [
     type: "function",
     function: {
       name: "add_transaction",
-      description: "가계부에 지출/수입을 기록한다. '점심 9천원 썼어' 같은 요청에 사용.",
+      description:
+        "가계부에 지출/수입을 기록한다. '점심 9천원 썼어' 같은 요청에 사용. 외화면 currency·foreign_amount 로 넘기면 원화로 환산해 기록한다('스벅에서 6달러' → currency:USD, foreign_amount:6).",
       parameters: {
         type: "object",
         properties: {
           kind: { type: "string", enum: ["expense", "income"], description: "지출 또는 수입" },
           category: { type: "string", description: "카테고리(예: 식비, 교통, 월급)" },
-          amount: { type: "integer", description: "금액(원, KRW 정수)" },
+          amount: { type: "integer", description: "금액(원, KRW 정수). 외화로 넘길 땐 생략." },
+          currency: { type: "string", description: "외화 통화 3자리 코드(예: USD, JPY, EUR). 원화면 생략." },
+          foreign_amount: { type: "number", description: "외화 금액(currency 와 함께). 환산해 기록." },
           memo: { type: "string", description: "메모(선택)" },
           tx_date: { type: "string", description: "YYYY-MM-DD(선택, 생략 시 오늘)" },
         },
-        required: ["kind", "category", "amount"],
+        required: ["kind", "category"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "convert_currency",
+      description:
+        "외화를 다른 통화로 환산해 알려준다('100달러 얼마야?' 류). 기록은 하지 않는다. to 생략 시 원(KRW).",
+      parameters: {
+        type: "object",
+        properties: {
+          amount: { type: "number", description: "환산할 금액" },
+          from: { type: "string", description: "원 통화 3자리 코드(예: USD)" },
+          to: { type: "string", description: "대상 통화 3자리 코드(선택, 기본 KRW)" },
+        },
+        required: ["amount", "from"],
       },
     },
   },
@@ -315,9 +336,16 @@ const addEventArgs = z.object({
 const addTxArgs = z.object({
   kind: z.enum(["expense", "income"]),
   category: z.string().min(1).max(40),
-  amount: z.number().int(),
+  amount: z.number().int().nullish(), // 외화면 생략(foreign_amount 로)
+  currency: z.string().trim().max(8).nullish(),
+  foreign_amount: z.number().positive().nullish(),
   memo: z.string().max(200).nullish(),
   tx_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullish(),
+});
+const convertArgs = z.object({
+  amount: z.number().positive(),
+  from: z.string().trim().max(8),
+  to: z.string().trim().max(8).nullish(),
 });
 const updateEventArgs = z.object({
   event_id: z.number().int(),
@@ -546,14 +574,41 @@ export async function executeTool(
       const s = await settingsRepo.getByUser(userId);
       const tz = s?.timezone ?? "Asia/Seoul";
       const txDate = a.tx_date ?? todayInTz(tz);
+
+      // 금액 결정: 외화(currency+foreign_amount)면 원화로 환산, 아니면 amount(원).
+      let amountKrw = a.amount ?? null;
+      let fxNote = "";
+      const cur = a.currency?.toUpperCase();
+      if (cur && cur !== "KRW" && a.foreign_amount != null) {
+        if (!isCurrencyCode(cur)) return `ERROR: 통화 코드(${a.currency})를 모르겠어요. USD·JPY 처럼 3자리로.`;
+        const conv = await convert(a.foreign_amount, cur, "KRW");
+        if (!conv) return `ERROR: ${cur} 환율을 못 가져왔어요. 원화 금액을 알려주면 그대로 기록할게요.`;
+        amountKrw = Math.round(conv.value);
+        fxNote = `${a.foreign_amount} ${cur} @${conv.rate.toLocaleString("ko-KR")}`;
+      }
+      if (amountKrw == null) return "ERROR: 금액이 없어요. 원화 금액이나 외화(currency+foreign_amount)를 주세요.";
+
+      const memo = [a.memo?.trim(), fxNote].filter(Boolean).join(" · ") || null;
       const row = await transactionsRepo.create(userId, {
         txDate,
         kind: a.kind,
         category: a.category,
-        amount: a.amount,
-        memo: a.memo ?? null,
+        amount: amountKrw,
+        memo,
       });
-      return `OK: ${a.kind === "expense" ? "지출" : "수입"} ${a.amount.toLocaleString("ko-KR")}원 (${a.category}) ${txDate} 기록(id=${row.id})`;
+      const fxLabel = fxNote ? ` [${fxNote}]` : "";
+      return `OK: ${a.kind === "expense" ? "지출" : "수입"} ${amountKrw.toLocaleString("ko-KR")}원${fxLabel} (${a.category}) ${txDate} 기록(id=${row.id})`;
+    }
+    if (name === "convert_currency") {
+      const a = convertArgs.parse(args);
+      const from = a.from.toUpperCase();
+      const to = (a.to ?? "KRW").toUpperCase();
+      if (!isCurrencyCode(from) || !isCurrencyCode(to))
+        return "ERROR: 통화 코드를 모르겠어요. USD·JPY·EUR 처럼 3자리로 알려주세요.";
+      const conv = await convert(a.amount, from, to);
+      if (!conv) return `ERROR: ${from}→${to} 환율을 못 가져왔어요(지원 안 하는 통화일 수 있어요).`;
+      const rounded = to === "KRW" ? Math.round(conv.value) : Math.round(conv.value * 100) / 100;
+      return `${a.amount.toLocaleString("ko-KR")} ${from} ≈ ${rounded.toLocaleString("ko-KR")} ${to} (환율 1 ${from} = ${conv.rate.toLocaleString("ko-KR")} ${to})`;
     }
     if (name === "list_transactions") {
       const s = await settingsRepo.getByUser(userId);
