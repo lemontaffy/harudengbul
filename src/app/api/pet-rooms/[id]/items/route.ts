@@ -26,6 +26,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
 
   const form = await req.formData().catch(() => null);
   const file = form?.get("file");
+  const brokenFile = form?.get("brokenFile"); // 파손 모양(선택)
   const name = String(form?.get("name") ?? "").trim();
   const pixel = form?.get("pixelRender");
   const durRaw = String(form?.get("durabilityMax") ?? "").trim();
@@ -52,11 +53,13 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
 
   try {
     const { path, warning } = await saveSprite(user.id, file, { allowJpeg: true });
+    const brokenPath = brokenFile instanceof File ? (await saveSprite(user.id, brokenFile, { allowJpeg: true })).path : null;
     const row = await itemsRepo.add({
       userId: user.id,
       roomId: id,
       name,
       spritePath: path,
+      brokenSpritePath: brokenPath,
       pixelRender: pixel == null ? true : pixel === "true",
       durabilityMax,
       heldByPetId,

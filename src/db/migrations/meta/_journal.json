@@ -281,6 +281,13 @@
       "when": 1781401100000,
       "tag": "0039_pet_items",
       "breakpoints": true
+    },
+    {
+      "idx": 40,
+      "version": "7",
+      "when": 1781401200000,
+      "tag": "0040_item_broken_sprite",
+      "breakpoints": true
     }
   ]
 }

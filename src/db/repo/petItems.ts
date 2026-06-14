@@ -1,4 +1,4 @@
-import { and, asc, eq, sql } from "drizzle-orm";
+import { and, asc, eq, or, sql } from "drizzle-orm";
 import { db } from "../client";
 import { petItems } from "../schema";
 
@@ -9,6 +9,7 @@ const ITEM_COLS = {
   roomId: petItems.roomId,
   name: petItems.name,
   spritePath: petItems.spritePath,
+  brokenSpritePath: petItems.brokenSpritePath,
   pixelRender: petItems.pixelRender,
   posX: petItems.posX,
   posY: petItems.posY,
@@ -31,6 +32,7 @@ export async function add(input: {
   roomId: number | null;
   name: string;
   spritePath: string;
+  brokenSpritePath?: string | null;
   pixelRender: boolean;
   durabilityMax: number | null;
   heldByPetId: number | null;
@@ -43,6 +45,7 @@ export async function add(input: {
       roomId: input.roomId,
       name: input.name.trim().slice(0, 60) || "아이템",
       spritePath: input.spritePath,
+      brokenSpritePath: input.brokenSpritePath ?? null,
       pixelRender: input.pixelRender,
       durabilityMax: max, // null = 무한
       durabilityNow: max ?? 0, // 처음엔 가득(무한이면 0이지만 무한은 마모 안 함)
@@ -50,6 +53,14 @@ export async function add(input: {
     })
     .returning(ITEM_COLS);
   return row;
+}
+
+/** 파손 모양 스프라이트 설정/해제(null=해제 → CSS 금 오버레이로 폴백). */
+export async function setBrokenSprite(userId: number, id: number, path: string | null) {
+  await db
+    .update(petItems)
+    .set({ brokenSpritePath: path })
+    .where(and(eq(petItems.id, id), eq(petItems.userId, userId)));
 }
 
 export async function getOne(userId: number, id: number) {
@@ -110,12 +121,17 @@ export async function remove(userId: number, id: number) {
   await db.delete(petItems).where(and(eq(petItems.id, id), eq(petItems.userId, userId)));
 }
 
-/** 스프라이트 서빙 화이트리스트용 — 이 경로가 이 user 의 아이템 것인지. */
+/** 스프라이트 서빙 화이트리스트용 — 이 경로가 이 user 의 아이템(기본/파손 모양) 것인지. */
 export async function pathBelongsToUser(userId: number, urlPath: string): Promise<boolean> {
   const [row] = await db
     .select({ id: petItems.id })
     .from(petItems)
-    .where(and(eq(petItems.userId, userId), eq(petItems.spritePath, urlPath)))
+    .where(
+      and(
+        eq(petItems.userId, userId),
+        or(eq(petItems.spritePath, urlPath), eq(petItems.brokenSpritePath, urlPath)),
+      ),
+    )
     .limit(1);
   return !!row;
 }

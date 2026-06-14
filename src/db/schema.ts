@@ -771,6 +771,7 @@ export const petItems = pgTable(
     roomId: bigint("room_id", { mode: "number" }).references(() => petRooms.id, { onDelete: "set null" }),
     name: text("name").notNull(),
     spritePath: text("sprite_path").notNull(),
+    brokenSpritePath: text("broken_sprite_path"), // 파손(durability 0) 시 모습. null이면 CSS 금 오버레이로 폴백.
     pixelRender: boolean("pixel_render").notNull().default(true),
     posX: real("pos_x").notNull().default(50),
     posY: real("pos_y").notNull().default(70),

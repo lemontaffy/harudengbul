@@ -55,6 +55,7 @@ export default async function RoomPage({ params }: { params: Promise<{ roomId: s
     id: it.id,
     name: it.name,
     spritePath: it.spritePath,
+    brokenSpritePath: it.brokenSpritePath,
     pixelRender: it.pixelRender,
     posX: it.posX,
     posY: it.posY,

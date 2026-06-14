@@ -901,6 +901,19 @@ export default function RoomView({
       body: JSON.stringify({ pixelRender: v }),
     }).catch(() => {});
   }
+  async function uploadItemBroken(it: ItemVM, file: File) {
+    const fd = new FormData();
+    fd.set("file", file);
+    const res = await fetch(`/api/pet-items/${it.id}/broken-sprite`, { method: "POST", body: fd }).catch(() => null);
+    if (res?.ok) {
+      const d = await res.json();
+      setItems((xs) => xs.map((q) => (q.id === it.id ? { ...q, brokenSpritePath: d.brokenSpritePath } : q)));
+    }
+  }
+  function clearItemBroken(it: ItemVM) {
+    setItems((xs) => xs.map((q) => (q.id === it.id ? { ...q, brokenSpritePath: null } : q)));
+    fetch(`/api/pet-items/${it.id}/broken-sprite`, { method: "DELETE" }).catch(() => {});
+  }
   function onItemAdded(row: ItemVM, heldPetId: number | null) {
     setItems((xs) => [...xs, row]);
     const target = heldPetId ?? petsRef.current[0]?.id;
@@ -1129,6 +1142,9 @@ export default function RoomView({
               아이템 모드=드래그·탭 시트 / 일반=탭하면 수리·버리기 시트. */}
           {items.map((it) => {
             const broken = it.durabilityMax != null && it.durabilityNow === 0;
+            // 파손 모양 스프라이트가 있으면 그걸로 교체, 없으면 기본 스프라이트 + CSS 금 오버레이.
+            const useBrokenSprite = broken && !!it.brokenSpritePath;
+            const isrc = useBrokenSprite ? it.brokenSpritePath! : it.spritePath;
             return (
               <div
                 key={`item-${it.id}`}
@@ -1140,13 +1156,13 @@ export default function RoomView({
                 <div className="relative h-16 w-16">
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img
-                    src={it.spritePath}
+                    src={isrc}
                     alt={it.name}
                     draggable={false}
                     className={`h-16 w-16 object-contain ${itemMode ? "rounded ring-2 ring-accent/60" : ""}`}
-                    style={{ objectPosition: "bottom", ...pixel(it.pixelRender), filter: broken ? "grayscale(0.5) brightness(0.92)" : undefined }}
+                    style={{ objectPosition: "bottom", ...pixel(it.pixelRender), filter: broken && !useBrokenSprite ? "grayscale(0.5) brightness(0.92)" : undefined }}
                   />
-                  {broken && (
+                  {broken && !useBrokenSprite && (
                     <span className="pointer-events-none absolute inset-0" aria-hidden>
                       <span className="absolute left-1/2 top-1/2 h-12 w-px -translate-x-1/2 -translate-y-1/2 rotate-[20deg] bg-black/55" />
                       <span className="absolute left-1/2 top-1/2 h-9 w-px -translate-x-[2px] -translate-y-1/2 -rotate-[35deg] bg-black/55" />
@@ -1492,6 +1508,27 @@ export default function RoomView({
                   닫기
                 </button>
               </div>
+              {/* 파손 모양 — 업로드/교체/해제. 없으면 깨질 때 CSS 금만. */}
+              <div className="mt-2 flex flex-wrap items-center gap-2 border-t border-border pt-2 text-[11px]">
+                <span className="opacity-60">파손 모양{it.brokenSpritePath ? " ✓" : " 없음"}</span>
+                <label className="cursor-pointer rounded-control bg-surface-2 px-2 py-1 ring-1 ring-border">
+                  {it.brokenSpritePath ? "교체" : "추가"}
+                  <input
+                    type="file"
+                    accept="image/png,image/webp,image/gif,image/jpeg"
+                    className="hidden"
+                    onChange={(e) => {
+                      const f = e.target.files?.[0];
+                      if (f) void uploadItemBroken(it, f);
+                    }}
+                  />
+                </label>
+                {it.brokenSpritePath && (
+                  <button onClick={() => clearItemBroken(it)} className="rounded-control px-2 py-1 ring-1 ring-border opacity-80">
+                    해제
+                  </button>
+                )}
+              </div>
             </div>
           </div>
         );
@@ -1511,6 +1548,7 @@ function ItemAddForm({
   onAdded: (row: ItemVM, heldPetId: number | null) => void;
 }) {
   const [file, setFile] = useState<File | null>(null);
+  const [brokenFile, setBrokenFile] = useState<File | null>(null);
   const [name, setName] = useState("");
   const [infinite, setInfinite] = useState(false);
   const [dur, setDur] = useState(5);
@@ -1526,6 +1564,7 @@ function ItemAddForm({
     setErr("");
     const fd = new FormData();
     fd.set("file", file);
+    if (brokenFile) fd.set("brokenFile", brokenFile);
     fd.set("name", name.trim());
     fd.set("durabilityMax", infinite ? "infinite" : String(Math.max(1, dur)));
     fd.set("pixelRender", String(pixel));
@@ -1551,6 +1590,11 @@ function ItemAddForm({
         <input type="file" accept="image/png,image/webp,image/gif,image/jpeg" onChange={(e) => setFile(e.target.files?.[0] ?? null)} className="text-[11px]" />
         <input value={name} onChange={(e) => setName(e.target.value)} maxLength={60} placeholder="이름(예: 공)" className="w-28 rounded-control bg-bg px-2 py-1.5 ring-1 ring-border" />
       </div>
+      <label className="flex flex-wrap items-center gap-2 text-[11px] opacity-80">
+        파손 모양(선택)
+        <input type="file" accept="image/png,image/webp,image/gif,image/jpeg" onChange={(e) => setBrokenFile(e.target.files?.[0] ?? null)} className="text-[11px]" />
+        <span className="opacity-50">없으면 깨질 때 금만 가요</span>
+      </label>
       <div className="flex flex-wrap items-center gap-2">
         <label className="flex items-center gap-1 opacity-80">
           <input type="checkbox" checked={infinite} onChange={(e) => setInfinite(e.target.checked)} /> 무한(안 깨짐)

@@ -53,6 +53,7 @@ export interface ItemVM {
   id: number;
   name: string;
   spritePath: string;
+  brokenSpritePath: string | null; // 파손 시 모습(없으면 CSS 금 오버레이)
   pixelRender: boolean;
   posX: number;
   posY: number;
