@@ -31,6 +31,8 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   const kindRaw = String(form?.get("kind") ?? "");
   const typeRaw = String(form?.get("type") ?? "").trim();
   const actionRaw = String(form?.get("actionType") ?? "");
+  const facingRaw = String(form?.get("facing") ?? "");
+  const seatYRaw = Number(form?.get("seatY"));
   const pixel = form?.get("pixelRender");
   if (!(file instanceof File)) return Response.json({ error: "파일이 없어요." }, { status: 400 });
   if (kindRaw !== "seat" && kindRaw !== "fixture")
@@ -51,6 +53,8 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
       spriteAltPath: altPath,
       pixelRender: pixel == null ? true : pixel === "true",
       actionType,
+      facing: facingRaw === "right" ? "right" : facingRaw === "left" ? "left" : undefined,
+      seatY: Number.isFinite(seatYRaw) ? Math.max(0, Math.min(100, seatYRaw)) : undefined,
     });
     return Response.json({ ok: true, furniture: row, warning });
   } catch (err) {

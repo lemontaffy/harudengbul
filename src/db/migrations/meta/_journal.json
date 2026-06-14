@@ -246,6 +246,13 @@
       "when": 1781400600000,
       "tag": "0034_pet_diaries",
       "breakpoints": true
+    },
+    {
+      "idx": 35,
+      "version": "7",
+      "when": 1781400700000,
+      "tag": "0035_sit_facing",
+      "breakpoints": true
     }
   ]
 }

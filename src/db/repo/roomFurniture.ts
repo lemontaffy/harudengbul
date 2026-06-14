@@ -20,6 +20,8 @@ export async function listForRoom(userId: number, roomId: number) {
       posX: roomFurniture.posX,
       posY: roomFurniture.posY,
       pixelRender: roomFurniture.pixelRender,
+      facing: roomFurniture.facing,
+      seatY: roomFurniture.seatY,
       actionType: roomFurniture.actionType,
     })
     .from(roomFurniture)
@@ -37,6 +39,8 @@ export async function add(input: {
   spriteAltPath?: string | null;
   pixelRender: boolean;
   actionType: string | null;
+  facing?: "left" | "right";
+  seatY?: number;
 }) {
   const [row] = await db
     .insert(roomFurniture)
@@ -48,6 +52,8 @@ export async function add(input: {
       spriteAltPath: input.spriteAltPath ?? null,
       pixelRender: input.pixelRender,
       actionType: input.actionType,
+      ...(input.facing ? { facing: input.facing } : {}),
+      ...(input.seatY != null ? { seatY: input.seatY } : {}),
     })
     .returning();
   return row;
@@ -61,11 +67,17 @@ export async function setSprite(userId: number, id: number, slot: "main" | "alt"
     .where(and(eq(roomFurniture.id, id), ownsRoom(userId)));
 }
 
-/** 메타 변경(유형·라벨·액션). */
+/** 메타 변경(유형·라벨·액션·seat 방향/좌석높이). */
 export async function updateMeta(
   userId: number,
   id: number,
-  patch: { kind?: "seat" | "fixture"; type?: string; actionType?: string | null },
+  patch: {
+    kind?: "seat" | "fixture";
+    type?: string;
+    actionType?: string | null;
+    facing?: "left" | "right";
+    seatY?: number;
+  },
 ) {
   if (Object.keys(patch).length === 0) return;
   await db

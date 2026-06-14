@@ -175,6 +175,14 @@ export default function RoomView({
     const seats = furnitureRef.current.filter((f) => f.kind === "seat" && !occupied.has(f.id));
     return seats.length ? seats[Math.floor(Math.random() * seats.length)] : null;
   }
+  // 착석 위치 — 펫 엉덩이(스프라이트 하단)를 좌석면(seat_y) 높이에 맞춤. 80px 박스 기준.
+  function seatSitTarget(seat: FurnitureVM): { x: number; y: number } {
+    const { H } = roomDims();
+    if (!H) return { x: seat.posX, y: seat.posY };
+    const seatSurfacePx = (seat.posY / 100) * H - 40 + (seat.seatY / 100) * 80; // 가구 박스 위에서 seat_y%
+    const petCenterPx = seatSurfacePx - 40; // 펫(80px) 하단이 좌석면에 닿게 → 중심은 40px 위
+    return { x: seat.posX, y: Math.max(2, Math.min(98, (petCenterPx / H) * 100)) };
+  }
 
   // ── 펫 겹침(점유 반경) 판정 ── 좌표가 X=스트립%·Y=높이%로 축마다 px 스케일이 달라,
   //    충돌은 픽셀 공간에서 계산해야 정확하다.
@@ -423,7 +431,7 @@ export default function RoomView({
     if (chosen.p.locomotion !== "air" && chosen.p.sitPath && Math.random() < SEAT_TARGET_PROB) {
       const seat = pickEmptySeat();
       if (seat) {
-        doWalk(chosen.p, { x: seat.posX, y: seat.posY }, seat.id);
+        doWalk(chosen.p, seatSitTarget(seat), seat.id); // 좌석면(seat_y) 정렬
         return true;
       }
     }
@@ -894,7 +902,14 @@ export default function RoomView({
                     : loving
                       ? p.lovePath ?? p.spritePath
                       : p.spritePath;
-            const flip = isWalking ? walking!.flip : false;
+            // 착석 중이면 sit 스프라이트를 가구 facing 에 맞춤(sit_facing 과 다르면 반전, walk 반전 로직 재사용).
+            let sitFlip = false;
+            if (sitting) {
+              const seatId = seatOfRef.current.get(p.id);
+              const seat = seatId != null ? furniture.find((fr) => fr.id === seatId) : undefined;
+              if (seat) sitFlip = shouldFlip(p.sitFacing, seat.facing === "right");
+            }
+            const flip = isWalking ? walking!.flip : sitting ? sitFlip : false;
             const scale = petScale(p); // 원근(ground 한정, 2단계)
             return (
               <div

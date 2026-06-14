@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useCallback } from "react";
 import { useDialog } from "@/components/ui/Dialog";
-import { pickWalkPath, type Stage } from "@/lib/pets";
+import { pickWalkPath, pickSitPath, type Stage } from "@/lib/pets";
 import { shouldFlip } from "@/lib/petroom";
 import type { PetRef } from "./types";
 
@@ -26,6 +26,7 @@ interface Detail {
     activeness: number;
     displayStage: string | null;
     walkFacing: "left" | "right";
+    sitFacing: "left" | "right";
     locomotion: "ground" | "air";
     reachedStages: string[];
   };
@@ -161,6 +162,49 @@ function WalkPreview({
   );
 }
 
+function SitPreview({
+  sprites,
+  stage,
+  sitFacing,
+  pixel,
+}: {
+  sprites: { stage: string; kind: string; path: string }[];
+  stage: Stage;
+  sitFacing: "left" | "right";
+  pixel: boolean;
+}) {
+  const sitPath = pickSitPath(sprites, stage);
+  const sty = pixel ? ({ imageRendering: "pixelated" } as const) : {};
+  if (!sitPath) {
+    return (
+      <p className="text-[11px] opacity-50">
+        이 모습에 앉기(sit) 스프라이트가 없어요 — 가구에 앉지 않아요.
+      </p>
+    );
+  }
+  // 좌석 facing 별로 어떻게 보이는지(반전 로직은 가구 facing 과 동일).
+  const seats: { label: string; faceRight: boolean }[] = [
+    { label: "왼쪽 보는 의자", faceRight: false },
+    { label: "오른쪽 보는 의자", faceRight: true },
+  ];
+  return (
+    <div className="flex items-center gap-3 rounded-control bg-bg p-2 ring-1 ring-border">
+      {seats.map((s) => (
+        <div key={s.label} className="flex flex-col items-center gap-0.5">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={sitPath}
+            alt={s.label}
+            className="h-14 w-14 object-contain"
+            style={{ ...sty, transform: shouldFlip(sitFacing, s.faceRight) ? "scaleX(-1)" : undefined }}
+          />
+          <span className="text-[10px] opacity-60">{s.label}</span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 function InfoTab({ d, rooms, onChanged, reload }: { d: Detail; rooms: PetRef[]; onChanged: () => void; reload: () => void }) {
   const dialog = useDialog();
   const [name, setName] = useState(d.pet.name);
@@ -171,6 +215,7 @@ function InfoTab({ d, rooms, onChanged, reload }: { d: Detail; rooms: PetRef[]; 
   const [activeness, setActive] = useState(d.pet.activeness);
   const [displayStage, setDisplayStage] = useState<string>(d.pet.displayStage ?? "");
   const [walkFacing, setWalkFacing] = useState<"left" | "right">(d.pet.walkFacing);
+  const [sitFacing, setSitFacing] = useState<"left" | "right">(d.pet.sitFacing);
   const [locomotion, setLocomotion] = useState<"ground" | "air">(d.pet.locomotion);
   const [saving, setSaving] = useState(false);
 
@@ -188,6 +233,7 @@ function InfoTab({ d, rooms, onChanged, reload }: { d: Detail; rooms: PetRef[]; 
         activeness,
         displayStage: displayStage || null,
         walkFacing,
+        sitFacing,
         locomotion,
       }),
     });
@@ -300,6 +346,30 @@ function InfoTab({ d, rooms, onChanged, reload }: { d: Detail; rooms: PetRef[]; 
           sprites={d.sprites}
           stage={(displayStage || d.pet.stage) as Stage}
           walkFacing={walkFacing}
+          pixel={pixel}
+        />
+      </div>
+      {/* sit GIF 바라보는 방향 + 미리보기(가구 facing 정렬용) */}
+      <div className="flex flex-col gap-2">
+        <div className="flex items-center gap-2 text-sm">
+          <span className="shrink-0 text-xs opacity-60">앉기 스프라이트 방향</span>
+          <div className="flex gap-1.5">
+            {(["left", "right"] as const).map((f) => (
+              <button
+                key={f}
+                type="button"
+                onClick={() => setSitFacing(f)}
+                className={`rounded-control px-3 py-1 text-xs ${sitFacing === f ? "bg-accent text-black" : "bg-bg ring-1 ring-border"}`}
+              >
+                {f === "left" ? "← 왼쪽" : "오른쪽 →"}
+              </button>
+            ))}
+          </div>
+        </div>
+        <SitPreview
+          sprites={d.sprites}
+          stage={(displayStage || d.pet.stage) as Stage}
+          sitFacing={sitFacing}
           pixel={pixel}
         />
       </div>

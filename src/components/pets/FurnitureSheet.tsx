@@ -36,6 +36,8 @@ export default function FurnitureSheet({
   const [kind, setKind] = useState<"seat" | "fixture">(furniture?.kind ?? "seat");
   const [type, setType] = useState(furniture?.type ?? "");
   const [action, setAction] = useState(furniture?.actionType ?? "letters");
+  const [facing, setFacing] = useState<"left" | "right">(furniture?.facing ?? "left");
+  const [seatY, setSeatY] = useState(furniture?.seatY ?? 40);
   const [file, setFile] = useState<File | null>(null);
   const [altFile, setAltFile] = useState<File | null>(null);
   const [busy, setBusy] = useState(false);
@@ -54,15 +56,24 @@ export default function FurnitureSheet({
         fd.append("kind", kind);
         if (type.trim()) fd.append("type", type.trim());
         if (kind === "fixture") fd.append("actionType", action);
+        if (kind === "seat") {
+          fd.append("facing", facing);
+          fd.append("seatY", String(Math.round(seatY)));
+        }
         if (showAlt && altFile) fd.append("altFile", altFile);
         const res = await fetch(`/api/pet-rooms/${roomId}/furniture`, { method: "POST", body: fd });
         if (!res.ok) return setMsg((await res.json().catch(() => ({})))?.error ?? "추가 실패");
       } else {
-        // 메타(유형·라벨·액션)
+        // 메타(유형·라벨·액션·seat 방향/좌석높이)
         const res = await fetch(`/api/furniture/${furniture!.id}`, {
           method: "PATCH",
           headers: { "content-type": "application/json" },
-          body: JSON.stringify({ kind, type: type.trim() || undefined, actionType: kind === "fixture" ? action : null }),
+          body: JSON.stringify({
+            kind,
+            type: type.trim() || undefined,
+            actionType: kind === "fixture" ? action : null,
+            ...(kind === "seat" ? { facing, seatY: Math.round(seatY) } : {}),
+          }),
         });
         if (!res.ok) return setMsg((await res.json().catch(() => ({})))?.error ?? "저장 실패");
         // 스프라이트 교체(올린 것만)
@@ -124,6 +135,37 @@ export default function FurnitureSheet({
                 ))}
               </select>
             </div>
+          )}
+          {/* seat: 앉은 펫 방향 + 좌석면 높이 */}
+          {kind === "seat" && (
+            <>
+              <div className="flex items-center gap-2">
+                <span className="w-12 shrink-0 text-xs opacity-60">방향</span>
+                {(["left", "right"] as const).map((fc) => (
+                  <button
+                    key={fc}
+                    onClick={() => setFacing(fc)}
+                    className={`rounded-control px-3 py-1 text-xs ring-1 ring-border ${facing === fc ? "bg-accent text-black" : "bg-bg"}`}
+                  >
+                    {fc === "left" ? "← 왼쪽" : "오른쪽 →"}
+                  </button>
+                ))}
+                <span className="text-[10px] opacity-40">앉으면 펫이 볼 쪽</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="w-12 shrink-0 text-xs opacity-60">좌석높이</span>
+                <input
+                  type="range"
+                  min={0}
+                  max={100}
+                  value={seatY}
+                  onChange={(e) => setSeatY(Number(e.target.value))}
+                  className="flex-1 accent-accent"
+                />
+                <span className="w-8 shrink-0 text-right text-xs opacity-60">{Math.round(seatY)}</span>
+              </div>
+              <p className="text-[10px] opacity-40">좌석면 높이(0=위, 100=아래) — 펫 엉덩이가 닿을 선. 떠 보이면 ↓, 파묻히면 ↑.</p>
+            </>
           )}
           {/* 라벨 */}
           <div className="flex items-center gap-2">

@@ -554,6 +554,7 @@ export const pets = pgTable(
     activeness: integer("activeness").notNull().default(30), // 0~100, 펫별 기질(배회·핑퐁 빈도)
     displayStage: text("display_stage"), // null=실제 성장 스테이지, 값=그 모습으로 고정(렌더만)
     walkFacing: text("walk_facing").notNull().default("left"), // walk GIF 기본 진행 방향
+    sitFacing: text("sit_facing").notNull().default("left"), // sit 스프라이트가 바라보는 방향(가구 facing 정렬용)
     locomotion: text("locomotion").notNull().default("ground"), // 'ground'(바닥 구역) | 'air'(비행, 부엉이류)
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
   },
@@ -593,6 +594,9 @@ export const roomFurniture = pgTable(
     posX: real("pos_x").notNull().default(50),
     posY: real("pos_y").notNull().default(50),
     pixelRender: boolean("pixel_render").notNull().default(true),
+    // seat 전용: 앉은 펫이 바라볼 방향 + 좌석면 높이(가구 박스 0=위 ~ 100=아래, 펫 엉덩이 기준선).
+    facing: text("facing").notNull().default("left"),
+    seatY: real("seat_y").notNull().default(40),
     // fixture가 여는 앱 기능(액션 타입): 'letters'|'memo'|'diary'|'none'. seat은 null.
     // (스펙의 'function'을 JS 예약어 회피 위해 action_type 컬럼으로.)
     actionType: text("action_type"),

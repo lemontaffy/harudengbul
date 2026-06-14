@@ -15,6 +15,7 @@ export interface PetVM {
   posY: number;
   pixelRender: boolean;
   walkFacing: "left" | "right";
+  sitFacing: "left" | "right"; // sit 스프라이트가 바라보는 방향
   talkativeness: number;
   activeness: number; // 펫별 기질(배회·핑퐁 빈도)
   displayStage: Stage; // 표시 스테이지(display_stage 우선)
@@ -56,6 +57,8 @@ export interface FurnitureVM {
   posX: number;
   posY: number;
   pixelRender: boolean;
+  facing: "left" | "right"; // seat: 앉은 펫이 바라볼 방향
+  seatY: number; // seat: 좌석면 높이(가구 박스 %, 0=위~100=아래)
   actionType: string | null; // fixture: 'letters'|'memo'|'diary'|'none'
   active: boolean; // 상태 활성(예: 안 읽은 편지) — alt 스프라이트로 전환
 }
