@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import TabBar from "@/components/TabBar";
 import CustomCss from "@/components/CustomCss";
+import ResumeHandler from "@/components/ResumeHandler";
 import { DialogProvider } from "@/components/ui/Dialog";
 import { getAppearance, sanitizeCss } from "@/lib/theme";
 
@@ -38,6 +39,7 @@ export default async function RootLayout({
           {children}
           <TabBar />
         </DialogProvider>
+        <ResumeHandler />
         <CustomCss css={customCss ? sanitizeCss(customCss) : null} />
       </body>
     </html>

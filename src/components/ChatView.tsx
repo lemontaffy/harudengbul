@@ -70,6 +70,8 @@ export default function ChatView({
   const [loadingMore, setLoadingMore] = useState(false);
   const [input, setInput] = useState("");
   const [streaming, setStreaming] = useState(false);
+  const [interrupted, setInterrupted] = useState(false); // 스트림 중단(백그라운드/끊김) — 수동 복구 안내
+  const streamCtrl = useRef<AbortController | null>(null);
   const [menuFor, setMenuFor] = useState<number | null>(null);
   const [pendingPhoto, setPendingPhoto] = useState<string | null>(null);
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
@@ -176,6 +178,16 @@ export default function ChatView({
     loadHistory(personaId);
   }, [personaId, loadHistory]);
 
+  // 백그라운드 진입 시 진행 중 스트림을 정리(모바일은 곧 JS가 멈춰 reader가 영영 안 끝남 →
+  // streaming 플래그가 고착돼 입력이 막히는 멈춤 버그). abort → catch에서 중단 표시.
+  useEffect(() => {
+    const onHide = () => {
+      if (document.visibilityState === "hidden" && streamCtrl.current) streamCtrl.current.abort();
+    };
+    document.addEventListener("visibilitychange", onHide);
+    return () => document.removeEventListener("visibilitychange", onHide);
+  }, []);
+
   function patchContentAt(idx: number, fn: (prev: string) => string) {
     setMessages((m) => {
       const c = [...m];
@@ -208,12 +220,17 @@ export default function ChatView({
       { role: "assistant", content: "", createdAt: nowIso },
     ]);
     setStreaming(true);
+    setInterrupted(false);
     scrollToBottom();
+    const ctrl = new AbortController();
+    streamCtrl.current = ctrl;
+    let cut = false; // 중단(abort/끊김) 여부 — 끊기면 부분 응답 보존 + 안내
     try {
       const res = await fetch("/api/chat", {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ personaId, message: text, attachmentPath: photo ?? undefined }),
+        signal: ctrl.signal,
       });
       if (!res.ok || !res.body) {
         const data = await res.json().catch(() => ({}));
@@ -228,12 +245,24 @@ export default function ChatView({
         appendToLast(decoder.decode(value, { stream: true }));
         scrollToBottom();
       }
-    } catch {
-      appendToLast("네트워크 오류");
+    } catch (e) {
+      // AbortError = 백그라운드 진입 등으로 의도적 정리. 그 외 = 네트워크 끊김.
+      cut = true;
+      setInterrupted(true);
+      if ((e as Error)?.name !== "AbortError") appendToLast(" …(응답이 끊겼어요)");
     } finally {
+      streamCtrl.current = null;
       setStreaming(false);
-      if (personaId != null) await loadHistory(personaId); // id/hadToolCall 동기화
+      // 정상 종료만 서버 동기화(끊김 땐 부분 응답을 보존하고 사용자가 ‘다시 불러오기’로 복구).
+      if (!cut && personaId != null) await loadHistory(personaId); // id/hadToolCall 동기화
     }
+  }
+
+  // 중단된 응답을 서버 기준으로 다시 불러오기(자동 재연결 금지 — 중복 메시지 방지). 서버가
+  // 백그라운드에서 답을 마쳤으면 여기서 완성본이 들어온다.
+  async function reloadAfterInterrupt() {
+    setInterrupted(false);
+    if (personaId != null) await loadHistory(personaId);
   }
 
   // 메시지 액션 공통 — 지정 인덱스 말풍선에 스트림을 반영.
@@ -460,6 +489,23 @@ export default function ChatView({
                 className="shrink-0 rounded-control px-3 py-1.5 text-xs opacity-70 ring-1 ring-border hover:text-red-400"
               >
                 제거
+              </button>
+            </div>
+          )}
+          {interrupted && !streaming && (
+            <div className="mb-2 flex items-center gap-2 rounded-control bg-surface px-3 py-2 text-xs ring-1 ring-border">
+              <span className="flex-1 opacity-70">응답이 중간에 끊겼어요.</span>
+              <button
+                onClick={reloadAfterInterrupt}
+                className="shrink-0 rounded-control bg-accent px-3 py-1 font-medium text-black"
+              >
+                다시 불러오기
+              </button>
+              <button
+                onClick={() => setInterrupted(false)}
+                className="shrink-0 rounded-control px-2 py-1 opacity-60 ring-1 ring-border"
+              >
+                닫기
               </button>
             </div>
           )}
