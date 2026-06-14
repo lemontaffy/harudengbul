@@ -94,14 +94,14 @@ export default function PetDiaryView({
           ) : (
             <span className="flex h-12 w-12 items-center justify-center rounded-full bg-black/5 text-xl">🐾</span>
           )}
-          <div style={{ fontFamily: "var(--font-pixel)" }}>
+          <div className="diary-pixel">
             <div className="text-sm font-semibold">{e.petName}의 일기</div>
             <div className="text-[11px] opacity-50">{fmtDate(date)}</div>
           </div>
         </div>
         <p
-          className="min-h-[7rem] whitespace-pre-wrap text-[16px] leading-7"
-          style={{ background: PAPER, fontFamily: "var(--font-pet-diary)" }}
+          className="diary-hand min-h-[7rem] whitespace-pre-wrap text-[16px] leading-7"
+          style={{ background: PAPER }}
         >
           {e.content}
         </p>
