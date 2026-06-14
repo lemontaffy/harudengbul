@@ -11,7 +11,7 @@ const patchSchema = z.object({
   pixelRender: z.boolean().optional(),
   kind: z.enum(["seat", "fixture"]).optional(),
   type: z.string().trim().max(40).optional(),
-  actionType: z.enum(["letters", "memo", "diary", "none"]).nullable().optional(),
+  actionType: z.enum(["letters", "memo", "diary", "achievements", "none"]).nullable().optional(),
 });
 
 // 위치 이동(드래그) · pixel_render 토글 · 메타(유형·라벨·액션) 편집.

@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { requireUser } from "@/lib/currentUser";
 import * as achievementsRepo from "@/db/repo/achievements";
+import Medal, { tierForRank, tierLabel } from "@/components/Medal";
 
 export const dynamic = "force-dynamic";
 
@@ -30,15 +31,22 @@ export default async function AchievementsPage() {
         </p>
       ) : (
         <ul className="flex flex-col gap-2">
-          {list.map((a) => (
-            <li key={a.id} className="flex items-start gap-3 rounded-card bg-surface p-3 ring-1 ring-border">
-              <span className="shrink-0 text-lg">🏅</span>
-              <div className="min-w-0 flex-1">
-                <div className="text-sm">{a.title}</div>
-                <div className="text-[11px] opacity-40">{a.createdAt ? fmt(a.createdAt) : ""}</div>
-              </div>
-            </li>
-          ))}
+          {list.map((a, i) => {
+            // 목록은 최신순(desc). 누적 순번 = 전체수 - 표시인덱스 → 최근일수록 상위 등급.
+            const rank = list.length - i;
+            const tier = tierForRank(rank);
+            return (
+              <li key={a.id} className="flex items-center gap-3 rounded-card bg-surface p-3 ring-1 ring-border">
+                <Medal tier={tier} size={44} />
+                <div className="min-w-0 flex-1">
+                  <div className="text-sm">{a.title}</div>
+                  <div className="text-[11px] opacity-40">
+                    {tierLabel(tier)} · {a.createdAt ? fmt(a.createdAt) : ""}
+                  </div>
+                </div>
+              </li>
+            );
+          })}
         </ul>
       )}
     </main>

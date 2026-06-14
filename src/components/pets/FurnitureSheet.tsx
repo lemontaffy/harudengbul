@@ -8,6 +8,7 @@ const ACTIONS: { v: string; ko: string }[] = [
   { v: "letters", ko: "편지" },
   { v: "memo", ko: "메모" },
   { v: "diary", ko: "일기" },
+  { v: "achievements", ko: "업적판" },
   { v: "none", ko: "장식" },
 ];
 // 상태(알림 스프라이트)를 가지는 액션 — 편지만 도착/읽음 상태가 있음.
