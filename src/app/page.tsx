@@ -102,7 +102,11 @@ export default async function DashboardPage() {
     <main className="mx-auto flex min-h-screen max-w-md flex-col gap-4 p-4">
       {/* 헤더 — 우측에 메인 연결 스위처(현 위치 유지) */}
       <header className="flex items-center justify-between">
-        <h1 className="font-display text-base font-semibold text-accent">하루등불</h1>
+        <h1 className="flex items-center gap-1.5 font-display text-base font-semibold text-accent">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/icon-title.png" alt="" width={22} height={22} className="h-[22px] w-[22px]" />
+          하루등불
+        </h1>
         <ConnectionSwitcher />
       </header>
 

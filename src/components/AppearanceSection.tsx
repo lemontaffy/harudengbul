@@ -25,17 +25,68 @@ const VARS = [
 
 const MAX = 20480; // 20KB
 
+interface CssTheme {
+  id: number;
+  name: string;
+  css: string;
+}
+
 export default function AppearanceSection({
   initialTheme,
   initialCss,
+  initialThemes = [],
 }: {
   initialTheme: string;
   initialCss: string;
+  initialThemes?: CssTheme[];
 }) {
   const [theme, setTheme] = useState(initialTheme);
   const [css, setCss] = useState(initialCss);
   const [status, setStatus] = useState("");
   const [saving, setSaving] = useState(false);
+  const [themes, setThemes] = useState<CssTheme[]>(initialThemes);
+  const [newName, setNewName] = useState("");
+
+  // 적용본(settings.custom_css) 설정 — 설정 밖 화면에 즉시 반영.
+  async function applyCss(value: string) {
+    await fetch("/api/settings", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ customCss: value }),
+    });
+  }
+
+  // 현재 편집 중인 CSS 를 이름 붙여 보관함에 저장.
+  async function stashCurrent() {
+    const name = newName.trim();
+    if (!name) return setStatus("저장할 이름을 입력하세요.");
+    if (css.length > MAX) return setStatus("커스텀 CSS는 20KB 이하만 가능해요.");
+    const res = await fetch("/api/css-themes", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ name, css }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (res.ok) {
+      setThemes((xs) => [data.theme, ...xs]);
+      setNewName("");
+      setStatus(`'${name}' 보관함에 저장됨 ✓`);
+    } else {
+      setStatus(data.error ?? "저장 실패");
+    }
+  }
+
+  // 보관함 테마 적용 — 편집창에 불러오고 즉시 적용(active customCss).
+  async function applyTheme(t: CssTheme) {
+    setCss(t.css);
+    await applyCss(t.css);
+    setStatus(`'${t.name}' 적용됨 ✓`);
+  }
+
+  async function deleteTheme(t: CssTheme) {
+    setThemes((xs) => xs.filter((x) => x.id !== t.id));
+    await fetch(`/api/css-themes/${t.id}`, { method: "DELETE" }).catch(() => {});
+  }
 
   async function pickTheme(id: string) {
     setTheme(id);
@@ -56,16 +107,8 @@ export default function AppearanceSection({
     setSaving(true);
     setStatus("");
     try {
-      const res = await fetch("/api/settings", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ customCss: css }),
-      });
-      setStatus(
-        res.ok
-          ? "저장됨 ✓ — 적용은 설정 밖 화면에서 확인하세요"
-          : "저장 실패",
-      );
+      await applyCss(css);
+      setStatus("적용됨 ✓ — 설정 밖 화면에서 확인하세요");
     } finally {
       setSaving(false);
     }
@@ -112,12 +155,49 @@ export default function AppearanceSection({
             disabled={saving}
             className="rounded-control bg-accent px-4 py-2 text-sm font-medium text-black disabled:opacity-50"
           >
-            {saving ? "저장 중…" : "CSS 저장"}
+            {saving ? "적용 중…" : "적용"}
           </button>
           <span className="text-xs text-text-dim">
             {css.length}/{MAX}
           </span>
           {status && <span className="text-xs text-text-dim">{status}</span>}
+        </div>
+
+        {/* 보관함 — 여러 CSS 테마를 쌓아두고 골라 적용 */}
+        <div className="mt-3 border-t border-border pt-3">
+          <label className="mb-1.5 block text-xs text-text-dim">테마 보관함</label>
+          <div className="mb-2 flex gap-2">
+            <input
+              value={newName}
+              onChange={(e) => setNewName(e.target.value)}
+              maxLength={60}
+              placeholder="현재 CSS를 이 이름으로 저장"
+              className="flex-1 rounded-control bg-bg px-3 py-2 text-sm outline-none ring-1 ring-border focus:ring-accent"
+            />
+            <button onClick={stashCurrent} className="shrink-0 rounded-control bg-surface-2 px-3 py-2 text-sm ring-1 ring-border">
+              보관
+            </button>
+          </div>
+          {themes.length === 0 ? (
+            <p className="text-xs text-text-dim">저장된 테마가 없어요. 편집한 CSS를 이름 붙여 보관해두고 골라 적용해요.</p>
+          ) : (
+            <ul className="flex flex-col gap-1.5">
+              {themes.map((t) => (
+                <li key={t.id} className="flex items-center gap-2 rounded-control bg-bg p-2 ring-1 ring-border">
+                  <span className="min-w-0 flex-1 truncate text-sm">{t.name}</span>
+                  <button onClick={() => applyTheme(t)} className="shrink-0 rounded-control bg-accent px-3 py-1 text-xs font-medium text-black">
+                    적용
+                  </button>
+                  <button onClick={() => setCss(t.css)} className="shrink-0 rounded-control px-2 py-1 text-xs ring-1 ring-border" title="편집창에 불러오기">
+                    불러오기
+                  </button>
+                  <button onClick={() => deleteTheme(t)} className="shrink-0 px-1.5 py-1 text-xs text-text-dim hover:text-danger">
+                    ✕
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
         </div>
 
         <details className="mt-2">

@@ -140,6 +140,21 @@ export const settings = pgTable("settings", {
   petLastRoomId: bigint("pet_last_room_id", { mode: "number" }),
 });
 
+// CSS 테마 보관함 — 사용자가 이름 붙여 여러 개 저장해두고 골라 적용(적용본은 settings.custom_css).
+export const cssThemes = pgTable(
+  "css_themes",
+  {
+    id: bigint("id", { mode: "number" }).primaryKey().generatedAlwaysAsIdentity(),
+    userId: bigint("user_id", { mode: "number" })
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    name: text("name").notNull(),
+    css: text("css").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
+  },
+  (t) => [index("css_themes_user_idx").on(t.userId, t.createdAt)],
+);
+
 // 사용자별 다중 LLM 연결. 같은 공급사도 여러 개 가능. 사용자가 이름을 붙인다.
 export const llmConnections = pgTable(
   "llm_connections",

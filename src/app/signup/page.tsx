@@ -46,7 +46,11 @@ function SignupForm() {
         onSubmit={onSubmit}
         className="w-full max-w-xs rounded-card bg-surface p-6"
       >
-        <h1 className="font-display mb-1 text-xl font-semibold text-accent">하루등불 가입</h1>
+        <h1 className="mb-1 flex items-center gap-2 font-display text-xl font-semibold text-accent">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/icon-title.png" alt="" width={26} height={26} className="h-[26px] w-[26px]" />
+          하루등불 가입
+        </h1>
         <p className="mb-5 text-xs opacity-60">초대 코드로 계정을 만듭니다.</p>
 
         {!code && (

@@ -3,6 +3,7 @@ import { requireUser } from "@/lib/currentUser";
 import * as settingsRepo from "@/db/repo/settings";
 import * as personasRepo from "@/db/repo/personas";
 import * as connectionsRepo from "@/db/repo/connections";
+import * as cssThemesRepo from "@/db/repo/cssThemes";
 import SettingsForm, { type SettingsInitial } from "@/components/SettingsForm";
 import ConnectionsManager from "@/components/ConnectionsManager";
 import DiaryReminderSection, {
@@ -63,11 +64,12 @@ export default async function SettingsPage({
 }) {
   const user = await requireUser();
   const sp = await searchParams;
-  const [s, personaRows, googleAcct, conns] = await Promise.all([
+  const [s, personaRows, googleAcct, conns, cssThemes] = await Promise.all([
     settingsRepo.getByUser(user.id),
     personasRepo.listActiveByUser(user.id),
     googleRepo.getByUser(user.id),
     connectionsRepo.listByUser(user.id),
+    cssThemesRepo.listForUser(user.id),
   ]);
 
   const google: GoogleInitial = {
@@ -138,6 +140,7 @@ export default async function SettingsPage({
           <AppearanceSection
             initialTheme={s?.theme ?? "lantern"}
             initialCss={s?.customCss ?? ""}
+            initialThemes={cssThemes}
           />
         </Section>
         <Section title="프로필" status={sum.profile}>
