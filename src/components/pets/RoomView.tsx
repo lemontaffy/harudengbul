@@ -27,6 +27,10 @@ const PET_RADIUS_PX = 36; // 점유 반경 ≈ 스프라이트(80px) 폭 절반(
 const DEFAULT_FLOOR = { top: 72, bottom: 92 }; // 패널 없을 때(기본 그라데이션) 바닥 구역
 const AIR_BAND = { top: 8, bottom: 58 }; // air 펫 자율 비행 대역(상단~중단)
 const SEAT_TARGET_PROB = 0.25; // 산책 시 빈 seat 가구를 목적지로 고를 확률(낮게 가중)
+// 패널 단위 공간 인식 — 연인 원거리 예외(보수적, 모두 '가끔' · liveliness(L/50) 곱).
+const CROSS_PANEL_PROB = 0.12; // 산책 시 가끔 옆 패널로 넘어감(기본은 현재 패널 내)
+const SEEK_LOVER_PROB = 0.06; // 드물게 산책 목적지를 '연인이 있는 패널'로(연인 전용 — 혐관·가족 제외)
+const GRIEF_PROB = 0.16; // 자발 발화 통과분 중, 다른 패널 연인을 그리워하는 혼잣말 비율(이펙트·핑퐁 없음)
 // fixture 액션 → 앱 기능 경로. 없거나 'none'이면 순수 장식.
 const FIXTURE_ROUTE: Record<string, string> = { letters: "/mailbox", memo: "/memos", diary: "/diary", achievements: "/achievements", pet_diary: "/pet-diary" };
 
@@ -118,6 +122,17 @@ export default function RoomView({
     const idx = Math.max(0, Math.min(ps.length - 1, Math.floor((posX / 100) * ps.length)));
     return { top: ps[idx].floorTopY, bottom: ps[idx].floorBottomY };
   }
+  // ── 패널 단위 공간 인식 ── posX 가 속한 패널 인덱스. N<=1(단일 패널·기본배경)이면 항상 0 → 분리 없음(무영향).
+  function panelOf(posX: number): number {
+    const n = panelsRef.current.length;
+    if (n <= 1) return 0;
+    return Math.max(0, Math.min(n - 1, Math.floor((posX / 100) * n)));
+  }
+  // 패널 인덱스의 posX 범위(%).
+  function panelBounds(idx: number): { lo: number; hi: number } {
+    const n = Math.max(1, panelsRef.current.length);
+    return { lo: (idx / n) * 100, hi: ((idx + 1) / n) * 100 };
+  }
   // 드래그(수동) y 보정: ground=구역 스냅, air=자유(전체).
   function dragClampY(loco: string, posX: number, rawY: number): number {
     if (loco === "air") return Math.max(6, Math.min(96, rawY));
@@ -171,9 +186,10 @@ export default function RoomView({
     return (sitUntilRef.current[petId] ?? 0) > now;
   }
   // 빈 seat 가구 하나(없으면 null). 점유는 seatOfRef 로 한 seat 한 펫 보장.
-  function pickEmptySeat(): FurnitureVM | null {
+  function pickEmptySeat(panel?: number): FurnitureVM | null {
     const occupied = new Set(seatOfRef.current.values());
-    const seats = furnitureRef.current.filter((f) => f.kind === "seat" && !occupied.has(f.id));
+    let seats = furnitureRef.current.filter((f) => f.kind === "seat" && !occupied.has(f.id));
+    if (panel != null) seats = seats.filter((f) => panelOf(f.posX) === panel); // 목적 패널 내 seat 만
     return seats.length ? seats[Math.floor(Math.random() * seats.length)] : null;
   }
   // 착석 위치 — 펫 엉덩이(스프라이트 하단)를 좌석면(seat_y) 높이에 맞춤. 80px 박스 기준.
@@ -218,11 +234,17 @@ export default function RoomView({
     return { x, y };
   }
   // 산책 목적지 — 비충돌 지점을 최대 8회 재추첨. 다 실패하면 null(이번 틱 이동 취소).
-  function pickWalkTarget(p: PetVM, ea: number): { x: number; y: number } | null {
+  function pickWalkTarget(p: PetVM, ea: number, targetPanel: number): { x: number; y: number } | null {
     const { W, H } = roomDims();
     const range = wanderRange(ea);
+    const b = panelBounds(targetPanel);
+    const lo = Math.max(3, b.lo + 2); // 패널 경계는 살짝 안쪽까지(이음새 회피)
+    const hi = Math.min(97, b.hi - 2);
+    const sameP = targetPanel === panelOf(p.posX);
     for (let i = 0; i < 8; i++) {
-      const x = Math.max(3, Math.min(97, p.posX + (Math.random() * 2 - 1) * range));
+      // 같은 패널: 현재 위치 기준 어슬렁(패널 경계 클램프) / 다른 패널: 그 패널 내 임의 지점으로 이동.
+      let x = sameP ? p.posX + (Math.random() * 2 - 1) * range : b.lo + Math.random() * (b.hi - b.lo);
+      x = Math.max(lo, Math.min(hi, x));
       const y = walkY(p.locomotion, x, p.posY); // ground=바닥 구역 / air=비행 대역
       if (!W || !H) return { x, y }; // 치수 모름 → 충돌검사 스킵
       if (!collidesAny(p.id, x, y, W, H)) return { x, y };
@@ -267,17 +289,39 @@ export default function RoomView({
         ((r.petAId === a && r.petBId === b) || (r.petAId === b && r.petBId === a)),
     );
   }
+  // 그 펫의 연인 중 '지금 다른 패널에 있는' 펫 id(없으면 null). 그리움·찾아가기용(연인 전용 — isLove 만).
+  function loverInOtherPanel(p: PetVM): number | null {
+    const myPanel = panelOf(p.posX);
+    for (const o of petsRef.current) {
+      if (o.id === p.id) continue;
+      if (isLovePair(p.id, o.id) && panelOf(o.posX) !== myPanel) return o.id;
+    }
+    return null;
+  }
+  // 연인 원거리 그리움 혼잣말 — 상대 이름을 넣은 '여기 없는' 톤. 말풍선만(이펙트·핑퐁 없음).
+  function griefLine(name: string): string {
+    const pool = [
+      `${name}… 어디 갔지`,
+      `${name}, 보고 싶다…`,
+      `${name}는 어디 간 거야`,
+      `흐음, ${name} 생각나네`,
+      `${name} 옆에 있으면 좋겠다…`,
+    ];
+    return pool[Math.floor(Math.random() * pool.length)];
+  }
   function aboutLineFor(p: PetVM, otherId: number): string | null {
     const opts = p.aboutLines.filter((a) => a.aboutPetId === otherId);
     return opts.length ? opts[Math.floor(Math.random() * opts.length)].content : null;
   }
   // 탭/자발 발화 공용 — 풀(solo + 같은 방 상대 about ×2)에서 랜덤 1개(kind 포함).
   function pickLine(p: PetVM): { content: string; kind: "solo" | "about_other"; aboutPetId: number | null } {
-    const here = new Set(petsRef.current.map((x) => x.id));
+    // about_other 는 '같은 패널에 있는 상대'에 대해서만(다른 패널 펫은 인식 못 함 → 벽 너머 언급 차단).
+    const myPanel = panelOf(p.posX);
+    const panelById = new Map(petsRef.current.map((x) => [x.id, panelOf(x.posX)]));
     const pool: { content: string; kind: "solo" | "about_other"; aboutPetId: number | null }[] =
       p.soloLines.map((content) => ({ content, kind: "solo", aboutPetId: null }));
     for (const a of p.aboutLines) {
-      if (here.has(a.aboutPetId)) {
+      if (panelById.get(a.aboutPetId) === myPanel) {
         const item = { content: a.content, kind: "about_other" as const, aboutPetId: a.aboutPetId };
         pool.push(item, item);
       }
@@ -371,6 +415,7 @@ export default function RoomView({
       for (let j = i + 1; j < ps.length; j++) {
         const a = ps[i], b = ps[j];
         if (isNapping(a.id) || isNapping(b.id)) continue; // 조는 펫은 대화 안 함
+        if (panelOf(a.posX) !== panelOf(b.posX)) continue; // 다른 패널은 서로 인식 안 함(벽 너머 핑퐁·❤️·💢 차단)
         if (Math.abs(a.posX - b.posX) > 30) continue;
         if (!isVisible(a.posX) || !isVisible(b.posX)) continue;
         if (!aboutLineFor(a, b.id) || !aboutLineFor(b, a.id)) continue;
@@ -429,16 +474,34 @@ export default function RoomView({
     let r = Math.random() * total;
     const chosen = cands.find((x) => (r -= x.ea) < 0) ?? cands[0];
     if (Math.random() >= walkStartProb(chosen.ea)) return false; // 정지 우세
-    // 가끔 빈 seat 가구로 향함(sit 슬롯 있는 ground 펫만; air 내려앉기는 나중). 아니면 랜덤 지점.
+    // ── 목적 패널 결정 ── 기본은 현재 패널. 다패널 방에서만 예외(둘 다 '가끔', liveliness 곱):
+    //   ① 드물게 연인이 있는 패널로 찾아감(연인 전용) ② 가끔 옆 패널로 넘어감.
+    const curPanel = panelOf(chosen.p.posX);
+    let targetPanel = curPanel;
+    const nP = panelsRef.current.length;
+    if (nP > 1) {
+      const Lf = Math.max(0, Math.min(1, L / 50));
+      const loverId = loverInOtherPanel(chosen.p);
+      if (loverId != null && Math.random() < SEEK_LOVER_PROB * Lf) {
+        const lp = petsRef.current.find((x) => x.id === loverId);
+        if (lp) targetPanel = panelOf(lp.posX); // 연인 패널로 찾아가기 → 같은 패널 되면 ❤️·핑퐁 자연 발동
+      } else if (Math.random() < CROSS_PANEL_PROB * Lf) {
+        const adj: number[] = [];
+        if (curPanel > 0) adj.push(curPanel - 1);
+        if (curPanel < nP - 1) adj.push(curPanel + 1);
+        if (adj.length) targetPanel = adj[Math.floor(Math.random() * adj.length)];
+      }
+    }
+    // 가끔 빈 seat 가구로 향함(sit 슬롯 있는 ground 펫만). 목적 패널 내 seat 만(기본=현재 패널).
     if (chosen.p.locomotion !== "air" && chosen.p.sitPath && Math.random() < SEAT_TARGET_PROB) {
-      const seat = pickEmptySeat();
+      const seat = pickEmptySeat(targetPanel);
       if (seat) {
         doWalk(chosen.p, seatSitTarget(seat), seat.id); // 좌석면(seat_y) 정렬
         return true;
       }
     }
     // 다른 펫 점유 반경 피해 재추첨, 다 실패하면 이번 틱 이동 취소.
-    const target = pickWalkTarget(chosen.p, chosen.ea);
+    const target = pickWalkTarget(chosen.p, chosen.ea, targetPanel);
     if (!target) return false;
     doWalk(chosen.p, target);
     return true;
@@ -524,6 +587,15 @@ export default function RoomView({
     let r = Math.random() * total;
     const p = ps.find((x) => (r -= x.talkativeness) < 0) ?? ps[0];
     if (Math.random() >= p.talkativeness / 100) return;
+    // 연인 원거리 그리움 — 다른 패널에 있는 연인을 가끔 혼잣말로(이펙트·핑퐁 없음, 상대 패널엔 안 들림).
+    //   liveliness 곱(차분한 방일수록 약하게). 혐관·가족은 isLove 아니라 해당 없음.
+    const Lg = Math.max(0, Math.min(1, livelinessRef.current / 50));
+    const loverId = loverInOtherPanel(p);
+    if (loverId != null && Math.random() < GRIEF_PROB * Lg) {
+      const lover = petsRef.current.find((x) => x.id === loverId);
+      showBubble(p.id, griefLine(lover?.name ?? "…"));
+      return;
+    }
     const line = pickLine(p);
     showBubble(p.id, line.content);
     if (line.kind === "about_other" && line.aboutPetId != null) {
