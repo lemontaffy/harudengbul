@@ -23,6 +23,28 @@
   font-weight: 800;
   font-display: swap;
 }
+/* 펫 일기 전용 — 한글 풀셋(11,172 음절) 4종. 없으면 시스템 폰트로 graceful fallback.
+   손글씨: Handletter(나눔 손편지체)·Bumsom(나눔 범솜체) / 픽셀: TerrarumBitmap·MaruMinya(12×12). */
+@font-face {
+  font-family: "Handletter"; /* 나눔 손편지체 — 일기 본문 기본 */
+  src: url("/fonts/handletter.woff2") format("woff2");
+  font-display: swap;
+}
+@font-face {
+  font-family: "Bumsom"; /* 나눔 범솜체 — 손글씨 대안 */
+  src: url("/fonts/bumsom.woff2") format("woff2");
+  font-display: swap;
+}
+@font-face {
+  font-family: "TerrarumBitmap"; /* 픽셀 비트맵 — 일기 헤더 기본 */
+  src: url("/fonts/TerrarumSansBitmap.woff2") format("woff2");
+  font-display: swap;
+}
+@font-face {
+  font-family: "MaruMinya"; /* 12×12 픽셀 한글 — 픽셀 대안 */
+  src: url("/fonts/MaruMinyaHangul.woff2") format("woff2");
+  font-display: swap;
+}
 
 /* ── 디자인 토큰 ── (반경·폰트는 테마 비의존이라 :root 고정) */
 :root {
@@ -32,6 +54,10 @@
     "Pretendard", ui-sans-serif, system-ui, -apple-system, "Apple SD Gothic Neo",
     "Segoe UI", Roboto, "Noto Sans KR", sans-serif;
   --font-display: "Paperlogy", var(--font-body);
+  /* 펫 일기 — 손글씨 본문 / 픽셀 헤더. 다른 글씨체로 바꾸려면 아래 한 줄만 교체
+     (후보: "Bumsom" · "MaruMinya" · "Handletter" / 픽셀: "TerrarumBitmap"). */
+  --font-pet-diary: "Handletter", "Bumsom", "MaruMinya", var(--font-body);
+  --font-pixel: "TerrarumBitmap", var(--font-body);
 }
 
 /* 테마별 색 토큰 — html[data-theme] 로 전환(컴포넌트 분기 없음). lantern 이 기본. */
