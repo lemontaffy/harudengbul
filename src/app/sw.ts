@@ -3,7 +3,7 @@
 // (tsconfig 에서 이 파일은 exclude — 전역 lib(dom) 오염 방지, 위 webworker 참조로 타입 확보)
 import { defaultCache } from "@serwist/next/worker";
 import type { PrecacheEntry, SerwistGlobalConfig } from "serwist";
-import { Serwist } from "serwist";
+import { CacheFirst, ExpirationPlugin, Serwist } from "serwist";
 
 declare global {
   interface WorkerGlobalScope extends SerwistGlobalConfig {
@@ -14,12 +14,30 @@ declare global {
 
 declare const self: ServiceWorkerGlobalScope;
 
+// 셀프호스팅 폰트 전용 캐시 — defaultCache 의 static-font-assets(maxEntries:4)보다 먼저 매칭.
+// 본문(Pretendard)·제목(Paperlogy×2)·펫 일기(손글씨2·픽셀2) 합 6+개라 4개 한도면 일기 폰트가
+// 들어올 때 Pretendard/Paperlogy 가 LRU 로 축출돼 "일기 외 폰트가 풀리는" 증상이 났다. 넉넉히 24개.
+const fontCache = {
+  matcher: ({ request, sameOrigin }: { request: Request; sameOrigin: boolean }) =>
+    sameOrigin && request.destination === "font",
+  handler: new CacheFirst({
+    cacheName: "haru-fonts",
+    plugins: [
+      new ExpirationPlugin({
+        maxEntries: 24,
+        maxAgeSeconds: 60 * 60 * 24 * 365,
+        purgeOnQuotaError: true,
+      }),
+    ],
+  }),
+};
+
 const serwist = new Serwist({
   precacheEntries: self.__SW_MANIFEST,
   skipWaiting: true,
   clientsClaim: true,
   navigationPreload: true,
-  runtimeCaching: defaultCache,
+  runtimeCaching: [fontCache, ...defaultCache],
 });
 
 serwist.addEventListeners();

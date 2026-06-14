@@ -1,7 +1,9 @@
 import { z } from "zod";
 import { getCurrentUser } from "@/lib/currentUser";
 import * as eventsRepo from "@/db/repo/events";
+import * as settingsRepo from "@/db/repo/settings";
 import { pushCreate } from "@/lib/googlesync";
+import { startOfTodayInTz } from "@/lib/proactive";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -44,9 +46,9 @@ export async function GET(req: Request) {
     const rows = await eventsRepo.listBetween(user.id, start, end);
     return Response.json({ events: rows.map(publicRow) });
   }
-  // 예정 일정: 오늘 0시 이후(살짝 과거도 포함되게 하루 전부터).
-  const from = new Date();
-  from.setHours(0, 0, 0, 0);
+  // 예정 일정: 사용자 tz 기준 '오늘 0시' 이후(서버 UTC 자정 기준이면 새벽·오전 일정이 잘리던 버그).
+  const s = await settingsRepo.getByUser(user.id);
+  const from = startOfTodayInTz(s?.timezone ?? "Asia/Seoul");
   const rows = await eventsRepo.listFrom(user.id, from);
   return Response.json({ events: rows.map(publicRow) });
 }

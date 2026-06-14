@@ -5,6 +5,7 @@ import * as settingsRepo from "../db/repo/settings";
 import * as diaryRepo from "../db/repo/diary";
 import { getEmbedConfig } from "./config";
 import { embed } from "./embeddings";
+import { dayBoundsInTz } from "./proactive";
 
 const MOOD_LABEL: Record<string, string> = {
   storm: "폭풍",
@@ -90,11 +91,8 @@ export type { PromptPersona, PromptContext } from "./prompt";
 
 function startEndOfDay(tz: string): { start: Date; end: Date; nowLabel: string } {
   const now = new Date();
-  // 표시는 사용자 timezone 기준. 일정 범위는 단순화해 서버 기준 당일로 잡는다.
-  const start = new Date(now);
-  start.setHours(0, 0, 0, 0);
-  const end = new Date(start);
-  end.setDate(end.getDate() + 1);
+  // 일정 범위·표시 모두 사용자 timezone 당일 기준(서버 UTC 자정 기준이면 하루가 어긋나던 문제).
+  const { start, end } = dayBoundsInTz(tz, now);
   const nowLabel = now.toLocaleString("ko-KR", { timeZone: tz });
   return { start, end, nowLabel };
 }

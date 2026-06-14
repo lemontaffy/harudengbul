@@ -9,6 +9,7 @@ import * as handoffsRepo from "@/db/repo/handoffs";
 import * as achievementSuggRepo from "@/db/repo/achievementSuggestions";
 import * as memosRepo from "@/db/repo/memos";
 import { phraseForDate } from "@/lib/phrases";
+import { dayBoundsInTz } from "@/lib/proactive";
 import { findSecretary } from "@/lib/cta";
 import { getPetMiniWidget } from "@/modules/pets/boundary";
 import PetMiniWidget from "@/components/pets/PetMiniWidget";
@@ -43,11 +44,8 @@ export default async function DashboardPage() {
   const tz = s?.timezone ?? "Asia/Seoul";
   const today = todayInTz(tz);
 
-  // 오늘 일정 범위(서버 기준 당일)
-  const start = new Date();
-  start.setHours(0, 0, 0, 0);
-  const end = new Date(start);
-  end.setDate(end.getDate() + 1);
+  // 오늘 일정 범위(사용자 tz 당일 — 서버 UTC 자정 기준이면 새벽·오전 일정이 빠지던 버그).
+  const { start, end } = dayBoundsInTz(tz);
 
   const [personaRows, todayEvents, todayDiary, handoffRows, achSuggRows] = await Promise.all([
     personasRepo.listActiveByUser(user.id),

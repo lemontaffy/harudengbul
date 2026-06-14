@@ -2,14 +2,16 @@ import { requireUser } from "@/lib/currentUser";
 import { findSecretary } from "@/lib/cta";
 import * as eventsRepo from "@/db/repo/events";
 import * as personasRepo from "@/db/repo/personas";
+import * as settingsRepo from "@/db/repo/settings";
+import { startOfTodayInTz } from "@/lib/proactive";
 import EventsView, { type EventItem } from "@/components/EventsView";
 
 export const dynamic = "force-dynamic";
 
 export default async function EventsPage() {
   const user = await requireUser();
-  const from = new Date();
-  from.setHours(0, 0, 0, 0);
+  const s = await settingsRepo.getByUser(user.id);
+  const from = startOfTodayInTz(s?.timezone ?? "Asia/Seoul"); // 사용자 tz 오늘 0시(서버 UTC 자정 잘림 버그 회피)
   const [rows, personas] = await Promise.all([
     eventsRepo.listFrom(user.id, from),
     personasRepo.listActiveByUser(user.id),

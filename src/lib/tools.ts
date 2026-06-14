@@ -11,6 +11,7 @@ import * as personasRepo from "@/db/repo/personas";
 import { pushCreate, pushUpdate, pushDelete } from "@/lib/googlesync";
 import { searchWeb } from "@/lib/websearch";
 import { convert, isCurrencyCode } from "@/lib/fx";
+import { startOfTodayInTz } from "@/lib/proactive";
 import type { Role } from "@/lib/persona";
 
 // SPEC §7 — 비서 도구. OpenAI 호환 tool-use 스펙.
@@ -516,8 +517,7 @@ export async function executeTool(
     if (name === "list_events") {
       const s = await settingsRepo.getByUser(userId);
       const tz = s?.timezone ?? "Asia/Seoul";
-      const from = new Date();
-      from.setHours(0, 0, 0, 0);
+      const from = startOfTodayInTz(tz); // 사용자 tz 오늘 0시(서버 UTC 자정 잘림 버그 회피)
       const rows = await eventsRepo.listFrom(userId, from, 30);
       if (rows.length === 0) return "OK: 예정된 일정이 없어요.";
       const lines = rows.map((e) => {

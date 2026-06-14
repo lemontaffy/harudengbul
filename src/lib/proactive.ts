@@ -22,6 +22,26 @@ export function todayInTz(tz: string, now = new Date()): string {
   return new Intl.DateTimeFormat("en-CA", { timeZone: tz }).format(now);
 }
 
+/**
+ * tz 기준 '오늘 0시'의 절대시각(Date). 서버 tz 무관.
+ * (서버가 UTC면 Date#setHours(0..) 는 UTC 자정 = KST 오전 9시라, 일정 목록에서
+ *  KST 새벽~오전 일정이 잘리던 버그가 있었다. 벽시계 0시를 오프셋 보정해 환산한다.)
+ */
+export function startOfTodayInTz(tz: string, now = new Date()): Date {
+  const ymd = todayInTz(tz, now); // YYYY-MM-DD (tz)
+  const base = new Date(`${ymd}T00:00:00Z`); // tz 벽시계 0시를 일단 UTC 로
+  const off =
+    new Date(base.toLocaleString("en-US", { timeZone: "UTC" })).getTime() -
+    new Date(base.toLocaleString("en-US", { timeZone: tz })).getTime();
+  return new Date(base.getTime() + off);
+}
+
+/** tz 기준 오늘의 [start, end)(자정~다음 자정) 절대시각. */
+export function dayBoundsInTz(tz: string, now = new Date()): { start: Date; end: Date } {
+  const start = startOfTodayInTz(tz, now);
+  return { start, end: new Date(start.getTime() + 24 * 60 * 60 * 1000) };
+}
+
 /** "HH:MM" (tz 기준 현재 시각) */
 export function nowHHMMInTz(tz: string, now = new Date()): string {
   return new Intl.DateTimeFormat("en-GB", {
