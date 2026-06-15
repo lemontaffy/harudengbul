@@ -151,6 +151,7 @@ export async function buildContext(userId: number, query?: string) {
     todayCondition: todayEntry?.bodyCondition
       ? (CONDITION_LABEL[todayEntry.bodyCondition] ?? todayEntry.bodyCondition)
       : null,
+    todayDiary: todayEntry?.body?.trim() || null, // 일기 본문 — 상담사만 열람(prompt에서 게이트)
     userNickname: s?.nickname ?? null,
     userAbout: s?.about ?? null,
     handoffEnabled: s?.handoffEnabled ?? true,

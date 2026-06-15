@@ -180,6 +180,7 @@ export interface PromptContext {
   todayEvents: string;
   todayMood?: string | null; // 오늘 기분(라벨)
   todayCondition?: string | null; // 오늘 몸 상태(아픔/피곤/보통/쌩쌩)
+  todayDiary?: string | null; // 오늘 일기 본문 — 상담사(노라)만 프롬프트에 주입
   userNickname?: string | null;
   userAbout?: string | null;
   handoffEnabled?: boolean; // 상담가 핸드오프 단락/도구 주입 여부(기본 true)
@@ -192,7 +193,7 @@ export function buildSystemPrompt(
 ): string {
   const name = persona.name?.trim() || "이름 없는 캐릭터";
   const traits = persona.traits?.trim();
-  // 일기에서 온 정보(오늘 기분·몸 상태)는 상담사(노라)만 본다 — 다른 역할엔 일기 내용 비전이.
+  // 오늘 기분·몸 상태는 모든 페르소나가 본다. 단 '일기 본문'은 상담사(노라)만 열람.
   const isCounselor = persona.roles.includes("counselor");
 
   // 3층: 캐릭터 모듈 (사용자 편집). 충돌 시 1·2층 우선.
@@ -226,11 +227,13 @@ ${ctx.memories || "(없음)"}
 날짜/시간: ${ctx.now}
 오늘 일정:
 ${ctx.todayEvents || "(없음)"}
-${
-    isCounselor && ctx.todayMood ? `오늘 기분: ${ctx.todayMood}\n` : ""
-  }${
-    isCounselor && ctx.todayCondition
+${ctx.todayMood ? `오늘 기분: ${ctx.todayMood}\n` : ""}${
+    ctx.todayCondition
       ? `오늘 몸 상태: ${ctx.todayCondition}\n- 몸이 안 좋은 날(아픔/피곤)의 기분 기록은 보정해서 해석한다. 기분이 낮아도 컨디션 탓일 수 있음을 부드럽게 짚어("오늘은 몸도 아픈 날이니 그 기분 너무 믿지 마" 식), 자책으로 번지지 않게 돕는다.\n`
+      : ""
+  }${
+    isCounselor && ctx.todayDiary
+      ? `오늘 일기(상담가만 열람 — 사용자가 직접 화제로 꺼내지 않아도 읽은 듯 자연스럽게 보듬되, 캐묻거나 분석하듯 굴지 않는다):\n${ctx.todayDiary}\n`
       : ""
   }`;
 }
