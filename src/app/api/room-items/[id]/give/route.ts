@@ -5,12 +5,11 @@ import * as petsRepo from "@/db/repo/pets";
 import * as settingsRepo from "@/db/repo/settings";
 import * as givesRepo from "@/db/repo/itemGives";
 import { todayInTz } from "@/lib/proactive";
-import { ensureGiveLine, effectFor, repeatLine, ownerCallLine, type GiveKind } from "@/lib/itemGive";
+import { ensureGiveLine, effectFor, ownerCallLine, type GiveKind } from "@/lib/itemGive";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-const COOLDOWN_MS = 3 * 60_000;
 const OWNER_CALL_CAP = 2;
 const OWNER_CALL_CHANCE = 0.6;
 
@@ -33,12 +32,9 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   if (!asset) return Response.json({ error: "없는 아이템" }, { status: 404 });
   if (!pet) return Response.json({ error: "없는 펫" }, { status: 404 });
 
-  // 안티-슬롯: (펫×asset) 쿨다운 중이면 차분한 반복(새 보상 X). 내구도도 차감 안 함.
-  const last = await givesRepo.lastGiveAt(user.id, petId, inst.assetId);
-  if (last && Date.now() - new Date(last).getTime() < COOLDOWN_MS) {
-    await givesRepo.log(user.id, petId, inst.assetId);
-    return Response.json({ kind: "repeat", content: repeatLine(), effect: null, ownerCall: null, durabilityNow: inst.durabilityNow, broke: false });
-  }
+  // 안티-슬롯: durable 은 인위적 쿨다운 없음 — 내구도 마모가 절제(막 던지면 깨져 탭 복구).
+  //   파손 상태면 던지기 대신 수리 안내(탭=복구지 던지기 아님).
+  if (inst.broken) return Response.json({ error: "파손된 아이템이에요. 탭해서 수리한 뒤 줄 수 있어요." }, { status: 400 });
 
   // 분기 — 소유는 인스턴스(room_items.owner_pet_id).
   let kind: GiveKind;
