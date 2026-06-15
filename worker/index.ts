@@ -25,6 +25,7 @@ import {
   buildMemoryExtractMessages,
   sanitizePetMemory,
   fallbackReply,
+  REPLY_SAMPLING,
   type ReplyRelation,
 } from "../src/lib/petLetter";
 import { recallPetMemories, savePetMemory } from "../src/lib/petMemory";
@@ -333,7 +334,8 @@ async function deliverDueLetterReplies() {
           let content = "";
           for (let attempt = 0; attempt < 2 && !content; attempt++) {
             try {
-              content = (await completeChat(cfg, msgs)).trim();
+              // 캐릭터 voice 다양성 — 편지 답장 전용 샘플링(temperature 0.95 / top_p 0.92 / top_k 60).
+              content = (await completeChat(cfg, msgs, undefined, REPLY_SAMPLING)).trim();
             } catch {
               /* 재시도 */
             }

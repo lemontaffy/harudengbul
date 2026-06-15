@@ -49,14 +49,21 @@ export async function completeChat(
   conn: LlmConfig,
   messages: ChatMessage[],
   signal?: AbortSignal,
+  opts?: { temperature?: number; topP?: number; topK?: number },
 ): Promise<string> {
+  const body: Record<string, unknown> = { model: conn.model, messages, stream: false };
+  // 샘플링 옵션은 준 것만 실음(미지정 호출은 기존과 동일). top_k 는 일부 OpenAI 호환만 지원 —
+  // 거부하는 공급자면 호출이 실패하고 호출부 폴백(예: 펫 편지 fallbackReply)이 받는다.
+  if (opts?.temperature != null) body.temperature = opts.temperature;
+  if (opts?.topP != null) body.top_p = opts.topP;
+  if (opts?.topK != null) body.top_k = opts.topK;
   const res = await fetch(`${normBase(conn.baseUrl)}/chat/completions`, {
     method: "POST",
     headers: {
       Authorization: `Bearer ${conn.apiKey}`,
       "content-type": "application/json",
     },
-    body: JSON.stringify({ model: conn.model, messages, stream: false }),
+    body: JSON.stringify(body),
     signal,
   });
   if (!res.ok) {
