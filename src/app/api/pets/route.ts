@@ -2,6 +2,7 @@ import { z } from "zod";
 import { getCurrentUser } from "@/lib/currentUser";
 import * as petsRepo from "@/db/repo/pets";
 import * as roomsRepo from "@/db/repo/petRooms";
+import * as membershipsRepo from "@/db/repo/petRoomMemberships";
 import { regenerateLines } from "@/lib/petLines";
 
 export const runtime = "nodejs";
@@ -34,10 +35,11 @@ export async function POST(req: Request) {
   }
 
   const pet = await petsRepo.create(user.id, {
-    roomId,
+    roomId, // deprecated 미러(호환). 정본은 멤버십.
     name: d.name,
     personality: d.personality ?? null,
   });
+  if (roomId != null) await membershipsRepo.addToRoom(user.id, pet.id, roomId); // 정본: 방 멤버십
   void regenerateLines(user.id, pet.id, "baby").catch(() => {}); // 대사 풀 생성(best-effort)
   return Response.json({ pet: { id: pet.id, name: pet.name, roomId } });
 }

@@ -600,6 +600,28 @@ export const pets = pgTable(
   (t) => [index("pets_user_room_idx").on(t.userId, t.roomId)],
 );
 
+// 펫↔방 다대다 멤버십(정본). 같은 펫이 여러 방에 동시에 있을 수 있고, 한 방엔 한 번만(unique).
+//   위치(pos_x/y)는 방마다 따로. pets.room_id/pos_x/pos_y 는 deprecated(호환용으로 남김).
+export const petRoomMemberships = pgTable(
+  "pet_room_memberships",
+  {
+    id: bigint("id", { mode: "number" }).primaryKey().generatedAlwaysAsIdentity(),
+    petId: bigint("pet_id", { mode: "number" })
+      .notNull()
+      .references(() => pets.id, { onDelete: "cascade" }),
+    roomId: bigint("room_id", { mode: "number" })
+      .notNull()
+      .references(() => petRooms.id, { onDelete: "cascade" }),
+    posX: real("pos_x").notNull().default(50), // % (0~100), 방마다 따로
+    posY: real("pos_y").notNull().default(70),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
+  },
+  (t) => [
+    uniqueIndex("pet_room_memberships_pair_idx").on(t.petId, t.roomId), // 한 방에 같은 펫 1마리만
+    index("pet_room_memberships_room_idx").on(t.roomId),
+  ],
+);
+
 // 확장 맵 — 방의 배경 패널들(가로 스트립). 기존 pet_rooms.background_path 는 패널 0으로 이행.
 export const roomBackgrounds = pgTable(
   "room_backgrounds",

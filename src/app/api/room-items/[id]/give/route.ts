@@ -2,6 +2,7 @@ import { getCurrentUser } from "@/lib/currentUser";
 import * as roomItemsRepo from "@/db/repo/roomItems";
 import * as itemsRepo from "@/db/repo/items";
 import * as petsRepo from "@/db/repo/pets";
+import * as membershipsRepo from "@/db/repo/petRoomMemberships";
 import * as settingsRepo from "@/db/repo/settings";
 import * as givesRepo from "@/db/repo/itemGives";
 import { todayInTz } from "@/lib/proactive";
@@ -59,7 +60,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
 
   // 주인 부르기 — 주인이 같은 방 + 일일 캡 + 가중 확률.
   let ownerCall: { ownerPetId: number; content: string } | null = null;
-  if (kind === "other_owner" && ownerPet && pet.roomId != null && ownerPet.roomId === pet.roomId) {
+  if (kind === "other_owner" && ownerPet && (await membershipsRepo.sharesRoom(user.id, ownerPet.id, pet.id))) {
     const s = await settingsRepo.getByUser(user.id);
     const today = todayInTz(s?.timezone ?? "Asia/Seoul");
     const used = s?.ownerCallDate === today ? s?.ownerCallToday ?? 0 : 0;

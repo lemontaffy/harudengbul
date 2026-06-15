@@ -1,6 +1,6 @@
 import { getCurrentUser } from "@/lib/currentUser";
 import * as roomItemsRepo from "@/db/repo/roomItems";
-import * as petsRepo from "@/db/repo/pets";
+import * as membershipsRepo from "@/db/repo/petRoomMemberships";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -38,9 +38,8 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
     let pid: number | null = null;
     if (body.ownerPetId != null) {
       const n = Number(body.ownerPetId);
-      // 소유는 '방 안' — 그 펫이 본인 소유이고 이 방에 있어야.
-      const pet = Number.isInteger(n) ? await petsRepo.getOne(user.id, n) : null;
-      if (pet && pet.roomId === inst.roomId) pid = n;
+      // 소유는 '방 안' — 그 펫이 이 방의 멤버여야(다대다).
+      if (Number.isInteger(n) && (await membershipsRepo.isPetInRoom(user.id, n, inst.roomId))) pid = n;
     }
     await roomItemsRepo.setOwner(user.id, id, pid);
   }

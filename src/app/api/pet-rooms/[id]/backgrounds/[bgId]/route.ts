@@ -2,7 +2,7 @@ import { z } from "zod";
 import { getCurrentUser } from "@/lib/currentUser";
 import * as roomsRepo from "@/db/repo/petRooms";
 import * as bgRepo from "@/db/repo/roomBackgrounds";
-import * as petsRepo from "@/db/repo/pets";
+import * as membershipsRepo from "@/db/repo/petRoomMemberships";
 import { remapPosAfterDelete } from "@/lib/pets";
 
 export const runtime = "nodejs";
@@ -48,12 +48,12 @@ export async function DELETE(
   const idx = panels.findIndex((b) => b.id === bgId);
   if (idx < 0) return Response.json({ error: "없는 패널" }, { status: 404 });
 
-  // 펫 좌표 보정(패널이 2개 이상일 때만 좌표계가 바뀜).
+  // 펫 좌표 보정(패널이 2개 이상일 때만 좌표계가 바뀜) — 위치는 방별 멤버십.
   if (panels.length > 1) {
-    const roomPets = await petsRepo.listByRoom(user.id, roomId);
+    const roomPets = await membershipsRepo.listPetsInRoom(user.id, roomId);
     for (const pet of roomPets) {
       const nx = remapPosAfterDelete(pet.posX, idx, panels.length);
-      if (nx !== pet.posX) await petsRepo.setPosition(user.id, pet.id, nx, pet.posY);
+      if (nx !== pet.posX) await membershipsRepo.setPosition(user.id, pet.id, roomId, nx, pet.posY);
     }
   }
   await bgRepo.remove(user.id, bgId);

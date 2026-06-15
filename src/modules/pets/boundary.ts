@@ -15,6 +15,7 @@
 // ─────────────────────────────────────────────────────────────────────────
 
 import * as petsRepo from "@/db/repo/pets";
+import * as membershipsRepo from "@/db/repo/petRoomMemberships";
 import * as spritesRepo from "@/db/repo/petSprites";
 import * as settingsRepo from "@/db/repo/settings"; // 잔여 결합: 펫 상태가 본체 settings에 저장됨
 import { stageFor, reachedStages, displayStageFor, pickSpritePath } from "@/lib/pets";
@@ -48,15 +49,16 @@ export interface PetMiniWidgetData {
 /** 마지막 본 방(없으면 펫이 있는 첫 방)의 펫 요약. 어느 방에도 펫이 없으면 null(위젯 미표시). */
 export async function getPetMiniWidget(userId: number): Promise<PetMiniWidgetData | null> {
   const allPets = await petsRepo.listByUser(userId);
-  // 펫은 전역 — 대기(roomId null) 펫은 위젯에 안 뜸. 방에 배치된 펫만 대상.
-  const roomed = allPets.filter((p): p is typeof p & { roomId: number } => p.roomId != null);
-  if (roomed.length === 0) return null;
+  // 다대다 멤버십 — 어느 방에도 안 든 펫은 위젯에 안 뜸. 방에 든 펫만 대상.
+  const memberships = await membershipsRepo.listAllForUser(userId); // {petId, roomId}[]
+  if (memberships.length === 0) return null;
 
   const s = await settingsRepo.getByUser(userId);
   const lastRoomId = s?.petLastRoomId ?? null;
-  const roomId =
-    lastRoomId && roomed.some((p) => p.roomId === lastRoomId) ? lastRoomId : roomed[0].roomId;
-  const inRoom = roomed.filter((p) => p.roomId === roomId);
+  const roomsWithPets = new Set(memberships.map((m) => m.roomId));
+  const roomId = lastRoomId != null && roomsWithPets.has(lastRoomId) ? lastRoomId : memberships[0].roomId;
+  const petIdsHere = new Set(memberships.filter((m) => m.roomId === roomId).map((m) => m.petId));
+  const inRoom = allPets.filter((p) => petIdsHere.has(p.id));
   const petSprites = await spritesRepo.listForRoom(userId, roomId);
   const asleep = isSleeping(s?.lastActivityAt);
 

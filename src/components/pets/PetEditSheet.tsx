@@ -17,7 +17,8 @@ interface Detail {
     name: string;
     personality: string | null;
     pixelRender: boolean;
-    roomId: number | null;
+    roomId: number | null; // deprecated
+    rooms: number[]; // 정본: 이 펫이 든 방 id 목록(다대다)
     growthPoints: number;
     teenThreshold: number;
     adultThreshold: number;
@@ -210,7 +211,7 @@ function InfoTab({ d, rooms, onChanged, reload }: { d: Detail; rooms: PetRef[]; 
   const [name, setName] = useState(d.pet.name);
   const [personality, setPersonality] = useState(d.pet.personality ?? "");
   const [pixel, setPixel] = useState(d.pet.pixelRender);
-  const [roomId, setRoomId] = useState<number | null>(d.pet.roomId);
+  const [petRooms, setPetRooms] = useState<number[]>(d.pet.rooms ?? []);
   const [talkativeness, setTalk] = useState(d.pet.talkativeness);
   const [activeness, setActive] = useState(d.pet.activeness);
   const [displayStage, setDisplayStage] = useState<string>(d.pet.displayStage ?? "");
@@ -228,7 +229,7 @@ function InfoTab({ d, rooms, onChanged, reload }: { d: Detail; rooms: PetRef[]; 
         name,
         personality: personality.trim() || null,
         pixelRender: pixel,
-        roomId,
+        rooms: petRooms,
         talkativeness,
         activeness,
         displayStage: displayStage || null,
@@ -258,16 +259,25 @@ function InfoTab({ d, rooms, onChanged, reload }: { d: Detail; rooms: PetRef[]; 
         className={`${input} resize-none`}
         placeholder="성격 (대사 톤에 반영돼요)"
       />
-      <div className="flex items-center gap-2">
-        <span className="text-xs opacity-60">방</span>
-        <select value={roomId ?? ""} onChange={(e) => setRoomId(e.target.value ? Number(e.target.value) : null)} className={input}>
-          <option value="">대기(어느 방에도 없음)</option>
-          {rooms.map((r) => (
-            <option key={r.id} value={r.id}>
-              {r.name}
-            </option>
-          ))}
-        </select>
+      <div className="flex flex-col gap-1.5">
+        <span className="text-xs opacity-60">있는 방 (여러 방 동시 가능 · 방마다 1마리)</span>
+        {rooms.length === 0 && <span className="text-[11px] opacity-40">아직 방이 없어요.</span>}
+        <div className="flex flex-wrap gap-1.5">
+          {rooms.map((r) => {
+            const on = petRooms.includes(r.id);
+            return (
+              <button
+                key={r.id}
+                type="button"
+                onClick={() => setPetRooms((xs) => (on ? xs.filter((x) => x !== r.id) : [...xs, r.id]))}
+                className={`rounded-control px-3 py-1.5 text-xs ring-1 ring-border ${on ? "bg-accent text-black" : "bg-surface"}`}
+              >
+                {on ? "✓ " : ""}{r.name}
+              </button>
+            );
+          })}
+        </div>
+        <span className="text-[11px] opacity-40">아무 방도 안 고르면 대기(어느 방에도 없음).</span>
       </div>
       <div className="flex items-center gap-2">
         <span className="text-xs opacity-60">이동</span>

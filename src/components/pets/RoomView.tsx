@@ -781,7 +781,7 @@ export default function RoomView({
       fetch(`/api/pets/${p.id}/position`, {
         method: "PATCH",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ posX: x, posY: y }),
+        body: JSON.stringify({ posX: x, posY: y, roomId: room.id }), // 위치는 이 방 멤버십에
       }).catch(() => {});
     };
     window.addEventListener("pointermove", move);

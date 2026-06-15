@@ -1,5 +1,6 @@
 import { getCurrentUser } from "@/lib/currentUser";
 import * as petsRepo from "@/db/repo/pets";
+import * as membershipsRepo from "@/db/repo/petRoomMemberships";
 import * as relationsRepo from "@/db/repo/petRelations";
 import * as diariesRepo from "@/db/repo/petDiaries";
 import * as settingsRepo from "@/db/repo/settings";
@@ -42,10 +43,8 @@ export async function POST() {
         return name ? { name, label: r.relationLabel } : null;
       })
       .filter((x): x is DiaryRelation => !!x);
-    const roommates =
-      pet.roomId == null
-        ? []
-        : allPets.filter((p) => p.id !== pet.id && p.roomId === pet.roomId).map((p) => p.name);
+    // 룸메이트 = 이 펫과 한 방이라도 같이 있는 다른 펫(다대다 멤버십).
+    const roommates = (await membershipsRepo.roommatesOf(user!.id, pet.id)).map((p) => p.name);
     const msgs = buildDiaryMessages({
       name: pet.name,
       personality: pet.personality,

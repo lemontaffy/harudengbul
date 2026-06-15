@@ -2,6 +2,7 @@ import { z } from "zod";
 import { getCurrentUser } from "@/lib/currentUser";
 import * as petsRepo from "@/db/repo/pets";
 import * as roomsRepo from "@/db/repo/petRooms";
+import * as membershipsRepo from "@/db/repo/petRoomMemberships";
 import * as spritesRepo from "@/db/repo/petSprites";
 import * as linesRepo from "@/db/repo/petLines";
 import * as relationsRepo from "@/db/repo/petRelations";
@@ -20,11 +21,12 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
   if (!Number.isInteger(id)) return Response.json({ error: "잘못된 입력" }, { status: 400 });
   const pet = await petsRepo.getOne(user.id, id);
   if (!pet) return Response.json({ error: "없는 펫" }, { status: 404 });
-  const [sprites, lines, relations, customSprites] = await Promise.all([
+  const [sprites, lines, relations, customSprites, rooms] = await Promise.all([
     spritesRepo.listForPet(user.id, id),
     linesRepo.listForPet(user.id, id),
     relationsRepo.listForPet(user.id, id),
     customSpritesRepo.listForPet(user.id, id),
+    membershipsRepo.roomIdsForPet(user.id, id), // 다대다 — 이 펫이 든 방들
   ]);
   const stage = stageFor(pet.growthPoints, pet.teenThreshold, pet.adultThreshold);
   return Response.json({
@@ -33,7 +35,9 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
       name: pet.name,
       personality: pet.personality,
       pixelRender: pet.pixelRender,
-      roomId: pet.roomId,
+      roomId: pet.roomId, // deprecated
+      rooms, // 정본: 멤버십 방 id 목록
+
       growthPoints: pet.growthPoints,
       teenThreshold: pet.teenThreshold,
       adultThreshold: pet.adultThreshold,
@@ -59,7 +63,8 @@ const patchSchema = z.object({
   pixelRender: z.boolean().optional(),
   teenThreshold: z.number().int().min(1).max(100000).optional(),
   adultThreshold: z.number().int().min(1).max(100000).optional(),
-  roomId: z.number().int().nullable().optional(), // null = 대기(어느 방에도 없음)
+  roomId: z.number().int().nullable().optional(), // deprecated(단일). 다대다는 rooms 사용.
+  rooms: z.array(z.number().int()).max(50).optional(), // 정본: 이 펫이 들어갈 방 id 집합(멤버십 동기화)
   talkativeness: z.number().int().min(0).max(100).optional(),
   activeness: z.number().int().min(0).max(100).optional(),
   displayStage: z.enum(["baby", "teen", "adult"]).nullable().optional(),
@@ -106,6 +111,16 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
     ...(d.sitFacing !== undefined ? { sitFacing: d.sitFacing } : {}),
     ...(d.locomotion !== undefined ? { locomotion: d.locomotion } : {}),
   });
+
+  // 방 멤버십 동기화(다대다) — rooms 가 주어지면 집합을 그 값으로 맞춘다(소유 방만, 추가/제거 diff).
+  if (d.rooms !== undefined) {
+    const owned = await roomsRepo.listByUser(user.id);
+    const ownedIds = new Set(owned.map((r) => r.id));
+    const target = new Set(d.rooms.filter((rid) => ownedIds.has(rid)));
+    const current = new Set(await membershipsRepo.roomIdsForPet(user.id, id));
+    for (const rid of target) if (!current.has(rid)) await membershipsRepo.addToRoom(user.id, id, rid);
+    for (const rid of current) if (!target.has(rid)) await membershipsRepo.removeFromRoom(user.id, id, rid);
+  }
 
   // 성격 변경 시 현재 스테이지 대사 풀 갱신(best-effort).
   if (d.personality !== undefined) {

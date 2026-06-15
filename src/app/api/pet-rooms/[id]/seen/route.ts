@@ -1,6 +1,7 @@
 import { getCurrentUser } from "@/lib/currentUser";
 import * as roomsRepo from "@/db/repo/petRooms";
 import * as petsRepo from "@/db/repo/pets";
+import * as membershipsRepo from "@/db/repo/petRoomMemberships";
 import * as settingsRepo from "@/db/repo/settings";
 import { stageFor } from "@/lib/pets";
 
@@ -24,7 +25,7 @@ export async function POST(_req: Request, { params }: { params: Promise<{ id: st
     petLastRoomId: id,
   });
 
-  const pets = await petsRepo.listByRoom(user.id, id);
+  const pets = await membershipsRepo.listPetsInRoom(user.id, id);
   for (const p of pets) {
     const stage = stageFor(p.growthPoints, p.teenThreshold, p.adultThreshold);
     if (p.lastStageSeen !== stage) await petsRepo.setLastStageSeen(user.id, p.id, stage);

@@ -4,6 +4,7 @@ import { requireUser } from "@/lib/currentUser";
 import * as roomsRepo from "@/db/repo/petRooms";
 import * as bgRepo from "@/db/repo/roomBackgrounds";
 import * as petsRepo from "@/db/repo/pets";
+import * as membershipsRepo from "@/db/repo/petRoomMemberships";
 import * as spritesRepo from "@/db/repo/petSprites";
 import * as relationsRepo from "@/db/repo/petRelations";
 import * as petLinesRepo from "@/db/repo/petLines";
@@ -40,7 +41,7 @@ export default async function RoomPage({ params }: { params: Promise<{ roomId: s
 
   const [petsRows, sprites, relations, lines, customs, panels, furnitureRows, settings, allRooms, allPetsRows] =
     await Promise.all([
-      petsRepo.listByRoom(user.id, roomId),
+      membershipsRepo.listPetsInRoom(user.id, roomId), // 멤버십(다대다) — 이 방의 펫 + 방별 위치
       spritesRepo.listForRoom(user.id, roomId),
       relationsRepo.listForUser(user.id),
       petLinesRepo.listForRoom(user.id, roomId),
