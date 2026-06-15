@@ -652,6 +652,19 @@ async function handoffExpiryJob() {
   }
 }
 
+// 주간 결산 정리 — 완료(done)한 주머니메모 중 1주 지난 것 자동 삭제(쌓이지 않게).
+//   주간 회고 편지는 건드리지 않는다(그건 모아둠). 미완료 메모도 보존.
+const MEMO_RETENTION_DAYS = 7;
+async function memoPurgeJob() {
+  try {
+    const cutoff = new Date(Date.now() - MEMO_RETENTION_DAYS * 24 * 60 * 60 * 1000);
+    const n = await memosRepo.purgeDoneOlderThan(cutoff);
+    if (n > 0) log(`memoPurge: 완료 주머니메모 ${n}건 정리(1주 경과)`);
+  } catch (err) {
+    log(`memoPurge 오류: ${(err as Error)?.message}`);
+  }
+}
+
 log(
   "started — alarm(1분)+weather(매시)+proactive(5분)+diaryReminder(5분)+memory(30분)+handoffExpiry(매일)+backup(04:00)+googleSync(15분) 등록",
 );
@@ -668,6 +681,7 @@ cron.schedule("*/5 * * * *", proactiveJob);
 cron.schedule("*/5 * * * *", diaryReminderJob); // 일기 리마인드(선제 톡 재사용)
 cron.schedule("*/30 * * * *", memoryJob);
 cron.schedule("0 4 * * *", handoffExpiryJob); // 매일 04시
+cron.schedule("0 4 * * 0", memoPurgeJob); // 매주 일요일 04시 — 주간 결산과 함께 완료 메모 정리(주간 편지는 보존)
 cron.schedule("0 4 * * *", backupJob); // 매일 04:00 pg_dump
 cron.schedule("*/15 * * * *", googleSyncJob); // 매 15분 Google 동기화
 // 부팅 직후 1회 — 캐시 초기화 + 밀린 만료 처리(백업은 매일 스케줄만, 재시작마다 X)

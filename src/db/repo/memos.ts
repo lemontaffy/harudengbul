@@ -70,6 +70,18 @@ export async function countOpen(userId: number): Promise<number> {
   return r?.n ?? 0;
 }
 
+/**
+ * 완료(done) 주머니메모 자동 정리 — 완료 시각(없으면 생성 시각)이 cutoff 이전인 것 삭제.
+ * 전역(워커 주간 결산 유지보수용). 미완료·주간 편지는 안 건드림. 반환: 삭제 수.
+ */
+export async function purgeDoneOlderThan(cutoff: Date): Promise<number> {
+  const res = await db
+    .delete(memos)
+    .where(and(eq(memos.done, true), sql`coalesce(${memos.doneAt}, ${memos.createdAt}) < ${cutoff}`))
+    .returning({ id: memos.id });
+  return res.length;
+}
+
 /** 최근 7일간 해치운 수(긍정 집계 — 스트릭 아님). */
 export async function weekDoneCount(userId: number): Promise<number> {
   const [r] = await db
