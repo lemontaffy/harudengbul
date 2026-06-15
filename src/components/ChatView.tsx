@@ -415,8 +415,8 @@ export default function ChatView({
                   {canMenu && (
                     <button
                       onClick={() => setMenuFor((v) => (v === i ? null : i))}
-                      className="self-center px-1 text-xs opacity-40 transition group-hover:opacity-80"
-                      aria-label="메시지 메뉴"
+                      className="self-center px-1.5 py-1 text-base leading-none text-text-dim opacity-70 hover:opacity-100"
+                      aria-label="메시지 메뉴 (재생성·이어쓰기·삭제)"
                     >
                       ⋯
                     </button>

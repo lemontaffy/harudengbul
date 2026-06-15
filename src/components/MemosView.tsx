@@ -100,6 +100,17 @@ export default function MemosView({ initialOpen }: { initialOpen: Memo[] }) {
     setMenuFor(null);
   }
 
+  async function copy(m: Memo) {
+    setMenuFor(null);
+    try {
+      await navigator.clipboard.writeText(m.content);
+      setStatus("복사됨");
+    } catch {
+      setStatus("복사 실패");
+    }
+    setTimeout(() => setStatus(""), 1800);
+  }
+
   async function promote(m: Memo) {
     setMenuFor(null);
     const res = await fetch(`/api/memos/${m.id}/promote`, { method: "POST" });
@@ -183,6 +194,12 @@ export default function MemosView({ initialOpen }: { initialOpen: Memo[] }) {
               </div>
               {menuFor === m.id && editing !== m.id && (
                 <div className="mt-2 flex flex-wrap gap-2 pl-7 text-xs">
+                  <button
+                    onClick={() => copy(m)}
+                    className="rounded-control bg-bg px-3 py-1 ring-1 ring-border"
+                  >
+                    복사
+                  </button>
                   {!m.done && (
                     <button
                       onClick={() => promote(m)}
