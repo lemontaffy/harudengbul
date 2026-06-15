@@ -3,6 +3,29 @@
 **`SPEC.md`가 단일 진실 소스(SSOT)다.** 모든 구현 결정은 SPEC.md를 따른다.
 이 파일은 SPEC에 안 적힌 *코드 밖 인프라 사실*과 SPEC에서 의도적으로 벗어난 결정만 기록한다.
 
+## 작업 회귀 체크리스트 (중요 — 큰 변경/리팩터 후 반드시)
+
+집·회사 양쪽 머신에서 번갈아 작업한다. 머신마다 브랜치·미커밋 상태가 다를 수 있다.
+**"기능이 자꾸 사라진다"의 실제 원인은 대개 *삭제*가 아니라 *노출 깨짐*이다.** 아래를 지킨다.
+
+1. **시작 전 상태 확인**: `git branch --show-current` + `git status` + `git log --oneline -5`.
+   기능이 사라진 것 같으면 먼저 `grep`으로 **코드 존재 여부**부터 본다(코드 존재 ≠ 화면 노출).
+2. **컴포넌트 재작성/일괄 치환(UI 개편·토큰화·폰트 등) 후엔 *모바일 노출*까지 확인**한다.
+   tsc·빌드 통과 = "컴파일됨"일 뿐, 버튼이 보이고 눌리는지는 별개.
+   핵심 affordance 회귀 목록(이게 보이고 탭되는지):
+   - 채팅 말풍선 `⋯` 메뉴 → **재생성·이어쓰기·삭제** (마지막 답장·도구 미호출 시 재생성 노출)
+   - 미읽음 뱃지(탭바·채팅 목록), 핸드오프 카드(홈), 선제 톡 푸시→해당 방 진입
+   - 사진 첨부 버튼(비전 연결 시), 빈 상태 CTA, 아바타 탭-변경, 주머니 메모 메뉴
+3. **호버 전용 affordance 금지**: `group-hover`로만 드러나는 버튼은 모바일(호버 없음)에서
+   "사라진 것"처럼 보인다. 액션 트리거는 항상 일정 opacity로 보이게.
+4. **빌드 전 의존성 점검**: 이 환경/일부 머신은 `npm`이 dev·일부 deps 를 prune(omit=dev)해
+   `node_modules` 가 빠지는 일이 있다. 빌드가 `Module not found`로 깨지면 코드 문제로 오인 말고
+   `NODE_ENV=development npm install --include=dev` 로 복원. (`next dev`는 `NODE_ENV=development`
+   필요, `next build`는 env 미지정 — 자체 production. development로 build 하면 깨진다.)
+5. **마이그레이션은 새 파일만**(기존 수정 금지), 멱등 재실행 "완료" 확인.
+   **`npm run test:isolation` 항상 통과** 유지(userId 스코프 — 업로드/메시지/기억 등).
+6. 데이터 접근은 `src/db/repo/*` userId-스코프 함수로만. 라우트에서 db 직접 호출 금지.
+
 ## 인프라 (Hetzner + Cloudflare Tunnel)
 
 - 서버: Hetzner CPX32 (4vCPU/8GB), Ubuntu. 호스트명 `daltavern`.
