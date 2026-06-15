@@ -192,6 +192,8 @@ export function buildSystemPrompt(
 ): string {
   const name = persona.name?.trim() || "이름 없는 캐릭터";
   const traits = persona.traits?.trim();
+  // 일기에서 온 정보(오늘 기분·몸 상태)는 상담사(노라)만 본다 — 다른 역할엔 일기 내용 비전이.
+  const isCounselor = persona.roles.includes("counselor");
 
   // 3층: 캐릭터 모듈 (사용자 편집). 충돌 시 1·2층 우선.
   const characterModule = `[캐릭터]
@@ -224,8 +226,10 @@ ${ctx.memories || "(없음)"}
 날짜/시간: ${ctx.now}
 오늘 일정:
 ${ctx.todayEvents || "(없음)"}
-${ctx.todayMood ? `오늘 기분: ${ctx.todayMood}\n` : ""}${
-    ctx.todayCondition
+${
+    isCounselor && ctx.todayMood ? `오늘 기분: ${ctx.todayMood}\n` : ""
+  }${
+    isCounselor && ctx.todayCondition
       ? `오늘 몸 상태: ${ctx.todayCondition}\n- 몸이 안 좋은 날(아픔/피곤)의 기분 기록은 보정해서 해석한다. 기분이 낮아도 컨디션 탓일 수 있음을 부드럽게 짚어("오늘은 몸도 아픈 날이니 그 기분 너무 믿지 마" 식), 자책으로 번지지 않게 돕는다.\n`
       : ""
   }`;
