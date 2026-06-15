@@ -42,6 +42,18 @@ export function dayBoundsInTz(tz: string, now = new Date()): { start: Date; end:
   return { start, end: new Date(start.getTime() + 24 * 60 * 60 * 1000) };
 }
 
+/**
+ * tz 기준 '이번 주 월요일 0시'의 절대시각(Date). 주 경계(일→월 자정) 판정용.
+ * 일요일은 같은 주의 월요일(6일 전)로 묶는다(월~일 한 주).
+ */
+export function startOfWeekInTz(tz: string, now = new Date()): Date {
+  const start = startOfTodayInTz(tz, now); // 오늘 0시(local)
+  const ymd = todayInTz(tz, now);
+  const dow = new Date(`${ymd}T00:00:00Z`).getUTCDay(); // 0=일 … 6=토
+  const daysFromMon = (dow + 6) % 7; // 월=0 … 일=6
+  return new Date(start.getTime() - daysFromMon * 24 * 60 * 60 * 1000);
+}
+
 /** "HH:MM" (tz 기준 현재 시각) */
 export function nowHHMMInTz(tz: string, now = new Date()): string {
   return new Intl.DateTimeFormat("en-GB", {

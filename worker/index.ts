@@ -56,6 +56,7 @@ import {
   diaryReminderInstruction,
   todayInTz,
   nowHHMMInTz,
+  startOfWeekInTz,
   toHHMM,
   type Trigger,
 } from "../src/lib/proactive";
@@ -652,14 +653,17 @@ async function handoffExpiryJob() {
   }
 }
 
-// 주간 결산 정리 — 완료(done)한 주머니메모 중 1주 지난 것 자동 삭제(쌓이지 않게).
-//   주간 회고 편지는 건드리지 않는다(그건 모아둠). 미완료 메모도 보존.
-const MEMO_RETENTION_DAYS = 7;
+// 주간 결산 정리 — 지난 주에 '해치운'(done) 주머니메모를 주 경계(일→월 자정, 사용자 tz)에 일괄 삭제.
+//   타임스탬프상 며칠 지났든, 이번 주 월요일 0시를 넘기면 그 이전 완료분은 비운다(쌓이지 않게).
+//   이번 주에 해치운 것·미완료 메모·주간 회고 편지는 보존. cutoff가 주 시작이라 멱등(매시 호출 무해).
 async function memoPurgeJob() {
   try {
-    const cutoff = new Date(Date.now() - MEMO_RETENTION_DAYS * 24 * 60 * 60 * 1000);
-    const n = await memosRepo.purgeDoneOlderThan(cutoff);
-    if (n > 0) log(`memoPurge: 완료 주머니메모 ${n}건 정리(1주 경과)`);
+    let total = 0;
+    for (const s of await settingsRepo.listAll()) {
+      const cutoff = startOfWeekInTz(s.timezone ?? "Asia/Seoul");
+      total += await memosRepo.purgeDoneBefore(s.userId, cutoff);
+    }
+    if (total > 0) log(`memoPurge: 완료 주머니메모 ${total}건 정리(지난 주분)`);
   } catch (err) {
     log(`memoPurge 오류: ${(err as Error)?.message}`);
   }
@@ -681,7 +685,7 @@ cron.schedule("*/5 * * * *", proactiveJob);
 cron.schedule("*/5 * * * *", diaryReminderJob); // 일기 리마인드(선제 톡 재사용)
 cron.schedule("*/30 * * * *", memoryJob);
 cron.schedule("0 4 * * *", handoffExpiryJob); // 매일 04시
-cron.schedule("0 4 * * 0", memoPurgeJob); // 매주 일요일 04시 — 주간 결산과 함께 완료 메모 정리(주간 편지는 보존)
+cron.schedule("0 * * * *", memoPurgeJob); // 매시 — 사용자 tz로 주 경계(일→월 자정) 도달 시 지난 주 완료 메모 정리(주간 편지는 보존)
 cron.schedule("0 4 * * *", backupJob); // 매일 04:00 pg_dump
 cron.schedule("*/15 * * * *", googleSyncJob); // 매 15분 Google 동기화
 // 부팅 직후 1회 — 캐시 초기화 + 밀린 만료 처리(백업은 매일 스케줄만, 재시작마다 X)

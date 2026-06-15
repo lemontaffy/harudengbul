@@ -71,13 +71,21 @@ export async function countOpen(userId: number): Promise<number> {
 }
 
 /**
- * 완료(done) 주머니메모 자동 정리 — 완료 시각(없으면 생성 시각)이 cutoff 이전인 것 삭제.
- * 전역(워커 주간 결산 유지보수용). 미완료·주간 편지는 안 건드림. 반환: 삭제 수.
+ * 완료(done) 주머니메모 정리 — 완료 시각(없으면 생성 시각)이 cutoff 이전인 것 삭제.
+ * 주간 결산 잡이 '이번 주 월요일 0시'를 cutoff로 넘긴다: 주 경계(일→월 자정)를 넘기면
+ * 지난 주에 해치운 메모를 일괄 비운다(타임스탬프상 며칠 지났든). 이번 주 완료분은 보존.
+ * 미완료 메모와 주간 회고 편지는 안 건드림. 반환: 삭제 수.
  */
-export async function purgeDoneOlderThan(cutoff: Date): Promise<number> {
+export async function purgeDoneBefore(userId: number, cutoff: Date): Promise<number> {
   const res = await db
     .delete(memos)
-    .where(and(eq(memos.done, true), sql`coalesce(${memos.doneAt}, ${memos.createdAt}) < ${cutoff}`))
+    .where(
+      and(
+        eq(memos.userId, userId),
+        eq(memos.done, true),
+        sql`coalesce(${memos.doneAt}, ${memos.createdAt}) < ${cutoff}`,
+      ),
+    )
     .returning({ id: memos.id });
   return res.length;
 }
