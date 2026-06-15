@@ -7,6 +7,8 @@ import * as spritesRepo from "@/db/repo/petSprites";
 import * as linesRepo from "@/db/repo/petLines";
 import * as relationsRepo from "@/db/repo/petRelations";
 import * as customSpritesRepo from "@/db/repo/petCustomSprites";
+import * as itemsRepo from "@/db/repo/items";
+import * as itemReactionsRepo from "@/db/repo/itemReactionLines";
 import { stageFor, reachedStages } from "@/lib/pets";
 import { regenerateLines } from "@/lib/petLines";
 
@@ -21,12 +23,14 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
   if (!Number.isInteger(id)) return Response.json({ error: "잘못된 입력" }, { status: 400 });
   const pet = await petsRepo.getOne(user.id, id);
   if (!pet) return Response.json({ error: "없는 펫" }, { status: 404 });
-  const [sprites, lines, relations, customSprites, rooms] = await Promise.all([
+  const [sprites, lines, relations, customSprites, rooms, itemReactions, itemPool] = await Promise.all([
     spritesRepo.listForPet(user.id, id),
     linesRepo.listForPet(user.id, id),
     relationsRepo.listForPet(user.id, id),
     customSpritesRepo.listForPet(user.id, id),
     membershipsRepo.roomIdsForPet(user.id, id), // 다대다 — 이 펫이 든 방들
+    itemReactionsRepo.listForPet(user.id, id), // 아이템 반응 대사(편집)
+    itemsRepo.listForUser(user.id, "item"), // 추가 피커용 아이템 풀
   ]);
   const stage = stageFor(pet.growthPoints, pet.teenThreshold, pet.adultThreshold);
   return Response.json({
@@ -54,6 +58,8 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
     lines,
     relations,
     customSprites,
+    itemReactions,
+    itemPool: itemPool.map((i) => ({ id: i.id, name: i.name, consumable: i.consumable })),
   });
 }
 

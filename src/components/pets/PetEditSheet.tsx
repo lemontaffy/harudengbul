@@ -35,6 +35,8 @@ interface Detail {
   lines: { id: number; stage: string; kind: string; aboutPetId: number | null; content: string; source: string }[];
   relations: { petAId: number; petBId: number; relationLabel: string }[];
   customSprites: { id: number; stage: string; name: string; path: string; frequency: string; line: string | null }[];
+  itemReactions: { id: number; itemId: number; itemName: string; consumable: boolean; kind: string; content: string; source: string }[];
+  itemPool: { id: number; name: string; consumable: boolean }[];
 }
 
 const input = "w-full rounded-control bg-bg px-3 py-2 text-sm outline-none ring-1 ring-border focus:ring-accent";
@@ -53,7 +55,7 @@ export default function PetEditSheet({
   onChanged: () => void;
 }) {
   const [d, setD] = useState<Detail | null>(null);
-  const [tab, setTab] = useState<"info" | "sprites" | "motion" | "lines" | "relations">("info");
+  const [tab, setTab] = useState<"info" | "sprites" | "motion" | "lines" | "relations" | "items">("info");
 
   const load = useCallback(async () => {
     const res = await fetch(`/api/pets/${petId}`);
@@ -75,13 +77,13 @@ export default function PetEditSheet({
         ) : (
           <>
             <div className="mb-3 flex flex-wrap gap-2 text-xs">
-              {(["info", "sprites", "motion", "lines", "relations"] as const).map((t) => (
+              {(["info", "sprites", "motion", "lines", "relations", "items"] as const).map((t) => (
                 <button
                   key={t}
                   onClick={() => setTab(t)}
                   className={`rounded-control px-3 py-1.5 ${tab === t ? "bg-accent text-black" : "bg-bg ring-1 ring-border"}`}
                 >
-                  {{ info: "정보", sprites: "모습", motion: "모션", lines: "대사", relations: "관계" }[t]}
+                  {{ info: "정보", sprites: "모습", motion: "모션", lines: "대사", relations: "관계", items: "아이템" }[t]}
                 </button>
               ))}
             </div>
@@ -90,6 +92,7 @@ export default function PetEditSheet({
             {tab === "motion" && <MotionTab d={d} reload={load} onChanged={onChanged} />}
             {tab === "lines" && <LinesTab d={d} allPets={allPets} reload={load} onChanged={onChanged} />}
             {tab === "relations" && <RelationsTab d={d} allPets={allPets} reload={load} onChanged={onChanged} />}
+            {tab === "items" && <ItemReactionsTab d={d} reload={load} onChanged={onChanged} />}
           </>
         )}
       </div>
@@ -670,6 +673,108 @@ function LinesTab({ d, allPets, reload, onChanged }: { d: Detail; allPets: PetRe
           </select>
           <button onClick={add} className="shrink-0 rounded-control bg-accent px-4 py-2 text-sm font-medium text-black">추가</button>
         </div>
+      </div>
+    </div>
+  );
+}
+
+// 아이템 반응 대사 — pet_lines 편집과 같은 패턴(열람·삭제·직접 추가). 아이템별로 묶고 item_reaction+eating 포함.
+const REACT_KIND_KO: Record<string, string> = { received: "받음", owner_recognize: "내 거 인식", other_owner: "남의 것", eating: "먹는 반응" };
+const DURABLE_REACT_KINDS = ["received", "owner_recognize", "other_owner"];
+const FOOD_REACT_KINDS = ["eating"];
+
+function ItemReactionsTab({ d, reload, onChanged }: { d: Detail; reload: () => void; onChanged: () => void }) {
+  const [itemId, setItemId] = useState<number | "">(d.itemPool[0]?.id ?? "");
+  const selItem = d.itemPool.find((i) => i.id === itemId);
+  const kinds = selItem?.consumable ? FOOD_REACT_KINDS : DURABLE_REACT_KINDS;
+  const [kind, setKind] = useState<string>(kinds[0]);
+  const [content, setContent] = useState("");
+  // 아이템 바뀌면 종류 보정(식품=eating / durable=받기 분기).
+  useEffect(() => {
+    const ks = selItem?.consumable ? FOOD_REACT_KINDS : DURABLE_REACT_KINDS;
+    setKind((prev) => (ks.includes(prev) ? prev : ks[0]));
+  }, [itemId, selItem?.consumable]);
+
+  async function add() {
+    if (itemId === "" || !content.trim()) return;
+    await fetch(`/api/pets/${d.pet.id}/item-reactions`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ itemId, kind, content: content.trim() }),
+    });
+    setContent("");
+    reload();
+    onChanged();
+  }
+  async function del(id: number) {
+    await fetch(`/api/pets/${d.pet.id}/item-reactions`, {
+      method: "DELETE",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ lineId: id }),
+    });
+    reload();
+    onChanged();
+  }
+
+  // 아이템별 묶기
+  const byItem = new Map<number, { name: string; consumable: boolean; lines: Detail["itemReactions"] }>();
+  for (const l of d.itemReactions) {
+    if (!byItem.has(l.itemId)) byItem.set(l.itemId, { name: l.itemName, consumable: l.consumable, lines: [] });
+    byItem.get(l.itemId)!.lines.push(l);
+  }
+
+  return (
+    <div className="flex flex-col gap-3">
+      <p className="text-[11px] opacity-50">
+        아이템을 주거나(durable) 먹일 때(식품) 이 펫의 반응 대사예요. 아이템별로 묶여 있고, 한 번 주거나 먹이면 자동 생성돼요. 직접 추가·삭제할 수 있어요.
+      </p>
+
+      {/* 직접 추가 — 아이템 + 종류 선택 */}
+      <div className="flex flex-col gap-1.5 rounded-control bg-bg p-2 ring-1 ring-border">
+        {d.itemPool.length === 0 ? (
+          <span className="text-[11px] opacity-40">아이템 풀이 비었어요. 먼저 라이브러리에 아이템을 올려주세요.</span>
+        ) : (
+          <>
+            <div className="flex gap-2">
+              <select value={itemId} onChange={(e) => setItemId(e.target.value ? Number(e.target.value) : "")} className={input}>
+                {d.itemPool.map((i) => (
+                  <option key={i.id} value={i.id}>{i.name}{i.consumable ? " (식품)" : ""}</option>
+                ))}
+              </select>
+              <select value={kind} onChange={(e) => setKind(e.target.value)} className={input}>
+                {kinds.map((k) => (
+                  <option key={k} value={k}>{REACT_KIND_KO[k]}</option>
+                ))}
+              </select>
+            </div>
+            <div className="flex gap-2">
+              <input value={content} onChange={(e) => setContent(e.target.value)} maxLength={40} placeholder="직접 추가할 반응 대사" className={input} />
+              <button onClick={add} className="shrink-0 rounded-control bg-accent px-4 py-2 text-sm font-medium text-black">추가</button>
+            </div>
+          </>
+        )}
+      </div>
+
+      {/* 목록(아이템별) */}
+      <div className="flex max-h-64 flex-col gap-3 overflow-y-auto">
+        {byItem.size === 0 && (
+          <p className="text-[11px] opacity-40">아직 반응 대사가 없어요. 아이템을 한 번 주거나 먹이면 자동 생성되고, 여기서 편집할 수 있어요.</p>
+        )}
+        {[...byItem.entries()].map(([iid, g]) => (
+          <div key={iid}>
+            <div className="mb-1 text-xs font-semibold opacity-70">{g.name}{g.consumable ? " · 식품" : ""}</div>
+            <ul className="flex flex-col gap-1">
+              {g.lines.map((l) => (
+                <li key={l.id} className="flex items-center gap-2 text-sm">
+                  <span className="shrink-0 rounded bg-surface-2 px-1.5 py-0.5 text-[10px] opacity-70">{REACT_KIND_KO[l.kind] ?? l.kind}</span>
+                  <span className="truncate">{l.content}</span>
+                  <span className="shrink-0 text-[10px] opacity-40">{l.source === "manual" ? "직접" : "auto"}</span>
+                  <button onClick={() => del(l.id)} className="ml-auto shrink-0 px-1 text-xs opacity-30 hover:text-red-400">✕</button>
+                </li>
+              ))}
+            </ul>
+          </div>
+        ))}
       </div>
     </div>
   );

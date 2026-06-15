@@ -57,6 +57,24 @@ export async function listForPair(userId: number, itemId: number, petId: number)
     .orderBy(asc(itemReactionLines.kind), asc(itemReactionLines.id));
 }
 
+/** 편집용 — 이 펫의 모든 아이템 반응 대사(아이템명·consumable 포함, 아이템별 묶기용). userId 스코프. */
+export async function listForPet(userId: number, petId: number) {
+  return db
+    .select({
+      id: itemReactionLines.id,
+      itemId: itemReactionLines.itemId,
+      itemName: items.name,
+      consumable: items.consumable,
+      kind: itemReactionLines.kind,
+      content: itemReactionLines.content,
+      source: itemReactionLines.source,
+    })
+    .from(itemReactionLines)
+    .innerJoin(items, eq(items.id, itemReactionLines.itemId))
+    .where(and(eq(items.userId, userId), eq(itemReactionLines.petId, petId)))
+    .orderBy(asc(items.name), asc(itemReactionLines.kind), asc(itemReactionLines.id));
+}
+
 /** 수동 추가(편집). 소유는 라우트가 사전 검증. */
 export async function addManual(itemId: number, petId: number, kind: string, content: string) {
   const [row] = await db
