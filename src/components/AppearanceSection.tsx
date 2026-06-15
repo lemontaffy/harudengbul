@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 
 const PRESETS: { id: string; label: string; desc: string }[] = [
   { id: "lantern", label: "등불", desc: "다크 + 주황" },
@@ -46,6 +46,26 @@ export default function AppearanceSection({
   const [saving, setSaving] = useState(false);
   const [themes, setThemes] = useState<CssTheme[]>(initialThemes);
   const [newName, setNewName] = useState("");
+  const fileRef = useRef<HTMLInputElement>(null);
+
+  // .css 파일 업로드 — 내용을 편집창에 채운다(검토 후 '적용'). 서버 업로드 아님(텍스트 로컬 읽기).
+  function onPickCss(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+    if (file.size > MAX) {
+      setStatus("CSS 파일은 20KB 이하만 가능해요.");
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => {
+      const text = typeof reader.result === "string" ? reader.result : "";
+      setCss(text.slice(0, MAX));
+      setStatus("파일에서 불러왔어요 — 확인 후 '적용'을 누르세요");
+    };
+    reader.onerror = () => setStatus("파일을 읽지 못했어요");
+    reader.readAsText(file);
+  }
 
   // 적용본(settings.custom_css) 설정 — 설정 밖 화면에 즉시 반영.
   async function applyCss(value: string) {
@@ -136,7 +156,23 @@ export default function AppearanceSection({
       </div>
 
       <div>
-        <label className="mb-1 block text-xs text-text-dim">고급: 커스텀 CSS</label>
+        <div className="mb-1 flex items-center justify-between">
+          <label className="block text-xs text-text-dim">고급: 커스텀 CSS</label>
+          <button
+            type="button"
+            onClick={() => fileRef.current?.click()}
+            className="rounded-control bg-surface-2 px-2.5 py-1 text-[11px] ring-1 ring-border"
+          >
+            .css 파일 올리기
+          </button>
+          <input
+            ref={fileRef}
+            type="file"
+            accept=".css,text/css"
+            className="hidden"
+            onChange={onPickCss}
+          />
+        </div>
         <p className="mb-1.5 text-xs text-danger">
           ⚠️ 잘못된 CSS는 화면을 깨뜨릴 수 있어요. (설정 화면에는 적용되지 않으니, 깨져도
           여기서 되돌릴 수 있어요)
