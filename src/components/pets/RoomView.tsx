@@ -88,6 +88,9 @@ export default function RoomView({
   const [customPlay, setCustomPlay] = useState<{ petId: number; path: string; flip: boolean } | null>(null);
   const [editId, setEditId] = useState<number | null>(null);
   const [giveOpen, setGiveOpen] = useState(false);
+  // 던지기 연출 — 준 아이템 스프라이트가 펫에게 잠깐 날아가 닿음(CSS transform/opacity, reduced-motion 존중).
+  const [toss, setToss] = useState<{ id: number; src: string; pixel: boolean; xPct: number; yPct: number } | null>(null);
+  const tossSeq = useRef(0);
   // 관리 모드(기본 OFF) — 켤 때만 레이아웃 변경(가구·펫·배경·아이템 배치). 평소엔 잠금(상호작용만).
   const [manageMode, setManageMode] = useState(false);
   const manageRef = useRef(false);
@@ -283,6 +286,12 @@ export default function RoomView({
   function isVisible(posX: number): boolean {
     return posX >= view.current.left - 2 && posX <= view.current.right + 2;
   }
+  // 현재 보고 있는 패널(뷰포트)의 가로 중앙 % — 배치 시 사용자가 보는 곳에 둠.
+  function viewCenterX(): number {
+    const { left, right } = view.current;
+    const c = (left + right) / 2;
+    return Number.isFinite(c) && right > left ? Math.max(8, Math.min(92, c)) : 50;
+  }
   function updateView() {
     const el = scrollRef.current;
     const inner = innerRef.current;
@@ -378,11 +387,18 @@ export default function RoomView({
 
   // 아이템 '주기' 반응 재생 — 받는 펫 말풍선 + 이펙트. '주인 부르기'면 주인이 한 마디 받아침(부르기 연출).
   //   분기·쿨다운·일일 캡은 서버(give API) 권위. 클라는 받은 payload만 재생.
-  function playGive(petId: number, r: GiveResult) {
+  function playGive(petId: number, r: GiveResult, item?: { spritePath: string; pixelRender: boolean }) {
     const p = petsRef.current.find((x) => x.id === petId);
     if (!p) return;
-    showBubble(petId, r.content, 3200, true);
-    if (r.effect) spawnEffect(r.effect, p.posX, p.posY - 8);
+    // 던지기 연출: 아이템이 펫에게 날아가 닿은 뒤 반응. reduced-motion이면 생략(바로 반응).
+    if (item && !reduced()) {
+      const tid = ++tossSeq.current;
+      setToss({ id: tid, src: item.spritePath, pixel: item.pixelRender, xPct: p.posX, yPct: p.posY });
+      setTimeout(() => setToss((t) => (t && t.id === tid ? null : t)), 650);
+    }
+    const delay = item && !reduced() ? 480 : 0; // 날아가는 시간 후 말풍선
+    setTimeout(() => showBubble(petId, r.content, 3200, true), delay);
+    if (r.effect) setTimeout(() => spawnEffect(r.effect!, p.posX, p.posY - 8), delay);
     if (r.ownerCall) {
       const owner = petsRef.current.find((x) => x.id === r.ownerCall!.ownerPetId);
       if (owner) {
@@ -1110,6 +1126,12 @@ export default function RoomView({
           55% { transform: translateY(0) scale(0.95); }
           100% { transform: translateY(0) scale(1); }
         }
+        @keyframes petToss {
+          0%   { transform: translate(-50%, 40px) scale(0.4); opacity: 0; }
+          35%  { opacity: 1; }
+          70%  { transform: translate(-50%, -50%) scale(1.05); opacity: 1; }
+          100% { transform: translate(-50%, -50%) scale(0.9); opacity: 0; }
+        }
       `}</style>
       {/* 무대(스트립) */}
       <div
@@ -1315,6 +1337,19 @@ export default function RoomView({
             );
           })}
 
+          {/* 던지기 연출 — 준 아이템이 펫에게 날아가 닿음(CSS만). */}
+          {toss && (
+            <div className="pointer-events-none absolute z-20" style={{ left: `${toss.xPct}%`, top: `${toss.yPct}%` }}>
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={toss.src}
+                alt=""
+                className="h-14 w-14 object-contain"
+                style={{ ...pixel(toss.pixel), animation: "petToss 0.6s ease-out forwards" }}
+              />
+            </div>
+          )}
+
           <PetEffects effects={effects} />
 
           {toast && (
@@ -1406,6 +1441,7 @@ export default function RoomView({
           {itemAdding && (
             <ItemAddForm
               roomId={room.id}
+              posX={viewCenterX()}
               pets={pets.map((p) => ({ id: p.id, name: p.name }))}
               onAdded={(row, held) => { onItemAdded(row, held); setItemAdding(false); }}
             />
@@ -1520,7 +1556,7 @@ export default function RoomView({
           pets={pets.map((p) => ({ id: p.id, name: p.name }))}
           ownerNames={new Map(allPets.map((p) => [p.id, p.name]))}
           onClose={() => setGiveOpen(false)}
-          onGiven={(petId, r) => playGive(petId, r)}
+          onGiven={(petId, r, item) => playGive(petId, r, item)}
         />
       )}
 
@@ -1528,6 +1564,7 @@ export default function RoomView({
       {furnAdding && (
         <FurniturePicker
           roomId={room.id}
+          posX={viewCenterX()}
           onClose={() => setFurnAdding(false)}
           onPlaced={() => {
             setFurnAdding(false);
@@ -1637,10 +1674,12 @@ export default function RoomView({
 // 아이템 추가 폼 — 스프라이트 + 이름 + 내구도 상한(무한 옵션) + (선택) 특정 펫에게 주기 + 픽셀.
 function ItemAddForm({
   roomId,
+  posX,
   pets,
   onAdded,
 }: {
   roomId: number;
+  posX?: number; // 현재 보는 패널 중앙에 배치
   pets: PetRef[];
   onAdded: (row: ItemVM, heldPetId: number | null) => void;
 }) {
@@ -1666,6 +1705,7 @@ function ItemAddForm({
     fd.set("durabilityMax", infinite ? "infinite" : String(Math.max(1, dur)));
     fd.set("pixelRender", String(pixel));
     if (held) fd.set("heldByPetId", held);
+    if (posX != null) { fd.set("posX", String(Math.round(posX))); fd.set("posY", "72"); }
     try {
       const res = await fetch(`/api/pet-rooms/${roomId}/items`, { method: "POST", body: fd });
       const d = await res.json().catch(() => ({}));

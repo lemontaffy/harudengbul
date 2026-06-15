@@ -14,10 +14,12 @@ type FurnItem = {
 // 전역 라이브러리(kind=furniture)에서 골라 이 방에 배치. 모양·종류 편집은 관리 화면에서.
 export default function FurniturePicker({
   roomId,
+  posX,
   onClose,
   onPlaced,
 }: {
   roomId: number;
+  posX?: number; // 현재 보는 패널 중앙(미전달 시 방 가운데)
   onClose: () => void;
   onPlaced: () => void;
 }) {
@@ -39,7 +41,7 @@ export default function FurniturePicker({
       const res = await fetch(`/api/pet-rooms/${roomId}/placements`, {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ itemId: it.id }),
+        body: JSON.stringify({ itemId: it.id, ...(posX != null ? { posX, posY: 60 } : {}) }),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) return setMsg(data.error ?? "배치 실패");

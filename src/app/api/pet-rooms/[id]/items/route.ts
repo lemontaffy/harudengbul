@@ -31,6 +31,8 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   const pixel = form?.get("pixelRender");
   const durRaw = String(form?.get("durabilityMax") ?? "").trim();
   const heldRaw = String(form?.get("heldByPetId") ?? "").trim();
+  const posXRaw = Number(form?.get("posX"));
+  const posYRaw = Number(form?.get("posY"));
   if (!(file instanceof File)) return Response.json({ error: "파일이 없어요." }, { status: 400 });
   if (!name) return Response.json({ error: "이름을 입력하세요." }, { status: 400 });
 
@@ -63,6 +65,8 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
       pixelRender: pixel == null ? true : pixel === "true",
       durabilityMax,
       heldByPetId,
+      ...(Number.isFinite(posXRaw) ? { posX: posXRaw } : {}),
+      ...(Number.isFinite(posYRaw) ? { posY: posYRaw } : {}),
     });
     return Response.json({ ok: true, item: row, warning });
   } catch (err) {

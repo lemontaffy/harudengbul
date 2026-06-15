@@ -37,8 +37,11 @@ export async function add(input: {
   pixelRender: boolean;
   durabilityMax: number | null;
   heldByPetId: number | null;
+  posX?: number;
+  posY?: number;
 }) {
   const max = input.durabilityMax;
+  const clamp = (v: number) => Math.max(0, Math.min(100, v));
   const [row] = await db
     .insert(petItems)
     .values({
@@ -51,6 +54,8 @@ export async function add(input: {
       durabilityMax: max, // null = 무한
       durabilityNow: max ?? 0, // 처음엔 가득(무한이면 0이지만 무한은 마모 안 함)
       heldByPetId: input.heldByPetId,
+      ...(input.posX != null ? { posX: clamp(input.posX) } : {}),
+      ...(input.posY != null ? { posY: clamp(input.posY) } : {}),
     })
     .returning(ITEM_COLS);
   return row;

@@ -35,7 +35,7 @@ export default function GiveItemSheet({
   pets: PetOpt[];
   ownerNames: Map<number, string>;
   onClose: () => void;
-  onGiven: (petId: number, result: GiveResult) => void;
+  onGiven: (petId: number, result: GiveResult, item: { spritePath: string; pixelRender: boolean }) => void;
 }) {
   const [items, setItems] = useState<ItemRow[]>([]);
   const [petId, setPetId] = useState<number | null>(pets[0]?.id ?? null);
@@ -73,7 +73,7 @@ export default function GiveItemSheet({
       });
       const data = (await res.json().catch(() => ({}))) as GiveResult & { error?: string };
       if (!res.ok) return setMsg(data.error ?? "주기 실패");
-      onGiven(petId, data);
+      onGiven(petId, data, { spritePath: item.spritePath, pixelRender: item.pixelRender });
       onClose();
     } finally {
       setBusy(false);
