@@ -9,7 +9,6 @@ import * as relationsRepo from "@/db/repo/petRelations";
 import * as petLinesRepo from "@/db/repo/petLines";
 import * as customRepo from "@/db/repo/petCustomSprites";
 import * as placementsRepo from "@/db/repo/furniturePlacements";
-import * as itemsRepo from "@/db/repo/petItems";
 import * as letterRepliesRepo from "@/db/repo/petLetterReplies";
 import * as petDiariesRepo from "@/db/repo/petDiaries";
 import * as settingsRepo from "@/db/repo/settings";
@@ -50,9 +49,11 @@ export default async function RoomPage({ params }: { params: Promise<{ roomId: s
       roomsRepo.listByUser(user.id),
       petsRepo.listByUser(user.id),
     ]);
-  const itemRows = await itemsRepo.listForRoom(user.id, roomId);
-  const items: ItemVM[] = itemRows.map((it) => ({
-    id: it.id,
+  // 배치(furniture_placements)는 가구·아이템 둘 다 — kind로 분리.
+  const itemPlacements = furnitureRows.filter((r) => r.itemKind === "item");
+  const items: ItemVM[] = itemPlacements.map((it) => ({
+    id: it.placementId, // 배치 인스턴스 id(위치·삭제·scale 키)
+    itemId: it.itemId, // 라이브러리 원본(내구도·픽셀·파손 모양)
     name: it.name,
     spritePath: it.spritePath,
     brokenSpritePath: it.brokenSpritePath,
@@ -62,7 +63,7 @@ export default async function RoomPage({ params }: { params: Promise<{ roomId: s
     scale: it.scale,
     durabilityMax: it.durabilityMax,
     durabilityNow: it.durabilityNow,
-    heldByPetId: it.heldByPetId,
+    heldByPetId: it.ownerPetId,
   }));
 
   // fixture 상태 active 판정:
@@ -75,7 +76,9 @@ export default async function RoomPage({ params }: { params: Promise<{ roomId: s
   ]);
   const activeFor = (a: string | null) =>
     a === "letters" ? lettersUnread > 0 : a === "pet_diary" ? !petDiaryToday : false;
-  const furniture: FurnitureVM[] = furnitureRows.map((f) => ({
+  const furniture: FurnitureVM[] = furnitureRows
+    .filter((r) => r.itemKind === "furniture")
+    .map((f) => ({
     id: f.placementId, // 배치 인스턴스 id(위치·삭제·좌석 키)
     itemId: f.itemId, // 라이브러리 원본
     kind: (f.kind as "seat" | "fixture") ?? "fixture",

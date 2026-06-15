@@ -9,29 +9,34 @@ type FurnItem = {
   spritePath: string;
   pixelRender: boolean;
   furnitureKind: "seat" | "fixture" | null;
+  durabilityMax?: number | null;
 };
 
-// 전역 라이브러리(kind=furniture)에서 골라 이 방에 배치. 모양·종류 편집은 관리 화면에서.
+// 전역 라이브러리(kind=furniture|item)에서 골라 이 방에 배치. 모양·종류 편집은 관리 화면에서.
 export default function FurniturePicker({
   roomId,
+  kind = "furniture",
   posX,
   onClose,
   onPlaced,
 }: {
   roomId: number;
+  kind?: "furniture" | "item";
   posX?: number; // 현재 보는 패널 중앙(미전달 시 방 가운데)
   onClose: () => void;
   onPlaced: () => void;
 }) {
+  const isFurn = kind === "furniture";
   const [items, setItems] = useState<FurnItem[]>([]);
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState("");
 
   useEffect(() => {
-    fetch("/api/pets/items?kind=furniture")
+    fetch(`/api/pets/items?kind=${kind}`)
       .then((r) => r.json())
       .then((d) => setItems(d.items ?? []))
-      .catch(() => setMsg("가구를 못 불러왔어요."));
+      .catch(() => setMsg("불러오지 못했어요."));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   async function place(it: FurnItem) {
@@ -59,15 +64,15 @@ export default function FurniturePicker({
       >
         <div className="mx-auto mb-3 h-1 w-10 rounded-full bg-border" />
         <div className="mb-3 flex items-center justify-between">
-          <h2 className="font-display text-sm font-semibold">가구 배치</h2>
+          <h2 className="font-display text-sm font-semibold">{isFurn ? "가구 배치" : "아이템 배치"}</h2>
           <Link href="/pets/manage?tab=items" className="text-[11px] text-accent">
-            + 새 가구 등록(관리)
+            + 새 {isFurn ? "가구" : "아이템"} 등록(관리)
           </Link>
         </div>
 
         {items.length === 0 ? (
           <p className="py-8 text-center text-xs opacity-50">
-            등록된 가구가 없어요. ‘관리 → 아이템·가구’에서 가구를 먼저 추가하세요.
+            등록된 {isFurn ? "가구" : "아이템"}이 없어요. ‘관리 → 아이템·가구’에서 먼저 추가하세요.
           </p>
         ) : (
           <ul className="grid grid-cols-3 gap-2">
@@ -86,7 +91,9 @@ export default function FurniturePicker({
                     style={{ objectPosition: "bottom", imageRendering: it.pixelRender ? "pixelated" : "auto" }}
                   />
                   <span className="max-w-full truncate text-[11px]">{it.name}</span>
-                  <span className="text-[9px] text-text-dim">{it.furnitureKind === "seat" ? "의자" : "설치물"}</span>
+                  <span className="text-[9px] text-text-dim">
+                    {isFurn ? (it.furnitureKind === "seat" ? "의자" : "설치물") : it.durabilityMax != null ? `내구 ${it.durabilityMax}` : "아이템"}
+                  </span>
                 </button>
               </li>
             ))}

@@ -1,4 +1,4 @@
-import { and, asc, eq, or } from "drizzle-orm";
+import { and, asc, eq, or, sql } from "drizzle-orm";
 import { db } from "../client";
 import { items } from "../schema";
 
@@ -86,6 +86,7 @@ export async function updateMeta(
     seatY?: number;
     durabilityMax?: number | null;
     durabilityNow?: number;
+    brokenSpritePath?: string | null;
   },
 ) {
   if (Object.keys(patch).length === 0) return;
@@ -114,6 +115,26 @@ export async function setSprite(
 export async function remove(userId: number, id: number) {
   // furniture_placements 는 item FK cascade — 배치도 함께 삭제됨(라우트가 사전 경고).
   await db.delete(items).where(and(eq(items.id, id), eq(items.userId, userId)));
+}
+
+/** 마모 1 — 배치된 아이템 내구도 1 감소(0 미만 금지, 무한이면 무동작). 반환: 새 durability_now(없/무한이면 null). */
+export async function wear(userId: number, id: number): Promise<number | null> {
+  const [row] = await db
+    .update(items)
+    .set({ durabilityNow: sql`greatest(0, ${items.durabilityNow} - 1)` })
+    .where(and(eq(items.id, id), eq(items.userId, userId), sql`${items.durabilityMax} is not null`))
+    .returning({ now: items.durabilityNow });
+  return row?.now ?? null;
+}
+
+/** 수리 — durability_now = durability_max(무한이면 무동작). 무료·즉시. */
+export async function repair(userId: number, id: number): Promise<boolean> {
+  const res = await db
+    .update(items)
+    .set({ durabilityNow: sql`${items.durabilityMax}` })
+    .where(and(eq(items.id, id), eq(items.userId, userId), sql`${items.durabilityMax} is not null`))
+    .returning({ id: items.id });
+  return res.length > 0;
 }
 
 /** 스프라이트 서빙 화이트리스트 — main/alt/broken 어느 경로든 이 유저 소유면 true. */

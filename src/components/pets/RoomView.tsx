@@ -840,23 +840,10 @@ export default function RoomView({
     if (/형제|남매|자매|가족|sibling|brother|sister|family|쌍둥이/.test(l)) return { content: `야 ${otherName}, 네가 깼지!`, effect: null };
     return { content: `${otherName}, 봤어? 깨졌어…`, effect: null };
   }
-  // 반응 대사 1줄(서버 캐시-또는-생성) → 말풍선.
-  async function reactItem(itemId: number, petId: number, kind: "receive" | "break") {
-    try {
-      const res = await fetch(`/api/pet-items/${itemId}/reactions`, {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ petId, kind }),
-      });
-      if (!res.ok) return;
-      const d = await res.json();
-      if (d.content) showBubble(petId, d.content, 3000, true);
-    } catch {
-      /* ignore */
-    }
-  }
+  // 파손 순간 깨뜨린 펫의 한마디(템플릿). 던지기→반응(Block 2)과 별개 — 배치 아이템 만담.
+  const BREAK_LINES = ["앗… 깨졌어", "어, 망가졌다", "이런, 미안…", "헉 부서졌어"];
   function onItemBreak(it: ItemVM, breaker: PetVM) {
-    void reactItem(it.id, breaker.id, "break");
+    showBubble(breaker.id, BREAK_LINES[Math.floor(Math.random() * BREAK_LINES.length)], 2600, true);
     const other = petsRef.current.find(
       (o) => o.id !== breaker.id && panelOf(o.posX) === panelOf(it.posX) && !isNapping(o.id),
     );
@@ -889,11 +876,11 @@ export default function RoomView({
     const p = near[Math.floor(Math.random() * near.length)];
     spawnEffect(Math.random() < 0.5 ? "notes" : "sparkle", it.posX, it.posY - 8);
     showBubble(p.id, "앗… 떨어뜨렸어", 2200);
-    fetch(`/api/pet-items/${it.id}/wear`, { method: "POST" })
+    fetch(`/api/pets/items/${it.itemId}/wear`, { method: "POST" })
       .then((r) => r.json())
       .then((d) => {
         if (d.durabilityNow == null) return; // 무한 등
-        setItems((xs) => xs.map((q) => (q.id === it.id ? { ...q, durabilityNow: d.durabilityNow } : q)));
+        setItems((xs) => xs.map((q) => (q.itemId === it.itemId ? { ...q, durabilityNow: d.durabilityNow } : q)));
         if (d.broke) onItemBreak(it, p);
       })
       .catch(() => {});
@@ -927,7 +914,7 @@ export default function RoomView({
       }
       const { x, y } = toPct(ev.clientX, ev.clientY);
       setItems((xs) => xs.map((q) => (q.id === it.id ? { ...q, posX: x, posY: y } : q)));
-      fetch(`/api/pet-items/${it.id}`, {
+      fetch(`/api/placements/${it.id}`, {
         method: "PATCH",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ posX: x, posY: y }),
@@ -938,20 +925,21 @@ export default function RoomView({
   }
   async function repairItem(it: ItemVM) {
     setItemSheetId(null);
-    const res = await fetch(`/api/pet-items/${it.id}/repair`, { method: "POST" }).catch(() => null);
+    const res = await fetch(`/api/pets/items/${it.itemId}/repair`, { method: "POST" }).catch(() => null);
     if (res?.ok) {
       const d = await res.json();
-      setItems((xs) => xs.map((q) => (q.id === it.id ? { ...q, durabilityNow: d.durabilityNow ?? q.durabilityMax ?? 0 } : q)));
+      setItems((xs) => xs.map((q) => (q.itemId === it.itemId ? { ...q, durabilityNow: d.durabilityNow ?? q.durabilityMax ?? 0 } : q)));
     }
   }
   function deleteItem(it: ItemVM) {
+    // 방에서 빼기 = 배치(placement)만 삭제. 라이브러리 원본 item 은 남음.
     setItemSheetId(null);
     setItems((xs) => xs.filter((q) => q.id !== it.id));
-    fetch(`/api/pet-items/${it.id}`, { method: "DELETE" }).catch(() => {});
+    fetch(`/api/placements/${it.id}`, { method: "DELETE" }).catch(() => {});
   }
   function setItemPixel(it: ItemVM, v: boolean) {
-    setItems((xs) => xs.map((q) => (q.id === it.id ? { ...q, pixelRender: v } : q)));
-    fetch(`/api/pet-items/${it.id}`, {
+    setItems((xs) => xs.map((q) => (q.itemId === it.itemId ? { ...q, pixelRender: v } : q)));
+    fetch(`/api/pets/items/${it.itemId}`, {
       method: "PATCH",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ pixelRender: v }),
@@ -961,10 +949,10 @@ export default function RoomView({
   const itemScaleSaveRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   function setItemScale(it: ItemVM, v: number) {
     const scale = Math.max(0.3, Math.min(3, v));
-    setItems((xs) => xs.map((q) => (q.id === it.id ? { ...q, scale } : q)));
+    setItems((xs) => xs.map((q) => (q.id === it.id ? { ...q, scale } : q))); // scale=이 배치만
     if (itemScaleSaveRef.current) clearTimeout(itemScaleSaveRef.current);
     itemScaleSaveRef.current = setTimeout(() => {
-      fetch(`/api/pet-items/${it.id}`, {
+      fetch(`/api/placements/${it.id}`, {
         method: "PATCH",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ scale }),
@@ -974,20 +962,20 @@ export default function RoomView({
   async function uploadItemBroken(it: ItemVM, file: File) {
     const fd = new FormData();
     fd.set("file", file);
-    const res = await fetch(`/api/pet-items/${it.id}/broken-sprite`, { method: "POST", body: fd }).catch(() => null);
+    fd.set("slot", "broken");
+    const res = await fetch(`/api/pets/items/${it.itemId}/sprite`, { method: "POST", body: fd }).catch(() => null);
     if (res?.ok) {
       const d = await res.json();
-      setItems((xs) => xs.map((q) => (q.id === it.id ? { ...q, brokenSpritePath: d.brokenSpritePath } : q)));
+      setItems((xs) => xs.map((q) => (q.itemId === it.itemId ? { ...q, brokenSpritePath: d.path } : q)));
     }
   }
   function clearItemBroken(it: ItemVM) {
-    setItems((xs) => xs.map((q) => (q.id === it.id ? { ...q, brokenSpritePath: null } : q)));
-    fetch(`/api/pet-items/${it.id}/broken-sprite`, { method: "DELETE" }).catch(() => {});
-  }
-  function onItemAdded(row: ItemVM, heldPetId: number | null) {
-    setItems((xs) => [...xs, row]);
-    const target = heldPetId ?? petsRef.current[0]?.id;
-    if (target) setTimeout(() => void reactItem(row.id, target, "receive"), 400); // 지급/배치 순간 receive 반응
+    setItems((xs) => xs.map((q) => (q.itemId === it.itemId ? { ...q, brokenSpritePath: null } : q)));
+    fetch(`/api/pets/items/${it.itemId}`, {
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ brokenSpritePath: null }),
+    }).catch(() => {});
   }
 
   // ── 바닥 구역 경계 드래그(패널별 위/아래 선) ──
@@ -1428,24 +1416,14 @@ export default function RoomView({
           </button>
         </div>
       ) : itemMode ? (
-        <div className="flex flex-col gap-2 rounded-card bg-surface-2 p-2 text-xs ring-1 ring-border">
-          <div className="flex items-center gap-2">
-            <span className="opacity-60">아이템 배치 중 — 끌어 옮기고, 탭하면 수리·버리기</span>
-            <button onClick={() => setItemAdding((v) => !v)} className="ml-auto rounded-control bg-accent px-3 py-1.5 font-medium text-black">
-              ＋ 아이템
-            </button>
-            <button onClick={() => { setItemMode(false); setItemAdding(false); }} className="rounded-control bg-surface px-3 py-1.5 ring-1 ring-border">
-              완료
-            </button>
-          </div>
-          {itemAdding && (
-            <ItemAddForm
-              roomId={room.id}
-              posX={viewCenterX()}
-              pets={pets.map((p) => ({ id: p.id, name: p.name }))}
-              onAdded={(row, held) => { onItemAdded(row, held); setItemAdding(false); }}
-            />
-          )}
+        <div className="flex items-center gap-2 rounded-card bg-surface-2 p-2 text-xs ring-1 ring-border">
+          <span className="opacity-60">아이템 배치 중 — 끌어 옮기고, 탭하면 수리·버리기</span>
+          <button onClick={() => setItemAdding(true)} className="ml-auto rounded-control bg-accent px-3 py-1.5 font-medium text-black">
+            🎁 라이브러리에서
+          </button>
+          <button onClick={() => { setItemMode(false); setItemAdding(false); }} className="rounded-control bg-surface px-3 py-1.5 ring-1 ring-border">
+            완료
+          </button>
         </div>
       ) : (
         <span className="text-[11px] opacity-40">관리 모드 — 펫을 끌어 배치 · 위 ‘가구/아이템 배치’로 꾸미기 · 끄면 잠겨요</span>
@@ -1564,10 +1542,25 @@ export default function RoomView({
       {furnAdding && (
         <FurniturePicker
           roomId={room.id}
+          kind="furniture"
           posX={viewCenterX()}
           onClose={() => setFurnAdding(false)}
           onPlaced={() => {
             setFurnAdding(false);
+            router.refresh();
+          }}
+        />
+      )}
+
+      {/* 아이템 배치 = 전역 라이브러리(kind=item)에서 골라 방에 둠(배치하면 내구도/파손 만담). */}
+      {itemAdding && (
+        <FurniturePicker
+          roomId={room.id}
+          kind="item"
+          posX={viewCenterX()}
+          onClose={() => setItemAdding(false)}
+          onPlaced={() => {
+            setItemAdding(false);
             router.refresh();
           }}
         />

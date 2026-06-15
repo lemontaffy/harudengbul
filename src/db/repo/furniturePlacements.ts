@@ -26,7 +26,8 @@ export async function listForRoom(userId: number, roomId: number) {
       scale: furniturePlacements.scale,
       rotation: furniturePlacements.rotation,
       name: items.name,
-      kind: items.furnitureKind, // 'seat' | 'fixture'
+      itemKind: items.kind, // 'furniture' | 'item' — 가구/아이템 배치 구분
+      kind: items.furnitureKind, // 'seat' | 'fixture'(가구)
       type: items.type,
       spritePath: items.spritePath,
       spriteAltPath: items.spriteAltPath,
@@ -34,6 +35,11 @@ export async function listForRoom(userId: number, roomId: number) {
       facing: items.facing,
       seatY: items.seatY,
       actionType: items.actionType,
+      // 아이템(kind='item') 배치 시 내구도/파손
+      ownerPetId: items.ownerPetId,
+      brokenSpritePath: items.brokenSpritePath,
+      durabilityMax: items.durabilityMax,
+      durabilityNow: items.durabilityNow,
     })
     .from(furniturePlacements)
     .innerJoin(items, eq(items.id, furniturePlacements.itemId))

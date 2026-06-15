@@ -55,6 +55,8 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
     }
     if (typeof body.durabilityNow === "number" && Number.isFinite(body.durabilityNow))
       patch.durabilityNow = Math.max(0, Math.floor(body.durabilityNow));
+    // 파손 모양 해제(null) — 설정은 /sprite slot=broken.
+    if ("brokenSpritePath" in body && body.brokenSpritePath == null) patch.brokenSpritePath = null;
   }
 
   await itemsRepo.updateMeta(user.id, id, patch);

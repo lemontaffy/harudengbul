@@ -840,7 +840,9 @@ export const items = pgTable(
   (t) => [index("items_user_kind_idx").on(t.userId, t.kind)],
 );
 
-// 가구 배치 인스턴스 — 같은 가구(items)를 여러 방에 둘 수 있음. 위치·z·크기·회전은 배치별.
+// 방 배치 인스턴스 — 전역 items(가구·아이템)를 방에 둠. 같은 item을 여러 방에. 위치·z·크기·회전은 배치별.
+//   kind='furniture' = 장식/좌석, kind='item' = 배치 시 내구도/파손 만담(durability는 items에).
+//   ※ 테이블명은 역사적 이유로 furniture_placements 유지(가구·아이템 배치 모두 수용). v3의 room_placements와 동일 역할.
 export const furniturePlacements = pgTable(
   "furniture_placements",
   {

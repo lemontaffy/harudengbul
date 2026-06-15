@@ -19,8 +19,8 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   const itemId = Number(body.itemId);
   if (!Number.isInteger(itemId)) return Response.json({ error: "아이템을 고르세요." }, { status: 400 });
   const item = await itemsRepo.getOne(user.id, itemId);
-  if (!item || item.kind !== "furniture")
-    return Response.json({ error: "없는 가구" }, { status: 404 });
+  if (!item || (item.kind !== "furniture" && item.kind !== "item"))
+    return Response.json({ error: "없는 아이템" }, { status: 404 });
 
   // 현재 보는 패널 중앙에 배치(클라가 posX 전달). 미전달 시 방 가운데.
   const clamp = (v: number) => Math.max(2, Math.min(98, v));

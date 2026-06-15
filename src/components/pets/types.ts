@@ -50,7 +50,8 @@ export interface RoomVM {
 }
 
 export interface ItemVM {
-  id: number;
+  id: number; // = 배치 인스턴스 id(furniture_placements.id) — 위치·삭제·scale 키
+  itemId: number; // 라이브러리 원본 items.id(내구도·픽셀·파손 모양 — 여러 배치 공유)
   name: string;
   spritePath: string;
   brokenSpritePath: string | null; // 파손 시 모습(없으면 CSS 금 오버레이)

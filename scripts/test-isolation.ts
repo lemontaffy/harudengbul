@@ -10,6 +10,9 @@ import * as personasRepo from "../src/db/repo/personas";
 import * as memoriesRepo from "../src/db/repo/memories";
 import * as diaryRepo from "../src/db/repo/diary";
 import * as messagesRepo from "../src/db/repo/messages";
+import * as petRoomsRepo from "../src/db/repo/petRooms";
+import * as petItemsLibRepo from "../src/db/repo/items";
+import * as placementsRepo from "../src/db/repo/furniturePlacements";
 import { buildContext, buildSystemPrompt, type Role } from "../src/lib/persona";
 import { executeTool } from "../src/lib/tools";
 
@@ -172,6 +175,32 @@ async function main() {
   // 없는 내용은 지어내지 않고 '결과 없음'(수동②).
   const noHit = await search(B.id, "절대존재하지않는키워드_ZZZQQQ999", bSecretary.id);
   check("없는 내용 검색은 '결과 없음'", noHit === "결과 없음");
+
+  // ── 펫 룸: 전역 아이템 라이브러리(items) + 방 배치(furniture_placements) 교차 격리 ──
+  const aRoom = await petRoomsRepo.create(A.id, "A의 비밀 방");
+  const A_ITEM_SPRITE = `/api/pet-sprites/${A.id}/secret-item.png`;
+  const aItem = await petItemsLibRepo.add(A.id, {
+    name: "A비밀아이템",
+    kind: "item",
+    spritePath: A_ITEM_SPRITE,
+    durabilityMax: 10,
+    durabilityNow: 10,
+  });
+  await placementsRepo.add({ roomId: aRoom.id, itemId: aItem.id, posX: 50, posY: 50 });
+
+  const bLib = await petItemsLibRepo.listForUser(B.id);
+  check("B 라이브러리에 A 아이템 없음", !bLib.some((i) => i.id === aItem.id));
+  check("B는 A 아이템 조회 못 함(소유)", (await petItemsLibRepo.getOne(B.id, aItem.id)) === null);
+  const bRooms = await petRoomsRepo.listByUser(B.id);
+  check("B 방 목록에 A방 없음", !bRooms.some((r) => r.id === aRoom.id));
+  const bPlacements = await placementsRepo.listForRoom(B.id, aRoom.id);
+  check("B는 A방 배치 조회 못 함(룸 소유 스코프)", bPlacements.length === 0);
+  check("A 본인은 A방 배치 조회됨(양성 대조)", (await placementsRepo.listForRoom(A.id, aRoom.id)).length === 1);
+  check("A 본인 아이템 스프라이트 서빙 허용", await petItemsLibRepo.pathBelongsToUser(A.id, A_ITEM_SPRITE));
+  check("B는 A 아이템 스프라이트 서빙 불가(교차 차단)", (await petItemsLibRepo.pathBelongsToUser(B.id, A_ITEM_SPRITE)) === false);
+  // 내구도 wear/repair 타 유저 스코프 무동작.
+  await petItemsLibRepo.wear(B.id, aItem.id); // 타인 → 무동작
+  check("B의 wear로 A 아이템 내구도 안 줄어듦", (await petItemsLibRepo.getOne(A.id, aItem.id))?.durabilityNow === 10);
 
   console.log(failed === 0 ? "\n격리 테스트 통과 ✅" : `\n${failed}건 실패 ❌`);
   process.exit(failed === 0 ? 0 : 1);
