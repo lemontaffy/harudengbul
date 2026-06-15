@@ -50,18 +50,20 @@ export interface RoomVM {
 }
 
 export interface ItemVM {
-  id: number; // = 배치 인스턴스 id(furniture_placements.id) — 위치·삭제·scale 키
-  itemId: number; // 라이브러리 원본 items.id(내구도·픽셀·파손 모양 — 여러 배치 공유)
+  id: number; // = 방 인스턴스 id(room_items.id) — 위치·삭제·내구도·placed·소유 키
+  assetId: number; // 풀 원본 items.id(스프라이트·픽셀·파손 모양 — 상태 없음)
   name: string;
   spritePath: string;
-  brokenSpritePath: string | null; // 파손 시 모습(없으면 CSS 금 오버레이)
+  brokenSpritePath: string | null; // 풀의 파손 모양(없으면 CSS 크랙 오버레이)
   pixelRender: boolean;
   posX: number;
   posY: number;
-  scale: number; // 크기 배율(수동조정)
+  scale: number; // 크기 배율(인스턴스)
   durabilityMax: number | null; // null=무한(안 깨짐)
-  durabilityNow: number; // 0=파손(금 간 상태)
-  heldByPetId: number | null; // 특정 펫에게 준 경우
+  durabilityNow: number;
+  broken: boolean; // 파손 상태(인스턴스)
+  placed: boolean; // true=방에 배치, false=바구니
+  ownerPetId: number | null; // 방 안 소유 펫
 }
 
 export interface FurnitureVM {

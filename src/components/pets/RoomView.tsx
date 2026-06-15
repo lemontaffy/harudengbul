@@ -87,7 +87,8 @@ export default function RoomView({
   const [walking, setWalking] = useState<{ petId: number; ms: number; flip: boolean } | null>(null);
   const [customPlay, setCustomPlay] = useState<{ petId: number; path: string; flip: boolean } | null>(null);
   const [editId, setEditId] = useState<number | null>(null);
-  const [giveOpen, setGiveOpen] = useState(false);
+  // 바구니 시트 — 'throw'(일반: 펫에게 던지기) / 'place'(관리: 방에 놓기) / null(닫힘).
+  const [basketMode, setBasketMode] = useState<null | "throw" | "place">(null);
   // 던지기 연출 — 준 아이템 스프라이트가 펫에게 잠깐 날아가 닿음(CSS transform/opacity, reduced-motion 존중).
   const [toss, setToss] = useState<{ id: number; src: string; pixel: boolean; xPct: number; yPct: number } | null>(null);
   const tossSeq = useRef(0);
@@ -399,6 +400,8 @@ export default function RoomView({
     const delay = item && !reduced() ? 480 : 0; // 날아가는 시간 후 말풍선
     setTimeout(() => showBubble(petId, r.content, 3200, true), delay);
     if (r.effect) setTimeout(() => spawnEffect(r.effect!, p.posX, p.posY - 8), delay);
+    // 던지다가 내구도 0 → 파손 만담 1회(받은 펫이 깨뜨림).
+    if (r.broke) setTimeout(() => showBubble(petId, BREAK_LINES[Math.floor(Math.random() * BREAK_LINES.length)], 2600, true), delay + 1700);
     if (r.ownerCall) {
       const owner = petsRef.current.find((x) => x.id === r.ownerCall!.ownerPetId);
       if (owner) {
@@ -858,10 +861,10 @@ export default function RoomView({
       else if (pair.effect === "hearts") loveBurst(other.id, other.posX, other.posY);
     }, 1500);
   }
-  // 마모 1회 시도(개그) — 보이는 마모성 아이템 근처의 깨어있는 펫이 '떨어뜨림'. 0 되면 파손.
+  // 마모 1회 시도(개그) — 보이는 '배치된' 마모성 아이템 근처의 깨어있는 펫이 '떨어뜨림'. 0 되면 파손.
   function tryItemWear(): boolean {
     const wearable = itemsRef.current.filter(
-      (it) => it.durabilityMax != null && it.durabilityNow > 0 && isVisible(it.posX),
+      (it) => it.placed && it.durabilityMax != null && it.durabilityNow > 0 && !it.broken && isVisible(it.posX),
     );
     if (wearable.length === 0) return false;
     const it = wearable[Math.floor(Math.random() * wearable.length)];
@@ -876,17 +879,17 @@ export default function RoomView({
     const p = near[Math.floor(Math.random() * near.length)];
     spawnEffect(Math.random() < 0.5 ? "notes" : "sparkle", it.posX, it.posY - 8);
     showBubble(p.id, "앗… 떨어뜨렸어", 2200);
-    fetch(`/api/pets/items/${it.itemId}/wear`, { method: "POST" })
+    fetch(`/api/room-items/${it.id}/wear`, { method: "POST" })
       .then((r) => r.json())
       .then((d) => {
         if (d.durabilityNow == null) return; // 무한 등
-        setItems((xs) => xs.map((q) => (q.itemId === it.itemId ? { ...q, durabilityNow: d.durabilityNow } : q)));
+        setItems((xs) => xs.map((q) => (q.id === it.id ? { ...q, durabilityNow: d.durabilityNow, broken: !!d.broke } : q)));
         if (d.broke) onItemBreak(it, p);
       })
       .catch(() => {});
     return true;
   }
-  // 아이템 드래그(아이템 모드) — 펫·가구와 동일 패턴. 안 움직이면 액션 시트.
+  // 아이템 드래그(관리 모드) — 위치 인스턴스 저장. 안 움직이면 액션 시트.
   function startDragItem(e: React.PointerEvent, it: ItemVM) {
     e.preventDefault();
     const inner = innerRef.current;
@@ -914,7 +917,7 @@ export default function RoomView({
       }
       const { x, y } = toPct(ev.clientX, ev.clientY);
       setItems((xs) => xs.map((q) => (q.id === it.id ? { ...q, posX: x, posY: y } : q)));
-      fetch(`/api/placements/${it.id}`, {
+      fetch(`/api/room-items/${it.id}`, {
         method: "PATCH",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ posX: x, posY: y }),
@@ -925,53 +928,73 @@ export default function RoomView({
   }
   async function repairItem(it: ItemVM) {
     setItemSheetId(null);
-    const res = await fetch(`/api/pets/items/${it.itemId}/repair`, { method: "POST" }).catch(() => null);
+    const res = await fetch(`/api/room-items/${it.id}/repair`, { method: "POST" }).catch(() => null);
     if (res?.ok) {
       const d = await res.json();
-      setItems((xs) => xs.map((q) => (q.itemId === it.itemId ? { ...q, durabilityNow: d.durabilityNow ?? q.durabilityMax ?? 0 } : q)));
+      setItems((xs) => xs.map((q) => (q.id === it.id ? { ...q, durabilityNow: d.durabilityNow ?? q.durabilityMax ?? 0, broken: false } : q)));
     }
   }
   function deleteItem(it: ItemVM) {
-    // 방에서 빼기 = 배치(placement)만 삭제. 라이브러리 원본 item 은 남음.
+    // 버리기 = 인스턴스 제거(풀 asset 은 남음).
     setItemSheetId(null);
     setItems((xs) => xs.filter((q) => q.id !== it.id));
-    fetch(`/api/placements/${it.id}`, { method: "DELETE" }).catch(() => {});
+    fetch(`/api/room-items/${it.id}`, { method: "DELETE" }).catch(() => {});
   }
-  function setItemPixel(it: ItemVM, v: boolean) {
-    setItems((xs) => xs.map((q) => (q.itemId === it.itemId ? { ...q, pixelRender: v } : q)));
-    fetch(`/api/pets/items/${it.itemId}`, {
+  // 내림 — 방에서 바구니로(placed=false). 방 렌더에서 사라지고 바구니에 들어감.
+  function unplaceItem(it: ItemVM) {
+    setItemSheetId(null);
+    setItems((xs) => xs.map((q) => (q.id === it.id ? { ...q, placed: false } : q)));
+    fetch(`/api/room-items/${it.id}`, {
       method: "PATCH",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ pixelRender: v }),
+      body: JSON.stringify({ placed: false }),
     }).catch(() => {});
   }
-  // 크기 조절 — 라이브 미리보기는 state, 저장은 디바운스(슬라이더 연속 변경 → 마지막 값 1회 PATCH).
+  // 소유 펫 지정/해제(방 안). null=해제.
+  function setItemOwner(it: ItemVM, petId: number | null) {
+    setItems((xs) => xs.map((q) => (q.id === it.id ? { ...q, ownerPetId: petId } : q)));
+    fetch(`/api/room-items/${it.id}`, {
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ ownerPetId: petId }),
+    }).catch(() => {});
+  }
+  // 크기 조절 — 라이브 미리보기 state + 디바운스 저장.
   const itemScaleSaveRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   function setItemScale(it: ItemVM, v: number) {
     const scale = Math.max(0.3, Math.min(3, v));
-    setItems((xs) => xs.map((q) => (q.id === it.id ? { ...q, scale } : q))); // scale=이 배치만
+    setItems((xs) => xs.map((q) => (q.id === it.id ? { ...q, scale } : q)));
     if (itemScaleSaveRef.current) clearTimeout(itemScaleSaveRef.current);
     itemScaleSaveRef.current = setTimeout(() => {
-      fetch(`/api/placements/${it.id}`, {
+      fetch(`/api/room-items/${it.id}`, {
         method: "PATCH",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ scale }),
       }).catch(() => {});
     }, 300);
   }
+  // 픽셀·파손모양은 풀(asset) 속성 — 같은 asset 모든 인스턴스에 반영.
+  function setItemPixel(it: ItemVM, v: boolean) {
+    setItems((xs) => xs.map((q) => (q.assetId === it.assetId ? { ...q, pixelRender: v } : q)));
+    fetch(`/api/pets/items/${it.assetId}`, {
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ pixelRender: v }),
+    }).catch(() => {});
+  }
   async function uploadItemBroken(it: ItemVM, file: File) {
     const fd = new FormData();
     fd.set("file", file);
     fd.set("slot", "broken");
-    const res = await fetch(`/api/pets/items/${it.itemId}/sprite`, { method: "POST", body: fd }).catch(() => null);
+    const res = await fetch(`/api/pets/items/${it.assetId}/sprite`, { method: "POST", body: fd }).catch(() => null);
     if (res?.ok) {
       const d = await res.json();
-      setItems((xs) => xs.map((q) => (q.itemId === it.itemId ? { ...q, brokenSpritePath: d.path } : q)));
+      setItems((xs) => xs.map((q) => (q.assetId === it.assetId ? { ...q, brokenSpritePath: d.path } : q)));
     }
   }
   function clearItemBroken(it: ItemVM) {
-    setItems((xs) => xs.map((q) => (q.itemId === it.itemId ? { ...q, brokenSpritePath: null } : q)));
-    fetch(`/api/pets/items/${it.itemId}`, {
+    setItems((xs) => xs.map((q) => (q.assetId === it.assetId ? { ...q, brokenSpritePath: null } : q)));
+    fetch(`/api/pets/items/${it.assetId}`, {
       method: "PATCH",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ brokenSpritePath: null }),
@@ -1204,8 +1227,8 @@ export default function RoomView({
 
           {/* 아이템 — 가구처럼 펫보다 뒤 레이어. 파손(durability 0)이면 금 간 오버레이(CSS 선 2개).
               아이템 모드=드래그·탭 시트 / 일반=탭하면 수리·버리기 시트. */}
-          {items.map((it) => {
-            const broken = it.durabilityMax != null && it.durabilityNow === 0;
+          {items.filter((it) => it.placed).map((it) => {
+            const broken = it.broken;
             // 파손 모양 스프라이트가 있으면 그걸로 교체, 없으면 기본 스프라이트 + CSS 금 오버레이.
             const useBrokenSprite = broken && !!it.brokenSpritePath;
             const isrc = useBrokenSprite ? it.brokenSpritePath! : it.spritePath;
@@ -1386,7 +1409,7 @@ export default function RoomView({
         ) : (
           pets.length > 0 && (
             <button
-              onClick={() => setGiveOpen(true)}
+              onClick={() => setBasketMode("throw")}
               className="rounded-control bg-accent px-3 py-1.5 font-medium text-black"
             >
               🧺 아이템 주기
@@ -1416,10 +1439,13 @@ export default function RoomView({
           </button>
         </div>
       ) : itemMode ? (
-        <div className="flex items-center gap-2 rounded-card bg-surface-2 p-2 text-xs ring-1 ring-border">
-          <span className="opacity-60">아이템 배치 중 — 끌어 옮기고, 탭하면 수리·버리기</span>
+        <div className="flex flex-wrap items-center gap-2 rounded-card bg-surface-2 p-2 text-xs ring-1 ring-border">
+          <span className="opacity-60">배치된 아이템 끌어 옮기고·탭하면 편집</span>
           <button onClick={() => setItemAdding(true)} className="ml-auto rounded-control bg-accent px-3 py-1.5 font-medium text-black">
-            🎁 라이브러리에서
+            🎁 풀에서 꺼내기
+          </button>
+          <button onClick={() => setBasketMode("place")} className="rounded-control bg-surface px-3 py-1.5 ring-1 ring-border">
+            🧺 바구니→놓기
           </button>
           <button onClick={() => { setItemMode(false); setItemAdding(false); }} className="rounded-control bg-surface px-3 py-1.5 ring-1 ring-border">
             완료
@@ -1529,12 +1555,20 @@ export default function RoomView({
         />
       )}
 
-      {giveOpen && (
+      {basketMode && (
         <GiveItemSheet
+          roomId={room.id}
+          mode={basketMode}
+          basket={items.filter((it) => !it.placed)}
           pets={pets.map((p) => ({ id: p.id, name: p.name }))}
           ownerNames={new Map(allPets.map((p) => [p.id, p.name]))}
-          onClose={() => setGiveOpen(false)}
-          onGiven={(petId, r, item) => playGive(petId, r, item)}
+          posX={viewCenterX()}
+          onClose={() => setBasketMode(null)}
+          onThrew={(petId, r, item) => {
+            playGive(petId, r, item);
+            router.refresh(); // 내구도/파손 변경 반영
+          }}
+          onChanged={() => router.refresh()}
         />
       )}
 
@@ -1592,15 +1626,29 @@ export default function RoomView({
         const it = items.find((q) => q.id === itemSheetId);
         if (!it) return null;
         const infinite = it.durabilityMax == null;
-        const needsRepair = !infinite && it.durabilityNow < (it.durabilityMax ?? 0);
+        const needsRepair = (!infinite && it.durabilityNow < (it.durabilityMax ?? 0)) || it.broken;
         return (
           <div className="fixed inset-0 z-40 flex items-end justify-center bg-black/40 p-3" onClick={() => setItemSheetId(null)}>
             <div className="w-full max-w-sm rounded-card bg-surface p-3 ring-1 ring-border" onClick={(e) => e.stopPropagation()}>
               <div className="mb-2 flex items-center justify-between">
                 <span className="text-sm font-medium">{it.name}</span>
                 <span className="text-xs opacity-60">
-                  {infinite ? "내구도 무한" : `내구도 ${it.durabilityNow}/${it.durabilityMax}${it.durabilityNow === 0 ? " · 파손" : ""}`}
+                  {infinite ? "내구도 무한" : `내구도 ${it.durabilityNow}/${it.durabilityMax}${it.broken ? " · 파손" : ""}`}
                 </span>
+              </div>
+              {/* 소유(방 안) — 그 방 펫 중 하나. */}
+              <div className="mb-2 flex items-center gap-2 text-[11px]">
+                <span className="w-8 shrink-0 opacity-60">주인</span>
+                <select
+                  value={it.ownerPetId ?? ""}
+                  onChange={(e) => setItemOwner(it, e.target.value ? Number(e.target.value) : null)}
+                  className="flex-1 rounded-control bg-bg px-2 py-1 ring-1 ring-border"
+                >
+                  <option value="">없음</option>
+                  {pets.map((p) => (
+                    <option key={p.id} value={p.id}>{p.name}</option>
+                  ))}
+                </select>
               </div>
               <div className="flex flex-wrap gap-2">
                 {needsRepair && (
@@ -1608,6 +1656,9 @@ export default function RoomView({
                     🔧 수리(무료)
                   </button>
                 )}
+                <button onClick={() => unplaceItem(it)} className="rounded-control bg-surface-2 px-3 py-1.5 text-sm ring-1 ring-border">
+                  🧺 내림
+                </button>
                 <button
                   onClick={() => setItemPixel(it, !it.pixelRender)}
                   className="rounded-control bg-surface-2 px-3 py-1.5 text-sm ring-1 ring-border"

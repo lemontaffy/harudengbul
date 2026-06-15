@@ -43,13 +43,18 @@ export default function FurniturePicker({
     setBusy(true);
     setMsg("");
     try {
-      const res = await fetch(`/api/pet-rooms/${roomId}/placements`, {
+      // 가구 = 방에 배치(furniture_placements). 아이템 = 풀에서 꺼내 바구니(room_items, placed=false).
+      const url = isFurn ? `/api/pet-rooms/${roomId}/placements` : `/api/pet-rooms/${roomId}/room-items`;
+      const payload = isFurn
+        ? { itemId: it.id, ...(posX != null ? { posX, posY: 60 } : {}) }
+        : { assetId: it.id, placed: false };
+      const res = await fetch(url, {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ itemId: it.id, ...(posX != null ? { posX, posY: 60 } : {}) }),
+        body: JSON.stringify(payload),
       });
       const data = await res.json().catch(() => ({}));
-      if (!res.ok) return setMsg(data.error ?? "배치 실패");
+      if (!res.ok) return setMsg(data.error ?? "실패");
       onPlaced();
     } finally {
       setBusy(false);
@@ -64,7 +69,7 @@ export default function FurniturePicker({
       >
         <div className="mx-auto mb-3 h-1 w-10 rounded-full bg-border" />
         <div className="mb-3 flex items-center justify-between">
-          <h2 className="font-display text-sm font-semibold">{isFurn ? "가구 배치" : "아이템 배치"}</h2>
+          <h2 className="font-display text-sm font-semibold">{isFurn ? "가구 배치" : "풀에서 꺼내기 → 바구니"}</h2>
           <Link href="/pets/manage?tab=items" className="text-[11px] text-accent">
             + 새 {isFurn ? "가구" : "아이템"} 등록(관리)
           </Link>
