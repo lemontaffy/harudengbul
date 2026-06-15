@@ -44,10 +44,21 @@ export default function GiveItemSheet({
   const [editItem, setEditItem] = useState<number | null>(null);
 
   useEffect(() => {
+    const roomPetIds = new Set(pets.map((p) => p.id));
     fetch("/api/pets/items?kind=item")
       .then((r) => r.json())
-      .then((d) => setItems(d.items ?? []))
+      .then((d) => {
+        const list: ItemRow[] = d.items ?? [];
+        // 정렬: 이 방 펫이 주인인 아이템 우선 → 나머지(이름순 안정).
+        list.sort((a, b) => {
+          const ao = a.ownerPetId != null && roomPetIds.has(a.ownerPetId) ? 0 : 1;
+          const bo = b.ownerPetId != null && roomPetIds.has(b.ownerPetId) ? 0 : 1;
+          return ao - bo || a.name.localeCompare(b.name);
+        });
+        setItems(list);
+      })
       .catch(() => setMsg("아이템을 못 불러왔어요."));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   async function give(item: ItemRow) {

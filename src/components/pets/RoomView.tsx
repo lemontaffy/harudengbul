@@ -87,6 +87,24 @@ export default function RoomView({
   const [customPlay, setCustomPlay] = useState<{ petId: number; path: string; flip: boolean } | null>(null);
   const [editId, setEditId] = useState<number | null>(null);
   const [giveOpen, setGiveOpen] = useState(false);
+  // 관리 모드(기본 OFF) — 켤 때만 레이아웃 변경(가구·펫·배경·아이템 배치). 평소엔 잠금(상호작용만).
+  const [manageMode, setManageMode] = useState(false);
+  const manageRef = useRef(false);
+  manageRef.current = manageMode;
+  function toggleManage() {
+    setManageMode((v) => {
+      const next = !v;
+      if (!next) {
+        // 관리 모드 끄면 모든 편집 하위 모드·메뉴 정리(일반 모드 깔끔).
+        setFurnitureMode(false);
+        setItemMode(false);
+        setFloorEdit(false);
+        setItemAdding(false);
+        setMenu(null);
+      }
+      return next;
+    });
+  }
   const [showNames, setShowNames] = useState(true); // 이름표 표시 on/off(끄면 아예 안 뜸)
   const [menu, setMenu] = useState<null | "room" | "pet">(null); // 설정 메뉴(평소 접힘)
   const [liveliness, setLiveliness] = useState(room.liveliness); // 방 분주함(즉시 반영)
@@ -704,6 +722,7 @@ export default function RoomView({
       };
     };
     const move = (ev: PointerEvent) => {
+      if (!manageRef.current) return; // 일반 모드: 레이아웃 잠금(드래그로 안 움직임, 탭만)
       if (Math.abs(ev.clientX - start.x) + Math.abs(ev.clientY - start.y) > 6) moved = true;
       const { x, y } = toPct(ev.clientX, ev.clientY);
       const sy = dragClampY(p.locomotion, x, y); // ground=바닥 구역 스냅 / air=자유
@@ -1296,40 +1315,52 @@ export default function RoomView({
         </div>
       </div>
 
-      {/* 메뉴 바 — 설정은 평소 접힘(무대에서 실수로 클릭하는 문제 방지). 메뉴 2개로 분리. */}
+      {/* 메뉴 바 — 관리 모드 토글이 중심. 평소(일반 모드)엔 편집 버튼 숨김·레이아웃 잠금. */}
       <div className="flex items-center gap-2 text-xs">
         <button
-          onClick={() => setMenu((m) => (m === "room" ? null : "room"))}
-          className={`rounded-control px-3 py-1.5 ring-1 ring-border ${menu === "room" ? "bg-accent text-black" : "bg-surface"}`}
+          onClick={toggleManage}
+          title="켜면 가구·펫·배경을 옮기고 바꿀 수 있어요. 평소엔 꺼두면 무대가 흐트러지지 않아요."
+          className={`rounded-control px-3 py-1.5 ring-1 ring-border ${manageMode ? "bg-accent text-black" : "bg-surface"}`}
         >
-          ⚙ 방 설정
+          🛠 {manageMode ? "관리 모드 ON" : "관리 모드"}
         </button>
-        <button
-          onClick={() => setMenu((m) => (m === "pet" ? null : "pet"))}
-          className={`rounded-control px-3 py-1.5 ring-1 ring-border ${menu === "pet" ? "bg-accent text-black" : "bg-surface"}`}
-        >
-          🐾 펫 관리
-        </button>
-        <button
-          onClick={() => {
-            setFurnitureMode((v) => !v);
-            setItemMode(false);
-            setMenu(null);
-          }}
-          className={`rounded-control px-3 py-1.5 ring-1 ring-border ${furnitureMode ? "bg-accent text-black" : "bg-surface"}`}
-        >
-          🪑 가구
-        </button>
-        <button
-          onClick={() => {
-            setItemMode((v) => !v);
-            setFurnitureMode(false);
-            setMenu(null);
-          }}
-          className={`rounded-control px-3 py-1.5 ring-1 ring-border ${itemMode ? "bg-accent text-black" : "bg-surface"}`}
-        >
-          🎁 아이템
-        </button>
+        {manageMode ? (
+          <>
+            <button
+              onClick={() => setMenu((m) => (m === "room" ? null : "room"))}
+              className={`rounded-control px-3 py-1.5 ring-1 ring-border ${menu === "room" ? "bg-accent text-black" : "bg-surface"}`}
+            >
+              ⚙ 방
+            </button>
+            <button
+              onClick={() => setMenu((m) => (m === "pet" ? null : "pet"))}
+              className={`rounded-control px-3 py-1.5 ring-1 ring-border ${menu === "pet" ? "bg-accent text-black" : "bg-surface"}`}
+            >
+              🐾 펫
+            </button>
+            <button
+              onClick={() => { setFurnitureMode((v) => !v); setItemMode(false); setMenu(null); }}
+              className={`rounded-control px-3 py-1.5 ring-1 ring-border ${furnitureMode ? "bg-accent text-black" : "bg-surface"}`}
+            >
+              🪑 가구
+            </button>
+            <button
+              onClick={() => { setItemMode((v) => !v); setFurnitureMode(false); setMenu(null); }}
+              className={`rounded-control px-3 py-1.5 ring-1 ring-border ${itemMode ? "bg-accent text-black" : "bg-surface"}`}
+            >
+              🎁 아이템 배치
+            </button>
+          </>
+        ) : (
+          pets.length > 0 && (
+            <button
+              onClick={() => setGiveOpen(true)}
+              className="rounded-control bg-accent px-3 py-1.5 font-medium text-black"
+            >
+              🧺 아이템 주기
+            </button>
+          )
+        )}
         <button
           onClick={captureRoom}
           disabled={capturing}
@@ -1340,7 +1371,9 @@ export default function RoomView({
         </button>
       </div>
 
-      {furnitureMode ? (
+      {!manageMode ? (
+        <span className="text-[11px] opacity-40">{N > 1 ? "옆으로 스와이프 · " : ""}펫을 탭하면 반응 · 🧺로 아이템을 줘 보세요</span>
+      ) : furnitureMode ? (
         <div className="flex items-center gap-2 rounded-card bg-surface-2 p-2 text-xs ring-1 ring-border">
           <span className="opacity-60">가구 배치 중 — 끌어 옮기고, 탭하면 편집</span>
           <button onClick={() => setFurnAdding(true)} className="ml-auto rounded-control bg-accent px-3 py-1.5 font-medium text-black">
@@ -1370,10 +1403,10 @@ export default function RoomView({
           )}
         </div>
       ) : (
-        <span className="text-[11px] opacity-40">{N > 1 ? "옆으로 스와이프 · " : ""}펫을 끌어 배치 · 탭하면 반응</span>
+        <span className="text-[11px] opacity-40">관리 모드 — 펫을 끌어 배치 · 위 ‘가구/아이템 배치’로 꾸미기 · 끄면 잠겨요</span>
       )}
 
-      {/* 방 설정 메뉴 — 분주함 · 이름표 · 배경 패널 */}
+      {/* 방 설정 메뉴 — 분주함 · 이름표 · 배경 패널 (관리 모드에서만) */}
       {menu === "room" && (
         <div className="flex flex-col gap-3 rounded-card bg-surface-2 p-3 text-xs ring-1 ring-border">
           <div className="flex flex-wrap items-center gap-2">
@@ -1441,14 +1474,6 @@ export default function RoomView({
       {menu === "pet" && (
         <div className="flex flex-col gap-3 rounded-card bg-surface-2 p-3 ring-1 ring-border">
           <div className="flex flex-col gap-2">
-            {pets.length > 0 && (
-              <button
-                onClick={() => { setGiveOpen(true); setMenu(null); }}
-                className="self-start rounded-control bg-accent px-3 py-1.5 text-xs font-medium text-black"
-              >
-                🎁 아이템 주기
-              </button>
-            )}
             <span className="text-[11px] opacity-60">이 방 펫을 골라 편집해요(모습·대사·관계·성장).</span>
             <div className="flex flex-wrap gap-2">
               {pets.length === 0 && <span className="text-[11px] opacity-40">이 방엔 아직 펫이 없어요.</span>}
