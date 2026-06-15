@@ -976,9 +976,15 @@ export default function RoomView({
       body: JSON.stringify({ placed: false }),
     }).catch(() => {});
   }
-  // 소유 펫 지정/해제(방 안). null=해제.
+  // 소유 펫 지정/해제(방 안). null=해제. 단일 소유 — 그 펫이 들고 있던 다른 아이템은 해제(낙관적 반영).
   function setItemOwner(it: ItemVM, petId: number | null) {
-    setItems((xs) => xs.map((q) => (q.id === it.id ? { ...q, ownerPetId: petId } : q)));
+    setItems((xs) =>
+      xs.map((q) => {
+        if (q.id === it.id) return { ...q, ownerPetId: petId };
+        if (petId != null && q.ownerPetId === petId) return { ...q, ownerPetId: null }; // 한 펫 한 아이템
+        return q;
+      }),
+    );
     fetch(`/api/room-items/${it.id}`, {
       method: "PATCH",
       headers: { "content-type": "application/json" },
@@ -1372,31 +1378,43 @@ export default function RoomView({
                     <div className="flex h-20 w-20 items-center justify-center rounded-full bg-surface text-3xl">🐾</div>
                   )}
                   {sleeping && <span className="absolute -top-1 right-0 text-sm">💤</span>}
-                  {/* 이 펫에게 준(소유) 아이템 — 펫 옆(발치)에 작게. 펫 컨테이너의 자식이라 산책 시 같이 따라간다.
-                      탭하면 액션 시트(수리·소유 해제 등) — 펫 드래그와 충돌 않게 전파 차단. */}
+                  {/* 이 펫에게 준(소유) 아이템 — 펫당 1개만. 펫 컨테이너의 자식이라 산책 시 같이 따라간다.
+                      탭=액션 시트(수리·소유 해제) / 관리(아이템)모드=✕로 바로 삭제. 펫 드래그와 전파 분리. */}
                   {items
                     .filter((it) => it.ownerPetId === p.id)
-                    .slice(0, 3)
-                    .map((it, i) => {
+                    .slice(0, 1)
+                    .map((it) => {
                       const useBroken = it.broken && !!it.brokenSpritePath;
                       const isrc = useBroken ? it.brokenSpritePath! : it.spritePath;
                       return (
-                        <img
+                        <span
                           key={`owned-${it.id}`}
-                          src={isrc}
-                          alt={it.name}
-                          draggable={false}
+                          className="absolute"
+                          style={{ right: -8, bottom: 0 }}
                           onPointerDown={(e) => e.stopPropagation()}
-                          onClick={(e) => { e.stopPropagation(); setItemSheetId(it.id); }}
-                          className="absolute h-7 w-7 cursor-pointer object-contain"
-                          style={{
-                            right: -8 - i * 15,
-                            bottom: 0,
-                            objectPosition: "bottom",
-                            ...pixel(it.pixelRender),
-                            filter: it.broken && !useBroken ? "grayscale(0.5) brightness(0.92)" : undefined,
-                          }}
-                        />
+                        >
+                          <img
+                            src={isrc}
+                            alt={it.name}
+                            draggable={false}
+                            onClick={(e) => { e.stopPropagation(); setItemSheetId(it.id); }}
+                            className="block h-7 w-7 cursor-pointer object-contain"
+                            style={{
+                              objectPosition: "bottom",
+                              ...pixel(it.pixelRender),
+                              filter: it.broken && !useBroken ? "grayscale(0.5) brightness(0.92)" : undefined,
+                            }}
+                          />
+                          {itemMode && (
+                            <button
+                              onClick={(e) => { e.stopPropagation(); deleteItem(it); }}
+                              className="absolute -right-1.5 -top-1.5 flex h-4 w-4 items-center justify-center rounded-full bg-red-500 text-[9px] leading-none text-white ring-1 ring-white/60"
+                              title="이 아이템 삭제"
+                            >
+                              ✕
+                            </button>
+                          )}
+                        </span>
                       );
                     })}
                 </div>

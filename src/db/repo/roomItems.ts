@@ -1,4 +1,4 @@
-import { and, asc, eq, sql } from "drizzle-orm";
+import { and, asc, eq, ne, sql } from "drizzle-orm";
 import { db } from "../client";
 import { roomItems, items, petRooms } from "../schema";
 
@@ -95,8 +95,15 @@ export async function setScale(userId: number, id: number, scale: number) {
     .where(and(eq(roomItems.id, id), ownsRoom(userId)));
 }
 
-/** 방 안 소유 펫 지정/해제. 라우트가 펫 소유(같은 유저)를 검증. */
+/** 방 안 소유 펫 지정/해제. 라우트가 펫 소유(같은 유저)를 검증.
+ *  단일 소유: 한 펫은 한 번에 한 아이템만 — 새로 줄 때 그 펫이 들고 있던 다른 인스턴스는 자동 해제. */
 export async function setOwner(userId: number, id: number, petId: number | null) {
+  if (petId != null) {
+    await db
+      .update(roomItems)
+      .set({ ownerPetId: null })
+      .where(and(eq(roomItems.ownerPetId, petId), ne(roomItems.id, id), ownsRoom(userId)));
+  }
   await db
     .update(roomItems)
     .set({ ownerPetId: petId })
