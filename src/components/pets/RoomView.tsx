@@ -109,7 +109,7 @@ export default function RoomView({
     });
   }
   const [showNames, setShowNames] = useState(true); // 이름표 표시 on/off(끄면 아예 안 뜸)
-  const [menu, setMenu] = useState<null | "room" | "pet">(null); // 설정 메뉴(평소 접힘)
+  const [menu, setMenu] = useState<null | "room">(null); // 방 설정 메뉴(평소 접힘)
   const [liveliness, setLiveliness] = useState(room.liveliness); // 방 분주함(즉시 반영)
   const effectSeq = useRef(0);
   const livelinessRef = useRef(liveliness);

@@ -11,19 +11,14 @@ export interface LibraryItem {
   spriteAltPath: string | null;
   brokenSpritePath: string | null;
   pixelRender: boolean;
-  ownerPetId: number | null;
-  ownerName: string | null;
   furnitureKind: "seat" | "fixture" | null;
   type: string | null;
   actionType: string | null;
   facing: "left" | "right";
   seatY: number;
-  durabilityMax: number | null;
-  durabilityNow: number;
+  durabilityMax: number | null; // 풀의 기본 내구 상한(꺼낼 때 인스턴스에 적용). 소유·현재내구도는 방 인스턴스에.
   placedRooms: { roomId: number; roomName: string }[];
 }
-
-type PetOpt = { id: number; name: string };
 
 const ACTIONS: { v: string; label: string }[] = [
   { v: "none", label: "없음(장식)" },
@@ -37,13 +32,7 @@ const ACTIONS: { v: string; label: string }[] = [
 const input =
   "w-full rounded-control bg-bg px-3 py-2 text-sm outline-none ring-1 ring-border focus:ring-accent";
 
-export default function ItemsLibraryView({
-  items,
-  pets,
-}: {
-  items: LibraryItem[];
-  pets: PetOpt[];
-}) {
+export default function ItemsLibraryView({ items }: { items: LibraryItem[] }) {
   const router = useRouter();
   const [filter, setFilter] = useState<"all" | "furniture" | "item">("all");
   const [adding, setAdding] = useState(false);
@@ -51,8 +40,6 @@ export default function ItemsLibraryView({
   const [status, setStatus] = useState("");
 
   const shown = items.filter((i) => filter === "all" || i.kind === filter);
-  const petLabel = (id: number | null) =>
-    id == null ? null : pets.find((p) => p.id === id)?.name ?? null;
 
   return (
     <div className="flex flex-col gap-4">
@@ -79,7 +66,6 @@ export default function ItemsLibraryView({
 
       {adding && (
         <AddForm
-          pets={pets}
           busy={busy}
           setBusy={setBusy}
           onDone={(msg) => {
@@ -98,7 +84,7 @@ export default function ItemsLibraryView({
       ) : (
         <ul className="flex flex-col gap-2">
           {shown.map((it) => (
-            <Row key={it.id} it={it} pets={pets} petLabel={petLabel} onChange={() => router.refresh()} />
+            <Row key={it.id} it={it} onChange={() => router.refresh()} />
           ))}
         </ul>
       )}
@@ -118,20 +104,9 @@ function Thumb({ src, pixel }: { src: string; pixel: boolean }) {
   );
 }
 
-function Row({
-  it,
-  pets,
-  petLabel,
-  onChange,
-}: {
-  it: LibraryItem;
-  pets: PetOpt[];
-  petLabel: (id: number | null) => string | null;
-  onChange: () => void;
-}) {
+function Row({ it, onChange }: { it: LibraryItem; onChange: () => void }) {
   const [editing, setEditing] = useState(false);
   const [name, setName] = useState(it.name);
-  const [ownerPetId, setOwnerPetId] = useState<string>(it.ownerPetId?.toString() ?? "");
   const [pixel, setPixel] = useState(it.pixelRender);
   const [busy, setBusy] = useState(false);
 
@@ -140,7 +115,7 @@ function Row({
     await fetch(`/api/pets/items/${it.id}`, {
       method: "PATCH",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ name, ownerPetId: ownerPetId === "" ? null : Number(ownerPetId), pixelRender: pixel }),
+      body: JSON.stringify({ name, pixelRender: pixel }),
     }).catch(() => {});
     setBusy(false);
     setEditing(false);
@@ -148,15 +123,12 @@ function Row({
   }
 
   async function del() {
-    // 삭제 안전장치 — 프로젝트 원칙상 무단 cascade 금지: 사전 확인.
+    // 삭제 안전장치 — 무단 cascade 금지: 풀 자산이 방에 쓰이면 확인.
     if (it.kind === "furniture" && it.placedRooms.length > 0) {
       const names = it.placedRooms.map((r) => r.roomName).join(", ");
       if (!confirm(`이 가구는 ${it.placedRooms.length}개 방(${names})에 배치돼 있어요.\n삭제하면 그 방들에서도 제거됩니다. 계속할까요?`))
         return;
-    } else if (it.kind === "item" && it.ownerPetId != null) {
-      if (!confirm(`'${petLabel(it.ownerPetId) ?? "펫"}'의 아이템이에요.\n삭제하면 소유·상호작용 기록과 함께 사라집니다. 계속할까요?`))
-        return;
-    } else if (!confirm(`'${it.name}'을(를) 삭제할까요?`)) return;
+    } else if (!confirm(`'${it.name}'을(를) 풀에서 삭제할까요?\n이 자산으로 만든 방 인스턴스가 있으면 함께 사라집니다.`)) return;
 
     setBusy(true);
     await fetch(`/api/pets/items/${it.id}`, { method: "DELETE" }).catch(() => {});
@@ -176,12 +148,13 @@ function Row({
             </span>
           </div>
           <p className="mt-0.5 truncate text-xs text-text-dim">
-            {it.ownerName ? `${it.ownerName}의 것` : it.kind === "item" ? "소유 펫 없음" : null}
-            {it.kind === "furniture" &&
-              (it.placedRooms.length > 0
+            {it.kind === "furniture"
+              ? it.placedRooms.length > 0
                 ? `배치: ${it.placedRooms.map((r) => r.roomName).join(", ")}`
-                : "배치 안 됨")}
-            {it.kind === "item" && it.durabilityMax != null && ` · 내구 ${it.durabilityNow}/${it.durabilityMax}`}
+                : "배치 안 됨"
+              : it.durabilityMax != null
+                ? `내구 상한 ${it.durabilityMax}`
+                : "내구 무한"}
           </p>
         </div>
         <button onClick={() => setEditing((v) => !v)} className="shrink-0 rounded-control px-2 py-1 text-xs ring-1 ring-border">
@@ -195,13 +168,6 @@ function Row({
       {editing && (
         <div className="mt-3 flex flex-col gap-2 border-t border-border pt-3">
           <input value={name} onChange={(e) => setName(e.target.value)} className={input} placeholder="이름" />
-          <label className="text-xs text-text-dim">소유 펫</label>
-          <select value={ownerPetId} onChange={(e) => setOwnerPetId(e.target.value)} className={input}>
-            <option value="">없음</option>
-            {pets.map((p) => (
-              <option key={p.id} value={p.id}>{p.name}</option>
-            ))}
-          </select>
           <label className="flex items-center gap-2 text-sm">
             <input type="checkbox" checked={pixel} onChange={(e) => setPixel(e.target.checked)} />
             픽셀 렌더(도트 또렷하게)
@@ -216,19 +182,16 @@ function Row({
 }
 
 function AddForm({
-  pets,
   busy,
   setBusy,
   onDone,
 }: {
-  pets: PetOpt[];
   busy: boolean;
   setBusy: (v: boolean) => void;
   onDone: (msg: string) => void;
 }) {
   const [kind, setKind] = useState<"furniture" | "item">("furniture");
   const [name, setName] = useState("");
-  const [ownerPetId, setOwnerPetId] = useState("");
   const [pixel, setPixel] = useState(true);
   // 가구
   const [furnitureKind, setFurnitureKind] = useState<"seat" | "fixture">("seat");
@@ -251,7 +214,6 @@ function AddForm({
     fd.set("kind", kind);
     fd.set("name", name.trim());
     fd.set("pixelRender", String(pixel));
-    if (ownerPetId) fd.set("ownerPetId", ownerPetId);
     if (kind === "furniture") {
       fd.set("furnitureKind", furnitureKind);
       if (furnitureKind === "fixture") fd.set("actionType", actionType);
@@ -336,14 +298,6 @@ function AddForm({
           <input ref={brokenRef} type="file" accept="image/gif,image/webp,image/png,image/jpeg" className="text-xs" />
         </>
       )}
-
-      <label className="text-xs text-text-dim">소유 펫(선택)</label>
-      <select value={ownerPetId} onChange={(e) => setOwnerPetId(e.target.value)} className={input}>
-        <option value="">없음</option>
-        {pets.map((p) => (
-          <option key={p.id} value={p.id}>{p.name}</option>
-        ))}
-      </select>
 
       <label className="flex items-center gap-2 text-sm">
         <input type="checkbox" checked={pixel} onChange={(e) => setPixel(e.target.checked)} />

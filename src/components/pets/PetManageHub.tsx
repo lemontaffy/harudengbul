@@ -11,14 +11,12 @@ export default function PetManageHub({
   rooms,
   allPets,
   items,
-  petOpts,
   initialTab = "pets",
 }: {
   pets: ManagePet[];
   rooms: PetRef[];
   allPets: PetRef[];
   items: LibraryItem[];
-  petOpts: { id: number; name: string }[];
   initialTab?: "pets" | "items";
 }) {
   const [tab, setTab] = useState<"pets" | "items">(initialTab);
@@ -47,7 +45,7 @@ export default function PetManageHub({
       {tab === "pets" ? (
         <PetManageView pets={pets} rooms={rooms} allPets={allPets} />
       ) : (
-        <ItemsLibraryView items={items} pets={petOpts} />
+        <ItemsLibraryView items={items} />
       )}
     </div>
   );

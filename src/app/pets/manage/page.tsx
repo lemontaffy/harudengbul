@@ -27,7 +27,6 @@ export default async function PetManagePage({
     placementsRepo.allForUser(user.id),
   ]);
   const roomName = new Map(rooms.map((r) => [r.id, r.name]));
-  const petName = new Map(allPets.map((p) => [p.id, p.name]));
 
   const pets: ManagePet[] = allPets.map((p) => {
     const growth = stageFor(p.growthPoints, p.teenThreshold, p.adultThreshold);
@@ -61,15 +60,12 @@ export default async function PetManagePage({
     spriteAltPath: r.spriteAltPath,
     brokenSpritePath: r.brokenSpritePath,
     pixelRender: r.pixelRender,
-    ownerPetId: r.ownerPetId,
-    ownerName: r.ownerPetId != null ? petName.get(r.ownerPetId) ?? null : null,
     furnitureKind: r.furnitureKind as "seat" | "fixture" | null,
     type: r.type,
     actionType: r.actionType,
     facing: (r.facing as "left" | "right") ?? "left",
     seatY: r.seatY,
     durabilityMax: r.durabilityMax,
-    durabilityNow: r.durabilityNow,
     placedRooms: roomsByItem.get(r.id) ?? [],
   }));
 
@@ -87,7 +83,6 @@ export default async function PetManagePage({
         rooms={rooms.map((r) => ({ id: r.id, name: r.name }))}
         allPets={allPets.map((p) => ({ id: p.id, name: p.name }))}
         items={items}
-        petOpts={allPets.map((p) => ({ id: p.id, name: p.name }))}
         initialTab={sp.tab === "items" ? "items" : "pets"}
       />
     </main>
