@@ -22,8 +22,17 @@
    `node_modules` 가 빠지는 일이 있다. 빌드가 `Module not found`로 깨지면 코드 문제로 오인 말고
    `NODE_ENV=development npm install --include=dev` 로 복원. (`next dev`는 `NODE_ENV=development`
    필요, `next build`는 env 미지정 — 자체 production. development로 build 하면 깨진다.)
-5. **마이그레이션은 새 파일만**(기존 수정 금지), 멱등 재실행 "완료" 확인.
-   **`npm run test:isolation` 항상 통과** 유지(userId 스코프 — 업로드/메시지/기억 등).
+5. **마이그레이션 — 생성된 SQL을 반드시 눈으로 확인**(특히 양쪽 머신 작업 시):
+   - 새 파일만(기존 수정 금지), 멱등 재실행 "완료" 확인. **fresh DB에 전체 체인 적용 테스트**
+     (docker pg → `tsx src/db/migrate.ts`)로 기존 마이그와 충돌 없는지 본다.
+   - **`db:generate`는 schema.ts ↔ 마지막 *스냅샷* 의 diff를 낸다(DB가 아니라).** 스냅샷이 밀려
+     있으면(다른 머신에서 스키마만 추가하고 generate 누락, 또는 `db:push` 혼용) 한 컬럼 추가
+     하나에 **이미 존재하는 테이블 전부를 CREATE 하는 거대 마이그**가 튀어나온다 → 배포 시
+     "이미 존재" 충돌. 이때: 생성 SQL을 **의도한 변경만** 남기게 직접 줄이고
+     (예: `ALTER TABLE ... ADD COLUMN IF NOT EXISTS ...` 한 줄), **스냅샷(meta/NNNN_snapshot.json)은
+     auto-gen 그대로 유지**(전체 정확 스키마라 향후 드리프트가 복구됨).
+   - **`db:push` 와 마이그를 섞지 말 것.** 스키마 바꾸면 항상 `db:generate` → 생성 SQL 확인.
+   - **`npm run test:isolation` 항상 통과** 유지(userId 스코프 — 업로드/메시지/기억 등).
 6. 데이터 접근은 `src/db/repo/*` userId-스코프 함수로만. 라우트에서 db 직접 호출 금지.
 
 ## 인프라 (Hetzner + Cloudflare Tunnel)
