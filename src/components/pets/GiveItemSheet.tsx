@@ -12,6 +12,14 @@ export interface GiveResult {
   broke: boolean;
 }
 
+// 식품(consumable) 급여 결과 — 인스턴스 없음, 먹고 사라짐. full=식후 배부름(차분 1개).
+export interface FeedResult {
+  full: boolean;
+  content: string;
+  effect: "sparkle" | "notes" | "hearts" | null;
+}
+export type FoodOpt = { id: number; name: string; spritePath: string; pixelRender: boolean };
+
 type PetOpt = { id: number; name: string };
 
 // v6 방 바구니 — 이 방의 아이템 인스턴스(placed=false). throw=펫에게 던지기(반응+내구도), place=방에 놓기.
@@ -19,21 +27,25 @@ export default function GiveItemSheet({
   roomId,
   mode,
   basket,
+  foods = [],
   pets,
   ownerNames,
   posX,
   onClose,
   onThrew,
+  onFed,
   onChanged,
 }: {
   roomId: number;
   mode: "throw" | "place";
   basket: ItemVM[];
+  foods?: FoodOpt[];
   pets: PetOpt[];
   ownerNames: Map<number, string>;
   posX?: number;
   onClose: () => void;
   onThrew: (petId: number, result: GiveResult, item: { spritePath: string; pixelRender: boolean }) => void;
+  onFed?: (petId: number, result: FeedResult, food: { spritePath: string; pixelRender: boolean }) => void;
   onChanged: () => void;
 }) {
   const isThrow = mode === "throw";
@@ -62,6 +74,25 @@ export default function GiveItemSheet({
       const data = (await res.json().catch(() => ({}))) as GiveResult & { error?: string };
       if (!res.ok) return setMsg(data.error ?? "주기 실패");
       onThrew(petId, data, { spritePath: it.spritePath, pixelRender: it.pixelRender });
+      onClose();
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function feed(food: FoodOpt) {
+    if (petId == null) return setMsg("먹일 펫을 고르세요.");
+    setBusy(true);
+    setMsg("");
+    try {
+      const res = await fetch(`/api/pets/items/${food.id}/feed`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ petId }),
+      });
+      const data = (await res.json().catch(() => ({}))) as FeedResult & { error?: string };
+      if (!res.ok) return setMsg(data.error ?? "급여 실패");
+      onFed?.(petId, data, { spritePath: food.spritePath, pixelRender: food.pixelRender });
       onClose();
     } finally {
       setBusy(false);
@@ -109,33 +140,60 @@ export default function GiveItemSheet({
           </div>
         )}
 
-        {sorted.length === 0 ? (
+        {sorted.length === 0 && (!isThrow || foods.length === 0) ? (
           <p className="py-8 text-center text-xs opacity-50">
             바구니가 비었어요. {isThrow ? "관리 모드에서 ‘풀에서 꺼내기’로 아이템을 담거나, 배치된 아이템을 ‘내림’ 하세요." : "‘풀에서 꺼내기’로 아이템을 담으세요."}
           </p>
         ) : (
-          <ul className="grid grid-cols-3 gap-2">
-            {sorted.map((it) => (
-              <li key={it.id} className="flex flex-col items-center gap-1 rounded-card bg-surface-2 p-2 ring-1 ring-border">
-                <button onClick={() => (isThrow ? throwTo(it) : place(it))} disabled={busy} className="flex flex-col items-center gap-1 disabled:opacity-50">
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img
-                    src={it.brokenSpritePath && it.broken ? it.brokenSpritePath : it.spritePath}
-                    alt=""
-                    className="h-12 w-12 object-contain"
-                    style={{ imageRendering: it.pixelRender ? "pixelated" : "auto", filter: it.broken && !it.brokenSpritePath ? "grayscale(0.5)" : undefined }}
-                  />
-                  <span className="max-w-full truncate text-[11px]">{it.name}</span>
-                  {it.ownerPetId != null && (
-                    <span className="text-[9px] text-text-dim">{ownerNames.get(it.ownerPetId) ?? "주인"} 것</span>
-                  )}
-                  {it.durabilityMax != null && (
-                    <span className="text-[9px] text-text-dim">{it.broken ? "파손" : `${it.durabilityNow}/${it.durabilityMax}`}</span>
-                  )}
-                </button>
-              </li>
-            ))}
-          </ul>
+          <>
+            {sorted.length > 0 && (
+              <ul className="grid grid-cols-3 gap-2">
+                {sorted.map((it) => (
+                  <li key={it.id} className="flex flex-col items-center gap-1 rounded-card bg-surface-2 p-2 ring-1 ring-border">
+                    <button onClick={() => (isThrow ? throwTo(it) : place(it))} disabled={busy} className="flex flex-col items-center gap-1 disabled:opacity-50">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src={it.brokenSpritePath && it.broken ? it.brokenSpritePath : it.spritePath}
+                        alt=""
+                        className="h-12 w-12 object-contain"
+                        style={{ imageRendering: it.pixelRender ? "pixelated" : "auto", filter: it.broken && !it.brokenSpritePath ? "grayscale(0.5)" : undefined }}
+                      />
+                      <span className="max-w-full truncate text-[11px]">{it.name}</span>
+                      {it.ownerPetId != null && (
+                        <span className="text-[9px] text-text-dim">{ownerNames.get(it.ownerPetId) ?? "주인"} 것</span>
+                      )}
+                      {it.durabilityMax != null && (
+                        <span className="text-[9px] text-text-dim">{it.broken ? "파손" : `${it.durabilityNow}/${it.durabilityMax}`}</span>
+                      )}
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+
+            {/* 식품 — 주면 먹고 사라짐(무한 재급여). throw 모드에서만. */}
+            {isThrow && foods.length > 0 && (
+              <>
+                <h3 className="mb-1.5 mt-3 text-xs font-semibold opacity-60">🍽 식품 — 주면 먹어요</h3>
+                <ul className="grid grid-cols-3 gap-2">
+                  {foods.map((f) => (
+                    <li key={`food-${f.id}`} className="flex flex-col items-center gap-1 rounded-card bg-surface-2 p-2 ring-1 ring-border">
+                      <button onClick={() => feed(f)} disabled={busy} className="flex flex-col items-center gap-1 disabled:opacity-50">
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img
+                          src={f.spritePath}
+                          alt=""
+                          className="h-12 w-12 object-contain"
+                          style={{ imageRendering: f.pixelRender ? "pixelated" : "auto" }}
+                        />
+                        <span className="max-w-full truncate text-[11px]">{f.name}</span>
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              </>
+            )}
+          </>
         )}
 
         {msg && <p className="mt-2 text-[11px] text-accent">{msg}</p>}

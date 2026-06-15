@@ -46,6 +46,7 @@ export async function add(
     brokenSpritePath?: string | null;
     durabilityMax?: number | null;
     durabilityNow?: number;
+    consumable?: boolean; // 식품(1회성 급여) — item 전용
   },
 ) {
   const [row] = await db
@@ -66,6 +67,8 @@ export async function add(
       brokenSpritePath: input.brokenSpritePath ?? null,
       durabilityMax: input.durabilityMax ?? null,
       ...(input.durabilityNow != null ? { durabilityNow: input.durabilityNow } : {}),
+      // 식품은 item 전용 — 가구엔 항상 false.
+      consumable: input.kind === "item" ? !!input.consumable : false,
     })
     .returning();
   return row;
@@ -87,6 +90,7 @@ export async function updateMeta(
     durabilityMax?: number | null;
     durabilityNow?: number;
     brokenSpritePath?: string | null;
+    consumable?: boolean;
   },
 ) {
   if (Object.keys(patch).length === 0) return;

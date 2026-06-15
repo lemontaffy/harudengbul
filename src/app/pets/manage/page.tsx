@@ -66,6 +66,7 @@ export default async function PetManagePage({
     facing: (r.facing as "left" | "right") ?? "left",
     seatY: r.seatY,
     durabilityMax: r.durabilityMax,
+    consumable: r.consumable,
     placedRooms: roomsByItem.get(r.id) ?? [],
   }));
 

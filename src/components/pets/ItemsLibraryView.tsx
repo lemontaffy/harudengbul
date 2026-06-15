@@ -17,6 +17,7 @@ export interface LibraryItem {
   facing: "left" | "right";
   seatY: number;
   durabilityMax: number | null; // 풀의 기본 내구 상한(꺼낼 때 인스턴스에 적용). 소유·현재내구도는 방 인스턴스에.
+  consumable: boolean; // 식품(1회성 급여) — item 전용
   placedRooms: { roomId: number; roomName: string }[];
 }
 
@@ -34,18 +35,26 @@ const input =
 
 export default function ItemsLibraryView({ items }: { items: LibraryItem[] }) {
   const router = useRouter();
-  const [filter, setFilter] = useState<"all" | "furniture" | "item">("all");
+  const [filter, setFilter] = useState<"all" | "furniture" | "item" | "food">("all");
   const [adding, setAdding] = useState(false);
   const [busy, setBusy] = useState(false);
   const [status, setStatus] = useState("");
 
-  const shown = items.filter((i) => filter === "all" || i.kind === filter);
+  const shown = items.filter((i) =>
+    filter === "all"
+      ? true
+      : filter === "furniture"
+        ? i.kind === "furniture"
+        : filter === "food"
+          ? i.kind === "item" && i.consumable
+          : i.kind === "item" && !i.consumable,
+  );
 
   return (
     <div className="flex flex-col gap-4">
       {/* 필터 + 추가 */}
       <div className="flex flex-wrap items-center gap-2">
-        {(["all", "furniture", "item"] as const).map((f) => (
+        {(["all", "furniture", "item", "food"] as const).map((f) => (
           <button
             key={f}
             onClick={() => setFilter(f)}
@@ -53,7 +62,7 @@ export default function ItemsLibraryView({ items }: { items: LibraryItem[] }) {
               filter === f ? "bg-accent text-black" : "bg-surface-2 ring-1 ring-border"
             }`}
           >
-            {f === "all" ? "전체" : f === "furniture" ? "가구" : "아이템"}
+            {f === "all" ? "전체" : f === "furniture" ? "가구" : f === "item" ? "아이템" : "식품"}
           </button>
         ))}
         <button
@@ -108,6 +117,7 @@ function Row({ it, onChange }: { it: LibraryItem; onChange: () => void }) {
   const [editing, setEditing] = useState(false);
   const [name, setName] = useState(it.name);
   const [pixel, setPixel] = useState(it.pixelRender);
+  const [consumable, setConsumable] = useState(it.consumable);
   const [busy, setBusy] = useState(false);
 
   async function save() {
@@ -115,7 +125,7 @@ function Row({ it, onChange }: { it: LibraryItem; onChange: () => void }) {
     await fetch(`/api/pets/items/${it.id}`, {
       method: "PATCH",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ name, pixelRender: pixel }),
+      body: JSON.stringify({ name, pixelRender: pixel, ...(it.kind === "item" ? { consumable } : {}) }),
     }).catch(() => {});
     setBusy(false);
     setEditing(false);
@@ -144,12 +154,12 @@ function Row({ it, onChange }: { it: LibraryItem; onChange: () => void }) {
           <div className="flex items-center gap-1.5">
             <span className="truncate text-sm font-medium">{it.name}</span>
             <span className="shrink-0 rounded-full bg-surface-2 px-1.5 py-0.5 text-[10px] text-text-dim">
-              {it.kind === "furniture" ? (it.furnitureKind === "seat" ? "의자" : "설치물") : "아이템"}
+              {it.kind === "furniture" ? (it.furnitureKind === "seat" ? "의자" : "설치물") : it.consumable ? "식품" : "아이템"}
             </span>
           </div>
           {it.kind === "item" && (
             <p className="mt-0.5 truncate text-xs text-text-dim">
-              {it.durabilityMax != null ? `내구 상한 ${it.durabilityMax}` : "내구 무한"}
+              {it.consumable ? "먹으면 반응하고 사라져요(1회성)" : it.durabilityMax != null ? `내구 상한 ${it.durabilityMax}` : "내구 무한"}
             </p>
           )}
         </div>
@@ -168,6 +178,12 @@ function Row({ it, onChange }: { it: LibraryItem; onChange: () => void }) {
             <input type="checkbox" checked={pixel} onChange={(e) => setPixel(e.target.checked)} />
             픽셀 렌더(도트 또렷하게)
           </label>
+          {it.kind === "item" && (
+            <label className="flex items-center gap-2 text-sm">
+              <input type="checkbox" checked={consumable} onChange={(e) => setConsumable(e.target.checked)} />
+              식품(주면 먹고 사라짐 · 내구도·배치 없음)
+            </label>
+          )}
           <button onClick={save} disabled={busy} className="rounded-control bg-accent px-4 py-2 text-sm font-medium text-black disabled:opacity-50">
             {busy ? "저장 중…" : "저장"}
           </button>
@@ -195,6 +211,7 @@ function AddForm({
   const [facing, setFacing] = useState<"left" | "right">("left");
   // 아이템
   const [durabilityMax, setDurabilityMax] = useState("");
+  const [consumable, setConsumable] = useState(false);
   const [err, setErr] = useState("");
   const fileRef = useRef<HTMLInputElement>(null);
   const altRef = useRef<HTMLInputElement>(null);
@@ -217,9 +234,12 @@ function AddForm({
       const alt = altRef.current?.files?.[0];
       if (alt) fd.set("altFile", alt);
     } else {
-      if (durabilityMax) fd.set("durabilityMax", durabilityMax);
-      const broken = brokenRef.current?.files?.[0];
-      if (broken) fd.set("brokenFile", broken);
+      fd.set("consumable", String(consumable));
+      if (!consumable) {
+        if (durabilityMax) fd.set("durabilityMax", durabilityMax);
+        const broken = brokenRef.current?.files?.[0];
+        if (broken) fd.set("brokenFile", broken);
+      }
     }
     setBusy(true);
     const res = await fetch("/api/pets/items", { method: "POST", body: fd });
@@ -283,15 +303,23 @@ function AddForm({
         </>
       ) : (
         <>
-          <input
-            value={durabilityMax}
-            onChange={(e) => setDurabilityMax(e.target.value.replace(/[^0-9]/g, ""))}
-            className={input}
-            placeholder="내구도(선택 · 비우면 무한)"
-            inputMode="numeric"
-          />
-          <label className="text-xs text-text-dim">파손 스프라이트(선택 · 비우면 CSS 금 폴백)</label>
-          <input ref={brokenRef} type="file" accept="image/gif,image/webp,image/png,image/jpeg" className="text-xs" />
+          <label className="flex items-center gap-2 text-sm">
+            <input type="checkbox" checked={consumable} onChange={(e) => setConsumable(e.target.checked)} />
+            식품(주면 먹고 사라짐 · 내구도·배치·소유 없음)
+          </label>
+          {!consumable && (
+            <>
+              <input
+                value={durabilityMax}
+                onChange={(e) => setDurabilityMax(e.target.value.replace(/[^0-9]/g, ""))}
+                className={input}
+                placeholder="내구도(선택 · 비우면 무한)"
+                inputMode="numeric"
+              />
+              <label className="text-xs text-text-dim">파손 스프라이트(선택 · 비우면 CSS 금 폴백)</label>
+              <input ref={brokenRef} type="file" accept="image/gif,image/webp,image/png,image/jpeg" className="text-xs" />
+            </>
+          )}
         </>
       )}
 

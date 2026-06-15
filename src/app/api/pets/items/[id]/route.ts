@@ -48,7 +48,15 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
 
   // 아이템 속성
   if (cur.kind === "item") {
-    if ("durabilityMax" in body) {
+    // 식품 전환 — 켜면 내구도 없음(1회성 급여).
+    if (typeof body.consumable === "boolean") {
+      patch.consumable = body.consumable;
+      if (body.consumable) {
+        patch.durabilityMax = null;
+        patch.durabilityNow = 0;
+      }
+    }
+    if (!patch.consumable && "durabilityMax" in body) {
       const v = body.durabilityMax;
       patch.durabilityMax =
         v == null || v === "" ? null : Math.max(1, Math.floor(Number(v) || 1));

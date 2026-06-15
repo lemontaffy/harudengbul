@@ -5,8 +5,9 @@ import { forbiddenLine } from "@/lib/pets";
 import { getPetAuxConfig } from "@/modules/pets/auxConfig";
 import * as linesRepo from "@/db/repo/itemReactionLines";
 
-// 캐시되는 kind(펫×아이템별 풀). repeat/owner_call 은 고정 풀(아래) — 캐시·LLM 없음.
-export type GiveKind = "received" | "owner_recognize" | "other_owner";
+// 캐시되는 kind(펫×아이템별 풀). repeat/owner_call/full 은 고정 풀(아래) — 캐시·LLM 없음.
+//   eating = 식품(consumable) 급여 반응 — 페르소나 기반(이탈리아 늑대 + 파인애플 피자 = 질색 자동).
+export type GiveKind = "received" | "owner_recognize" | "other_owner" | "eating";
 export type EffectType = "sparkle" | "notes" | "hearts";
 
 // 기본 템플릿({item}=아이템, {owner}=주인 이름). aux 미설정/실패 시 항상 동작.
@@ -14,11 +15,13 @@ const TEMPLATES: Record<GiveKind, string[]> = {
   received: ["{item}, 나 주는 거야?", "오, {item}!", "이게 뭐야, 신기해", "{item} 받았다!", "고마워, 잘 둘게"],
   owner_recognize: ["어, 내 {item}다!", "이거 내 거잖아 ㅎㅎ", "역시 {item}, 익숙해", "내 {item} 반가워"],
   other_owner: ["이거 {owner} 거 아냐?", "{owner} {item} 같은데…", "{owner}한테 받은 거 맞지?", "음, {owner} 거 같은데"],
+  eating: ["냠냠, {item} 맛있다!", "{item}… 우물우물", "{item} 꿀꺽!", "오, {item} 좋은데?", "{item} 더 줘!"],
 };
 
-// 고정 풀 — 연타 정착(repeat)·주인 부르기(owner_call). 캐시·LLM 없이 항상 차분.
+// 고정 풀 — 연타 정착(repeat)·주인 부르기(owner_call)·식후 배부름(full). 캐시·LLM 없이 항상 차분.
 const REPEAT_POOL = ["또?", "아까 봤어 ㅎㅎ", "응, 알아 알아", "그거 또구나", "방금 줬잖아~"];
 const OWNER_CALL_POOL = ["어 그거 내 건데!", "{name}, 그거 내 거야~", "내 {item} 어디서 났어?", "그거 이리 줘 ㅎㅎ"];
+const FULL_POOL = ["아직 배불러…", "방금 먹었잖아", "지금은 됐어, 나중에", "으, 더는 못 먹어", "조금 있다 줘~"];
 
 function fill(tpl: string[], item: string, owner?: string): string[] {
   return tpl.map((t) => t.replaceAll("{item}", item).replaceAll("{owner}", owner ?? "주인"));
@@ -33,10 +36,15 @@ export function repeatLine(): string {
 export function ownerCallLine(itemName: string, recipientName: string): string {
   return pick(OWNER_CALL_POOL).replaceAll("{item}", itemName).replaceAll("{name}", recipientName);
 }
+/** 식후 '배부름' — 짧은 식후 쿨다운 중 재급여 시(게이지 아님). */
+export function fullLine(): string {
+  return pick(FULL_POOL);
+}
 
 export function effectFor(kind: GiveKind): EffectType {
   if (kind === "owner_recognize") return "hearts";
   if (kind === "other_owner") return "notes";
+  if (kind === "eating") return Math.random() < 0.5 ? "sparkle" : "hearts";
   return Math.random() < 0.5 ? "sparkle" : "notes";
 }
 
@@ -48,11 +56,13 @@ function buildMessages(
   ownerName?: string,
 ) {
   const what =
-    kind === "owner_recognize"
-      ? `자기 것인 '${itemName}'(을)를 다시 받아 '내 거다' 하고 알아보는 반가운 반응`
-      : kind === "other_owner"
-        ? `'${ownerName ?? "다른 친구"}'의 것인 '${itemName}'(을)를 받아 "이거 ${ownerName ?? "걔"} 거 아냐?" 하고 갸웃하는 반응`
-        : `'${itemName}'(을)를 처음 받아 신기해하며 받는 반응`;
+    kind === "eating"
+      ? `'${itemName}'(을)를 받아 먹어 본 직후의 반응. 그 펫의 성격·취향에 따라 좋아할 수도, 질색할 수도 있다(억지로 좋아하지 말 것 — 안 맞으면 솔직히 싫어해도 된다)`
+      : kind === "owner_recognize"
+        ? `자기 것인 '${itemName}'(을)를 다시 받아 '내 거다' 하고 알아보는 반가운 반응`
+        : kind === "other_owner"
+          ? `'${ownerName ?? "다른 친구"}'의 것인 '${itemName}'(을)를 받아 "이거 ${ownerName ?? "걔"} 거 아냐?" 하고 갸웃하는 반응`
+          : `'${itemName}'(을)를 처음 받아 신기해하며 받는 반응`;
   const system = [
     `너는 '${petName}'(이)라는 펫이다.`,
     personality ? `성격: ${personality}` : "",

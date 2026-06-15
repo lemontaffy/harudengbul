@@ -10,6 +10,7 @@ import * as petLinesRepo from "@/db/repo/petLines";
 import * as customRepo from "@/db/repo/petCustomSprites";
 import * as placementsRepo from "@/db/repo/furniturePlacements";
 import * as roomItemsRepo from "@/db/repo/roomItems";
+import * as itemsRepo from "@/db/repo/items";
 import * as letterRepliesRepo from "@/db/repo/petLetterReplies";
 import * as petDiariesRepo from "@/db/repo/petDiaries";
 import * as settingsRepo from "@/db/repo/settings";
@@ -68,6 +69,10 @@ export default async function RoomPage({ params }: { params: Promise<{ roomId: s
     placed: it.placed,
     ownerPetId: it.ownerPetId,
   }));
+  // v7 식품(consumable) — 풀(전역)에서 바로 급여. 인스턴스 없음, 무한 재급여.
+  const foods = (await itemsRepo.listForUser(user.id, "item"))
+    .filter((a) => a.consumable)
+    .map((a) => ({ id: a.id, name: a.name, spritePath: a.spritePath, pixelRender: a.pixelRender }));
 
   // fixture 상태 active 판정:
   //  'letters'  = 안 읽은 도착 답장 1건+ → 우체통 열림 스프라이트.
@@ -185,6 +190,7 @@ export default async function RoomPage({ params }: { params: Promise<{ roomId: s
         wasSleeping={wasSleeping}
         rooms={allRooms.map((r) => ({ id: r.id, name: r.name }))}
         allPets={allPetsRows.map((p) => ({ id: p.id, name: p.name }))}
+        foods={foods}
       />
     </main>
   );

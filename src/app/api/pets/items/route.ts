@@ -78,10 +78,12 @@ export async function POST(req: Request) {
     }
 
     // kind === "item"
-    const brokenFile = form?.get("brokenFile");
+    const consumable = String(form?.get("consumable") ?? "") === "true";
+    const brokenFile = consumable ? null : form?.get("brokenFile");
     const dmaxRaw = form?.get("durabilityMax");
+    // 식품은 1회성 — 내구도·파손·소유 없음.
     const durabilityMax =
-      dmaxRaw != null && String(dmaxRaw) !== "" && Number.isFinite(Number(dmaxRaw))
+      !consumable && dmaxRaw != null && String(dmaxRaw) !== "" && Number.isFinite(Number(dmaxRaw))
         ? Math.max(1, Math.floor(Number(dmaxRaw)))
         : null;
     const { path, warning } = await saveSprite(user.id, file, { allowJpeg: true });
@@ -91,11 +93,12 @@ export async function POST(req: Request) {
       name,
       kind: "item",
       spritePath: path,
-      ownerPetId,
+      ownerPetId: consumable ? null : ownerPetId,
       pixelRender,
       brokenSpritePath: brokenPath,
       durabilityMax,
       durabilityNow: durabilityMax ?? 0,
+      consumable,
     });
     return Response.json({ ok: true, item: row, warning });
   } catch (err) {

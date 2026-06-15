@@ -844,6 +844,9 @@ export const items = pgTable(
     brokenSpritePath: text("broken_sprite_path"),
     durabilityMax: integer("durability_max"), // null = 무한
     durabilityNow: integer("durability_now").notNull().default(0),
+    // 식품(consumable) — item 전용. true면 방 인스턴스(room_items)를 안 만들고 풀에서 바로 급여하고 사라진다
+    //   (반응용·1회성, 허기 게이지·재고·내구도·배치·소유 없음). 식후 잠깐 '배부름' 쿨다운만.
+    consumable: boolean("consumable").notNull().default(false),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
   },
   (t) => [index("items_user_kind_idx").on(t.userId, t.kind)],

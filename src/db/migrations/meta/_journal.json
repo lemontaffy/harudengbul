@@ -344,6 +344,13 @@
 			"when": 1781600000000,
 			"tag": "0048_standing_alarms",
 			"breakpoints": true
+		},
+		{
+			"idx": 49,
+			"version": "7",
+			"when": 1781600100000,
+			"tag": "0049_item_consumable",
+			"breakpoints": true
 		}
 	]
 }

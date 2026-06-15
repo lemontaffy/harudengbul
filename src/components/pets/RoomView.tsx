@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import PetEffects, { type ActiveEffect, type EffectType } from "./PetEffects";
 import FurnitureSheet from "./FurnitureSheet";
 import FurniturePicker from "./FurniturePicker";
-import GiveItemSheet, { type GiveResult } from "./GiveItemSheet";
+import GiveItemSheet, { type GiveResult, type FeedResult, type FoodOpt } from "./GiveItemSheet";
 import {
   walkDurationMs,
   shouldFlip,
@@ -46,6 +46,7 @@ export default function RoomView({
   wasSleeping,
   rooms,
   allPets,
+  foods = [],
 }: {
   room: RoomVM;
   pets: PetVM[];
@@ -53,6 +54,7 @@ export default function RoomView({
   wasSleeping: boolean;
   rooms: PetRef[];
   allPets: PetRef[];
+  foods?: FoodOpt[];
 }) {
   const router = useRouter();
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -409,6 +411,24 @@ export default function RoomView({
         }, 1500);
       }
     }
+  }
+
+  // 식품 급여 연출 — 음식이 펫에게 날아가 먹히고 사라짐(인스턴스 없음) + 반응. full(식후 배부름)이면 차분히 말풍선만.
+  function playFeed(petId: number, r: FeedResult, food?: { spritePath: string; pixelRender: boolean }) {
+    const p = petsRef.current.find((x) => x.id === petId);
+    if (!p) return;
+    if (r.full) {
+      showBubble(petId, r.content, 2600, true); // 배부름 — 연출 없이 차분
+      return;
+    }
+    if (food && !reduced()) {
+      const tid = ++tossSeq.current;
+      setToss({ id: tid, src: food.spritePath, pixel: food.pixelRender, xPct: p.posX, yPct: p.posY });
+      setTimeout(() => setToss((t) => (t && t.id === tid ? null : t)), 650);
+    }
+    const delay = food && !reduced() ? 480 : 0;
+    setTimeout(() => showBubble(petId, r.content, 3200, true), delay);
+    if (r.effect) setTimeout(() => spawnEffect(r.effect!, p.posX, p.posY - 8), delay);
   }
 
   // ── 마운트: 진입 ack + 잠 환영 + 진화 ──
@@ -1610,6 +1630,7 @@ export default function RoomView({
           roomId={room.id}
           mode={basketMode}
           basket={items.filter((it) => !it.placed && it.ownerPetId == null)}
+          foods={foods}
           pets={pets.map((p) => ({ id: p.id, name: p.name }))}
           ownerNames={new Map(allPets.map((p) => [p.id, p.name]))}
           posX={viewCenterX()}
@@ -1618,6 +1639,7 @@ export default function RoomView({
             playGive(petId, r, item);
             router.refresh(); // 내구도/파손 변경 반영
           }}
+          onFed={(petId, r, food) => playFeed(petId, r, food)}
           onChanged={() => router.refresh()}
         />
       )}
