@@ -3,7 +3,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import PetEffects, { type ActiveEffect, type EffectType } from "./PetEffects";
-import PetEditSheet from "./PetEditSheet";
 import FurnitureSheet from "./FurnitureSheet";
 import FurniturePicker from "./FurniturePicker";
 import GiveItemSheet, { type GiveResult } from "./GiveItemSheet";
@@ -86,7 +85,6 @@ export default function RoomView({
   const [toast, setToast] = useState(""); // 가구 탭 등 짧은 안내
   const [walking, setWalking] = useState<{ petId: number; ms: number; flip: boolean } | null>(null);
   const [customPlay, setCustomPlay] = useState<{ petId: number; path: string; flip: boolean } | null>(null);
-  const [editId, setEditId] = useState<number | null>(null);
   // 바구니 시트 — 'throw'(일반: 펫에게 던지기) / 'place'(관리: 방에 놓기) / null(닫힘).
   const [basketMode, setBasketMode] = useState<null | "throw" | "place">(null);
   // 던지기 연출 — 준 아이템 스프라이트가 펫에게 잠깐 날아가 닿음(CSS transform/opacity, reduced-motion 존중).
@@ -1035,26 +1033,6 @@ export default function RoomView({
     window.addEventListener("pointerup", up);
   }
 
-  // ── 방에 펫 들이기 ── (전역 펫을 이 방으로 배정 / 이 방에서 신규 생성)
-  async function bringPetToRoom(petId: number) {
-    const res = await fetch(`/api/pets/${petId}`, {
-      method: "PATCH",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ roomId: room.id }),
-    });
-    if (res.ok) router.refresh();
-    else alertErr(res);
-  }
-  async function createPetHere(name: string) {
-    const res = await fetch("/api/pets", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ name, roomId: room.id }),
-    });
-    if (res.ok) router.refresh();
-    else alertErr(res);
-  }
-
   // ── 패널 관리 ──
   async function addPanel(file: File) {
     const fd = new FormData();
@@ -1519,42 +1497,6 @@ export default function RoomView({
         </div>
       )}
 
-      {/* 펫 관리 메뉴 — 이 방 펫 편집 + 다른 펫 데려오기/신규 생성 */}
-      {menu === "pet" && (
-        <div className="flex flex-col gap-3 rounded-card bg-surface-2 p-3 ring-1 ring-border">
-          <div className="flex flex-col gap-2">
-            <span className="text-[11px] opacity-60">이 방 펫을 골라 편집해요(모습·대사·관계·성장).</span>
-            <div className="flex flex-wrap gap-2">
-              {pets.length === 0 && <span className="text-[11px] opacity-40">이 방엔 아직 펫이 없어요.</span>}
-              {pets.map((p) => (
-                <button
-                  key={p.id}
-                  onClick={() => setEditId(p.id)}
-                  className="rounded-control bg-surface px-3 py-1.5 text-xs ring-1 ring-border hover:ring-accent"
-                >
-                  {p.name} · {p.displayStage}
-                </button>
-              ))}
-            </div>
-          </div>
-          <RoomPetAdder
-            candidates={allPets.filter((ap) => !pets.some((p) => p.id === ap.id))}
-            onBring={bringPetToRoom}
-            onCreate={createPetHere}
-          />
-        </div>
-      )}
-
-      {editId != null && (
-        <PetEditSheet
-          petId={editId}
-          rooms={rooms}
-          allPets={allPets}
-          onClose={() => setEditId(null)}
-          onChanged={() => router.refresh()}
-        />
-      )}
-
       {basketMode && (
         <GiveItemSheet
           roomId={room.id}
@@ -1711,158 +1653,6 @@ export default function RoomView({
           </div>
         );
       })()}
-    </div>
-  );
-}
-
-// 아이템 추가 폼 — 스프라이트 + 이름 + 내구도 상한(무한 옵션) + (선택) 특정 펫에게 주기 + 픽셀.
-function ItemAddForm({
-  roomId,
-  posX,
-  pets,
-  onAdded,
-}: {
-  roomId: number;
-  posX?: number; // 현재 보는 패널 중앙에 배치
-  pets: PetRef[];
-  onAdded: (row: ItemVM, heldPetId: number | null) => void;
-}) {
-  const [file, setFile] = useState<File | null>(null);
-  const [brokenFile, setBrokenFile] = useState<File | null>(null);
-  const [name, setName] = useState("");
-  const [infinite, setInfinite] = useState(false);
-  const [dur, setDur] = useState(5);
-  const [held, setHeld] = useState<string>("");
-  const [pixel, setPixel] = useState(true);
-  const [busy, setBusy] = useState(false);
-  const [err, setErr] = useState("");
-
-  async function submit() {
-    if (!file) return setErr("스프라이트를 선택하세요.");
-    if (!name.trim()) return setErr("이름을 입력하세요.");
-    setBusy(true);
-    setErr("");
-    const fd = new FormData();
-    fd.set("file", file);
-    if (brokenFile) fd.set("brokenFile", brokenFile);
-    fd.set("name", name.trim());
-    fd.set("durabilityMax", infinite ? "infinite" : String(Math.max(1, dur)));
-    fd.set("pixelRender", String(pixel));
-    if (held) fd.set("heldByPetId", held);
-    if (posX != null) { fd.set("posX", String(Math.round(posX))); fd.set("posY", "72"); }
-    try {
-      const res = await fetch(`/api/pet-rooms/${roomId}/items`, { method: "POST", body: fd });
-      const d = await res.json().catch(() => ({}));
-      if (res.ok && d.item) {
-        onAdded(d.item as ItemVM, held ? Number(held) : null);
-        setName("");
-        setFile(null);
-      } else {
-        setErr(d.error ?? "추가 실패");
-      }
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  return (
-    <div className="flex flex-col gap-2 border-t border-border pt-2">
-      <div className="flex flex-wrap items-center gap-2">
-        <input type="file" accept="image/png,image/webp,image/gif,image/jpeg" onChange={(e) => setFile(e.target.files?.[0] ?? null)} className="text-[11px]" />
-        <input value={name} onChange={(e) => setName(e.target.value)} maxLength={60} placeholder="이름(예: 공)" className="w-28 rounded-control bg-bg px-2 py-1.5 ring-1 ring-border" />
-      </div>
-      <label className="flex flex-wrap items-center gap-2 text-[11px] opacity-80">
-        파손 모양(선택)
-        <input type="file" accept="image/png,image/webp,image/gif,image/jpeg" onChange={(e) => setBrokenFile(e.target.files?.[0] ?? null)} className="text-[11px]" />
-        <span className="opacity-50">없으면 깨질 때 금만 가요</span>
-      </label>
-      <div className="flex flex-wrap items-center gap-2">
-        <label className="flex items-center gap-1 opacity-80">
-          <input type="checkbox" checked={infinite} onChange={(e) => setInfinite(e.target.checked)} /> 무한(안 깨짐)
-        </label>
-        {!infinite && (
-          <label className="flex items-center gap-1 opacity-80">
-            내구도
-            <input type="number" min={1} max={999} value={dur} onChange={(e) => setDur(Number(e.target.value) || 1)} className="w-16 rounded-control bg-bg px-2 py-1 ring-1 ring-border" />
-          </label>
-        )}
-        <label className="flex items-center gap-1 opacity-80">
-          <input type="checkbox" checked={pixel} onChange={(e) => setPixel(e.target.checked)} /> 픽셀
-        </label>
-      </div>
-      <div className="flex flex-wrap items-center gap-2">
-        <select value={held} onChange={(e) => setHeld(e.target.value)} className="rounded-control bg-bg px-2 py-1.5 ring-1 ring-border" disabled={pets.length === 0}>
-          <option value="">방에 두기</option>
-          {pets.map((p) => (
-            <option key={p.id} value={p.id}>{p.name}에게 주기</option>
-          ))}
-        </select>
-        <button onClick={submit} disabled={busy} className="ml-auto rounded-control bg-accent px-3 py-1.5 font-medium text-black disabled:opacity-50">
-          {busy ? "추가 중…" : "추가"}
-        </button>
-      </div>
-      {err && <span className="text-[11px] text-danger">{err}</span>}
-    </div>
-  );
-}
-
-// 방에 펫 들이기 — 대기/다른 방 펫을 이 방으로 배정, 또는 이 방에서 신규 생성.
-function RoomPetAdder({
-  candidates,
-  onBring,
-  onCreate,
-}: {
-  candidates: PetRef[];
-  onBring: (petId: number) => void;
-  onCreate: (name: string) => void;
-}) {
-  const [pick, setPick] = useState<number | null>(null);
-  const [name, setName] = useState("");
-  return (
-    <div className="flex flex-col gap-2 border-t border-border pt-2 text-xs">
-      <span className="opacity-60">이 방에 펫 들이기</span>
-      <div className="flex flex-wrap items-center gap-2">
-        <select
-          value={pick ?? ""}
-          onChange={(e) => setPick(e.target.value ? Number(e.target.value) : null)}
-          className="rounded-control bg-bg px-2 py-1.5 ring-1 ring-border disabled:opacity-40"
-          disabled={candidates.length === 0}
-        >
-          <option value="">{candidates.length ? "데려올 펫…" : "데려올 펫 없음"}</option>
-          {candidates.map((c) => (
-            <option key={c.id} value={c.id}>
-              {c.name}
-            </option>
-          ))}
-        </select>
-        <button
-          onClick={() => pick != null && onBring(pick)}
-          disabled={pick == null}
-          className="rounded-control bg-surface px-3 py-1.5 ring-1 ring-border disabled:opacity-40"
-        >
-          이 방으로
-        </button>
-      </div>
-      <div className="flex flex-wrap items-center gap-2">
-        <input
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          placeholder="새 펫 이름"
-          maxLength={30}
-          className="w-28 rounded-control bg-bg px-2 py-1.5 ring-1 ring-border"
-        />
-        <button
-          onClick={() => {
-            if (name.trim()) {
-              onCreate(name.trim());
-              setName("");
-            }
-          }}
-          className="rounded-control bg-accent px-3 py-1.5 font-medium text-black"
-        >
-          ＋ 새 펫
-        </button>
-      </div>
     </div>
   );
 }
