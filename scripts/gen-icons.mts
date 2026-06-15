@@ -88,10 +88,11 @@ await maskable(512, path.join(root, "public/icons/maskable-512.png"));
 await plain(256, path.join(root, "src/app/icon.png")); // 파비콘(Next 규약)
 await plain(180, path.join(root, "src/app/apple-icon.png")); // apple-touch(Next 규약)
 
-// 푸시 알림 아이콘 — icon-push.png 가 있으면 본문 아이콘(컬러)+상태바 뱃지(흰 실루엣) 생성.
+// 푸시 알림 아이콘 + 제목 옆 아이콘 — icon-push.png(등불) 에서 생성(흰 배경 키아웃→투명 컬러).
 if (await fs.access(PUSH_SRC).then(() => true).catch(() => false)) {
-  await pushIcon(192, path.join(root, "public/icons/icon-push.png"));
-  await badge(96, path.join(root, "public/icons/badge.png"));
+  await pushIcon(192, path.join(root, "public/icons/icon-push.png")); // 알림 본문(컬러)
+  await badge(96, path.join(root, "public/icons/badge.png")); // 상태바 뱃지(흰 실루엣)
+  await pushIcon(64, path.join(root, "public/icon-title.png")); // "하루등불" 제목 옆(22px 표시, 3x)
 }
 
 console.log("아이콘 생성 완료");

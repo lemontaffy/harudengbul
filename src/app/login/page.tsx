@@ -45,7 +45,7 @@ export default function LoginPage() {
       >
         <h1 className="mb-1 flex items-center gap-2 font-display text-xl font-semibold text-accent">
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/icon-title.png" alt="" width={26} height={26} className="h-[26px] w-[26px]" />
+          <img src="/icon-title.png?v=2" alt="" width={26} height={26} className="h-[26px] w-[26px]" />
           하루등불
         </h1>
         <p className="mb-5 text-xs opacity-60">로그인</p>
