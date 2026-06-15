@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import PetEffects, { type ActiveEffect, type EffectType } from "./PetEffects";
 import PetEditSheet from "./PetEditSheet";
 import FurnitureSheet from "./FurnitureSheet";
+import GiveItemSheet, { type GiveResult } from "./GiveItemSheet";
 import {
   walkDurationMs,
   shouldFlip,
@@ -85,6 +86,7 @@ export default function RoomView({
   const [walking, setWalking] = useState<{ petId: number; ms: number; flip: boolean } | null>(null);
   const [customPlay, setCustomPlay] = useState<{ petId: number; path: string; flip: boolean } | null>(null);
   const [editId, setEditId] = useState<number | null>(null);
+  const [giveOpen, setGiveOpen] = useState(false);
   const [showNames, setShowNames] = useState(true); // 이름표 표시 on/off(끄면 아예 안 뜸)
   const [menu, setMenu] = useState<null | "room" | "pet">(null); // 설정 메뉴(평소 접힘)
   const [liveliness, setLiveliness] = useState(room.liveliness); // 방 분주함(즉시 반영)
@@ -352,6 +354,24 @@ export default function RoomView({
     if (p?.lovePath) {
       setLoveUntil((m) => ({ ...m, [petId]: Date.now() + 2000 }));
       setTimeout(() => setLoveUntil((m) => ({ ...m, [petId]: 0 })), 2000);
+    }
+  }
+
+  // 아이템 '주기' 반응 재생 — 받는 펫 말풍선 + 이펙트. '주인 부르기'면 주인이 한 마디 받아침(부르기 연출).
+  //   분기·쿨다운·일일 캡은 서버(give API) 권위. 클라는 받은 payload만 재생.
+  function playGive(petId: number, r: GiveResult) {
+    const p = petsRef.current.find((x) => x.id === petId);
+    if (!p) return;
+    showBubble(petId, r.content, 3200, true);
+    if (r.effect) spawnEffect(r.effect, p.posX, p.posY - 8);
+    if (r.ownerCall) {
+      const owner = petsRef.current.find((x) => x.id === r.ownerCall!.ownerPetId);
+      if (owner) {
+        setTimeout(() => {
+          showBubble(owner.id, r.ownerCall!.content, 3000, true);
+          spawnEffect("notes", owner.posX, owner.posY - 8);
+        }, 1500);
+      }
     }
   }
 
@@ -1421,6 +1441,14 @@ export default function RoomView({
       {menu === "pet" && (
         <div className="flex flex-col gap-3 rounded-card bg-surface-2 p-3 ring-1 ring-border">
           <div className="flex flex-col gap-2">
+            {pets.length > 0 && (
+              <button
+                onClick={() => { setGiveOpen(true); setMenu(null); }}
+                className="self-start rounded-control bg-accent px-3 py-1.5 text-xs font-medium text-black"
+              >
+                🎁 아이템 주기
+              </button>
+            )}
             <span className="text-[11px] opacity-60">이 방 펫을 골라 편집해요(모습·대사·관계·성장).</span>
             <div className="flex flex-wrap gap-2">
               {pets.length === 0 && <span className="text-[11px] opacity-40">이 방엔 아직 펫이 없어요.</span>}
@@ -1450,6 +1478,15 @@ export default function RoomView({
           allPets={allPets}
           onClose={() => setEditId(null)}
           onChanged={() => router.refresh()}
+        />
+      )}
+
+      {giveOpen && (
+        <GiveItemSheet
+          pets={pets.map((p) => ({ id: p.id, name: p.name }))}
+          ownerNames={new Map(allPets.map((p) => [p.id, p.name]))}
+          onClose={() => setGiveOpen(false)}
+          onGiven={(petId, r) => playGive(petId, r)}
         />
       )}
 

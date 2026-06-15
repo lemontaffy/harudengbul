@@ -142,6 +142,9 @@ export const settings = pgTable("settings", {
   petLastRoomId: bigint("pet_last_room_id", { mode: "number" }),
   // 홈 화면에서 숨긴 섹션 키 목록(null/빈 배열 = 전부 표시).
   hiddenHome: text("hidden_home").array(),
+  // 아이템 '주인 부르기' 연출 일일 캡 추적(농사 방지). 날짜 바뀌면 리셋.
+  ownerCallDate: date("owner_call_date"),
+  ownerCallToday: integer("owner_call_today").default(0),
 });
 
 // CSS 테마 보관함 — 사용자가 이름 붙여 여러 개 저장해두고 골라 적용(적용본은 settings.custom_css).
@@ -854,4 +857,44 @@ export const furniturePlacements = pgTable(
     rotation: real("rotation").notNull().default(0),
   },
   (t) => [index("furniture_placements_room_idx").on(t.roomId)],
+);
+
+// 아이템 '주기' 반응 대사 풀 — (이 아이템 × 받는 펫 × kind) 캐시. 스테이지 미반영(조합폭발 방지).
+//   kind: 'received'(주인없음 일반) | 'owner_recognize'(받는펫=주인) | 'other_owner'(다른펫, 주인 언급).
+//   ※ 레거시 item_reactions(pet_items FK)와 별개 — 전역 items용. source 로 auto/manual 편집 구분.
+export const itemReactionLines = pgTable(
+  "item_reaction_lines",
+  {
+    id: bigint("id", { mode: "number" }).primaryKey().generatedAlwaysAsIdentity(),
+    itemId: bigint("item_id", { mode: "number" })
+      .notNull()
+      .references(() => items.id, { onDelete: "cascade" }),
+    petId: bigint("pet_id", { mode: "number" })
+      .notNull()
+      .references(() => pets.id, { onDelete: "cascade" }),
+    kind: text("kind").notNull(),
+    content: text("content").notNull(),
+    source: text("source").notNull().default("auto"), // 'auto' | 'manual'
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
+  },
+  (t) => [index("item_reaction_lines_item_pet_kind_idx").on(t.itemId, t.petId, t.kind)],
+);
+
+// 아이템 '주기' 로그 — (펫×아이템) 쿨다운 영속(reopen·연타 농사 차단) + 브리핑 '최근 준 아이템'.
+export const itemGives = pgTable(
+  "item_gives",
+  {
+    id: bigint("id", { mode: "number" }).primaryKey().generatedAlwaysAsIdentity(),
+    userId: bigint("user_id", { mode: "number" })
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    petId: bigint("pet_id", { mode: "number" })
+      .notNull()
+      .references(() => pets.id, { onDelete: "cascade" }),
+    itemId: bigint("item_id", { mode: "number" })
+      .notNull()
+      .references(() => items.id, { onDelete: "cascade" }),
+    givenAt: timestamp("given_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("item_gives_user_pet_item_idx").on(t.userId, t.petId, t.itemId, t.givenAt)],
 );
