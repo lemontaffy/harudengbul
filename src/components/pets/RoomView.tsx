@@ -469,7 +469,7 @@ export default function RoomView({
 
     // 이동·핑퐁은 liveliness 가 0이면 완전 정지(자발 발화는 talkativeness 로 별개).
     if (L > 0 && !reduced()) {
-      if (Math.random() < 0.08 && tryItemWear()) return; // 아이템 마모(개그) — 보는 중에만, 낮은 확률
+      if (Math.random() < 0.1 && tryItemUse()) return; // 아이템 사용 모션(개그) — 보는 중에만, 낮은 확률
       if (tryPingpong(false)) return; // 근접 상호 about — 실효 활동성 기반 확률
       if (tryWalk()) return; // 자유 배회(짧은 이동) — 실효 활동성 기반
       if (Math.random() < 0.12 && tryCustom()) return; // 커스텀 모션
@@ -859,39 +859,54 @@ export default function RoomView({
       else if (pair.effect === "hearts") loveBurst(other.id, other.posX, other.posY);
     }, 1500);
   }
-  // 마모 1회 시도(개그) — 보이는 '배치된' 마모성 아이템 근처의 깨어있는 펫이 '떨어뜨림'. 0 되면 파손.
-  function tryItemWear(): boolean {
-    const wearable = itemsRef.current.filter(
-      (it) => it.placed && it.durabilityMax != null && it.durabilityNow > 0 && !it.broken && isVisible(it.posX),
-    );
-    if (wearable.length === 0) return false;
-    const it = wearable[Math.floor(Math.random() * wearable.length)];
-    const near = petsRef.current.filter(
-      (p) =>
-        panelOf(p.posX) === panelOf(it.posX) &&
-        Math.abs(p.posX - it.posX) < 22 &&
-        !isNapping(p.id) &&
-        walkingRef.current?.petId !== p.id,
-    );
-    if (near.length === 0) return false;
-    const p = near[Math.floor(Math.random() * near.length)];
-    spawnEffect(Math.random() < 0.5 ? "notes" : "sparkle", it.posX, it.posY - 8);
-    showBubble(p.id, "앗… 떨어뜨렸어", 2200);
+  // 아이템 '사용' 1회 시도(개그 타이머) — 보는 중에만. 소유 아이템은 주인이, 배치 아이템은 근처 펫이
+  //   잠깐 갖고 놀며 사용 모션(이모지 이펙트 + 짧은 대사)을 낸다. 마모성이면 내구도 1↓, 0 되면 파손.
+  function tryItemUse(): boolean {
+    const USE_FX = ["sparkle", "notes", "hearts"] as const;
+    const USE_LINES = ["이거 좋아!", "냠냠…", "말랑말랑", "또 갖고 놀아야지", "폭신해", "오늘도 잘 쓴다"];
+    const pairs: { it: ItemVM; pet: PetVM }[] = [];
+    for (const it of itemsRef.current) {
+      if (it.durabilityMax == null || it.durabilityNow <= 0 || it.broken) continue; // 무한·파손은 사용 모션 없음
+      if (it.ownerPetId != null) {
+        // 소유 아이템 — 주인이 사용(이 방에 깨어 있고 안 걷는 중일 때).
+        const owner = petsRef.current.find(
+          (q) => q.id === it.ownerPetId && !isNapping(q.id) && walkingRef.current?.petId !== q.id && isVisible(q.posX),
+        );
+        if (owner) pairs.push({ it, pet: owner });
+      } else if (it.placed && isVisible(it.posX)) {
+        // 배치 아이템 — 같은 패널 근처의 깨어 있는 펫이 사용.
+        const near = petsRef.current.filter(
+          (p) => panelOf(p.posX) === panelOf(it.posX) && Math.abs(p.posX - it.posX) < 22 && !isNapping(p.id) && walkingRef.current?.petId !== p.id,
+        );
+        if (near.length) pairs.push({ it, pet: near[Math.floor(Math.random() * near.length)] });
+      }
+    }
+    if (pairs.length === 0) return false;
+    const { it, pet } = pairs[Math.floor(Math.random() * pairs.length)];
+    // 위치: 소유면 펫 위, 배치면 아이템 위. 사용 모션 = 이모지 이펙트 + 짧은 대사.
+    const fx = USE_FX[Math.floor(Math.random() * USE_FX.length)];
+    const x = it.ownerPetId != null ? pet.posX : it.posX;
+    const y = (it.ownerPetId != null ? pet.posY : it.posY) - 8;
+    spawnEffect(fx, x, y);
+    showBubble(pet.id, USE_LINES[Math.floor(Math.random() * USE_LINES.length)], 2000);
     fetch(`/api/room-items/${it.id}/wear`, { method: "POST" })
       .then((r) => r.json())
       .then((d) => {
         if (d.durabilityNow == null) return; // 무한 등
         setItems((xs) => xs.map((q) => (q.id === it.id ? { ...q, durabilityNow: d.durabilityNow, broken: !!d.broke } : q)));
-        if (d.broke) onItemBreak(it, p);
+        if (d.broke) onItemBreak(it, pet); // 사용하다 깨짐 — 파손 만담
       })
       .catch(() => {});
     return true;
   }
-  // 아이템 드래그(관리 모드) — 위치 인스턴스 저장. 안 움직이면 액션 시트.
+  // 아이템 드래그 — 펫 위에 떨어뜨리면 '주기'(어느 모드든). 아이템 모드에선 빈 곳=위치 이동,
+  //   일반 모드에선 빈 곳=원위치 복귀(이동은 아이템 모드에서만). 안 움직이면 액션 시트.
   function startDragItem(e: React.PointerEvent, it: ItemVM) {
     e.preventDefault();
     const inner = innerRef.current;
     if (!inner) return;
+    const dragMode = itemMode; // 이 드래그 동안의 모드 고정
+    const origin = { x: it.posX, y: it.posY };
     let moved = false;
     const start = { x: e.clientX, y: e.clientY };
     const toPct = (cx: number, cy: number) => {
@@ -913,6 +928,19 @@ export default function RoomView({
         setItemSheetId(it.id);
         return;
       }
+      // 펫 위에 드롭 → 주기(반응 + 소유). 위치는 원복(곧 펫 옆에 붙음).
+      const onPet = petAt(ev.clientX, ev.clientY);
+      if (onPet) {
+        setItems((xs) => xs.map((q) => (q.id === it.id ? { ...q, posX: origin.x, posY: origin.y } : q)));
+        void giveByDrag(it, onPet);
+        return;
+      }
+      if (!dragMode) {
+        // 일반 모드 드래그(빈 곳) — 이동 아님, 원위치 복귀.
+        setItems((xs) => xs.map((q) => (q.id === it.id ? { ...q, posX: origin.x, posY: origin.y } : q)));
+        return;
+      }
+      // 아이템 모드 — 위치 저장.
       const { x, y } = toPct(ev.clientX, ev.clientY);
       setItems((xs) => xs.map((q) => (q.id === it.id ? { ...q, posX: x, posY: y } : q)));
       fetch(`/api/room-items/${it.id}`, {
@@ -956,6 +984,40 @@ export default function RoomView({
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ ownerPetId: petId }),
     }).catch(() => {});
+  }
+  // 드롭 좌표(client)가 어느 펫 위인지 — 드래그-주기 히트테스트(펫 반경 ~46px).
+  function petAt(clientX: number, clientY: number): PetVM | null {
+    const inner = innerRef.current;
+    if (!inner) return null;
+    const rect = inner.getBoundingClientRect();
+    for (const p of petsRef.current) {
+      const px = rect.left + (p.posX / 100) * rect.width;
+      const py = rect.top + (p.posY / 100) * rect.height;
+      const dx = clientX - px;
+      const dy = clientY - py;
+      if (dx * dx + dy * dy < 46 * 46) return p;
+    }
+    return null;
+  }
+  // 아이템을 펫에게 드래그-주기 — give 반응(playGive) 재생 + 소유 지정(이후 펫 옆에 붙는다).
+  async function giveByDrag(it: ItemVM, pet: PetVM) {
+    try {
+      const res = await fetch(`/api/room-items/${it.id}/give`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ petId: pet.id }),
+      });
+      if (res.ok) {
+        const r = (await res.json()) as GiveResult;
+        playGive(pet.id, r, { spritePath: it.spritePath, pixelRender: it.pixelRender });
+        if (r.durabilityNow != null) {
+          setItems((xs) => xs.map((q) => (q.id === it.id ? { ...q, durabilityNow: r.durabilityNow!, broken: q.broken || !!r.broke } : q)));
+        }
+      }
+    } catch {
+      /* ignore */
+    }
+    setItemOwner(it, pet.id); // 펫 소유 → 펫 옆 렌더(배치/바구니서 빠짐)
   }
   // 크기 조절 — 라이브 미리보기 state + 디바운스 저장.
   const itemScaleSaveRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -1203,9 +1265,9 @@ export default function RoomView({
             );
           })}
 
-          {/* 아이템 — 가구처럼 펫보다 뒤 레이어. 파손(durability 0)이면 금 간 오버레이(CSS 선 2개).
-              아이템 모드=드래그·탭 시트 / 일반=탭하면 수리·버리기 시트. */}
-          {items.filter((it) => it.placed).map((it) => {
+          {/* 아이템(주인 없는 배치분) — 가구처럼 펫보다 뒤 레이어. 파손 시 금 오버레이(CSS).
+              펫에게 준(주인 지정) 아이템은 여기 말고 그 펫 옆에 렌더(아래 펫 루프). */}
+          {items.filter((it) => it.placed && it.ownerPetId == null).map((it) => {
             const broken = it.broken;
             // 파손 모양 스프라이트가 있으면 그걸로 교체, 없으면 기본 스프라이트 + CSS 금 오버레이.
             const useBrokenSprite = broken && !!it.brokenSpritePath;
@@ -1215,8 +1277,7 @@ export default function RoomView({
                 key={`item-${it.id}`}
                 className="absolute -translate-x-1/2 -translate-y-1/2 touch-none select-none"
                 style={{ left: `${it.posX}%`, top: `${it.posY}%` }}
-                onPointerDown={itemMode ? (e) => startDragItem(e, it) : undefined}
-                onClick={itemMode ? undefined : () => setItemSheetId(it.id)}
+                onPointerDown={(e) => startDragItem(e, it)}
               >
                 <div className="relative h-16 w-16">
                   {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -1311,6 +1372,33 @@ export default function RoomView({
                     <div className="flex h-20 w-20 items-center justify-center rounded-full bg-surface text-3xl">🐾</div>
                   )}
                   {sleeping && <span className="absolute -top-1 right-0 text-sm">💤</span>}
+                  {/* 이 펫에게 준(소유) 아이템 — 펫 옆(발치)에 작게. 펫 컨테이너의 자식이라 산책 시 같이 따라간다.
+                      탭하면 액션 시트(수리·소유 해제 등) — 펫 드래그와 충돌 않게 전파 차단. */}
+                  {items
+                    .filter((it) => it.ownerPetId === p.id)
+                    .slice(0, 3)
+                    .map((it, i) => {
+                      const useBroken = it.broken && !!it.brokenSpritePath;
+                      const isrc = useBroken ? it.brokenSpritePath! : it.spritePath;
+                      return (
+                        <img
+                          key={`owned-${it.id}`}
+                          src={isrc}
+                          alt={it.name}
+                          draggable={false}
+                          onPointerDown={(e) => e.stopPropagation()}
+                          onClick={(e) => { e.stopPropagation(); setItemSheetId(it.id); }}
+                          className="absolute h-7 w-7 cursor-pointer object-contain"
+                          style={{
+                            right: -8 - i * 15,
+                            bottom: 0,
+                            objectPosition: "bottom",
+                            ...pixel(it.pixelRender),
+                            filter: it.broken && !useBroken ? "grayscale(0.5) brightness(0.92)" : undefined,
+                          }}
+                        />
+                      );
+                    })}
                 </div>
                 {showNames && (
                   <div className="mt-1 flex justify-center" data-capture-hide="name">
@@ -1501,7 +1589,7 @@ export default function RoomView({
         <GiveItemSheet
           roomId={room.id}
           mode={basketMode}
-          basket={items.filter((it) => !it.placed)}
+          basket={items.filter((it) => !it.placed && it.ownerPetId == null)}
           pets={pets.map((p) => ({ id: p.id, name: p.name }))}
           ownerNames={new Map(allPets.map((p) => [p.id, p.name]))}
           posX={viewCenterX()}
