@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import PetEffects, { type ActiveEffect, type EffectType } from "./PetEffects";
 import PetEditSheet from "./PetEditSheet";
 import FurnitureSheet from "./FurnitureSheet";
+import FurniturePicker from "./FurniturePicker";
 import GiveItemSheet, { type GiveResult } from "./GiveItemSheet";
 import {
   walkDurationMs,
@@ -790,7 +791,7 @@ export default function RoomView({
       }
       const { x, y } = toPct(ev.clientX, ev.clientY);
       setFurniture((xs) => xs.map((q) => (q.id === f.id ? { ...q, posX: x, posY: y } : q)));
-      fetch(`/api/furniture/${f.id}`, {
+      fetch(`/api/placements/${f.id}`, {
         method: "PATCH",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ posX: x, posY: y }),
@@ -1347,12 +1348,6 @@ export default function RoomView({
               ⚙ 방
             </button>
             <button
-              onClick={() => setMenu((m) => (m === "pet" ? null : "pet"))}
-              className={`rounded-control px-3 py-1.5 ring-1 ring-border ${menu === "pet" ? "bg-accent text-black" : "bg-surface"}`}
-            >
-              🐾 펫
-            </button>
-            <button
               onClick={() => { setFurnitureMode((v) => !v); setItemMode(false); setMenu(null); }}
               className={`rounded-control px-3 py-1.5 ring-1 ring-border ${furnitureMode ? "bg-accent text-black" : "bg-surface"}`}
             >
@@ -1391,7 +1386,7 @@ export default function RoomView({
         <div className="flex items-center gap-2 rounded-card bg-surface-2 p-2 text-xs ring-1 ring-border">
           <span className="opacity-60">가구 배치 중 — 끌어 옮기고, 탭하면 편집</span>
           <button onClick={() => setFurnAdding(true)} className="ml-auto rounded-control bg-accent px-3 py-1.5 font-medium text-black">
-            ＋ 가구
+            🪑 라이브러리에서
           </button>
           <button onClick={() => setFurnitureMode(false)} className="rounded-control bg-surface px-3 py-1.5 ring-1 ring-border">
             완료
@@ -1529,26 +1524,38 @@ export default function RoomView({
         />
       )}
 
-      {(furnAdding || furnEditId != null) && (
-        <FurnitureSheet
+      {/* 가구 배치 = 전역 라이브러리(kind=furniture)에서 골라 방에 둠(furniture_placements). */}
+      {furnAdding && (
+        <FurniturePicker
           roomId={room.id}
-          furniture={furnEditId != null ? furniture.find((f) => f.id === furnEditId) ?? null : null}
-          onClose={() => {
+          onClose={() => setFurnAdding(false)}
+          onPlaced={() => {
             setFurnAdding(false);
-            setFurnEditId(null);
-          }}
-          onSaved={() => {
-            setFurnAdding(false);
-            setFurnEditId(null);
-            router.refresh();
-          }}
-          onDeleted={(id) => {
-            releaseSeatPets(id); // 앉아있던 펫 idle 복귀
-            setFurnEditId(null);
             router.refresh();
           }}
         />
       )}
+
+      {/* 가구 편집 = 모양·종류는 라이브러리 원본(item), 위치·크기·회전·방에서빼기는 배치(placement). */}
+      {furnEditId != null && (() => {
+        const f = furniture.find((q) => q.id === furnEditId);
+        if (!f) return null;
+        return (
+          <FurnitureSheet
+            furniture={f}
+            onClose={() => setFurnEditId(null)}
+            onSaved={() => {
+              setFurnEditId(null);
+              router.refresh();
+            }}
+            onDeleted={(placementId) => {
+              releaseSeatPets(placementId); // 앉아있던 펫 idle 복귀
+              setFurnEditId(null);
+              router.refresh();
+            }}
+          />
+        );
+      })()}
 
       {/* 아이템 액션 시트 — 수리(무료 1탭)·버리기·픽셀·소지 펫. 파손/마모 시 수리로 즉시 복구. */}
       {itemSheetId != null && (() => {

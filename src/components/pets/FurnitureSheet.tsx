@@ -17,29 +17,27 @@ const hasState = (a: string) => a === "letters" || a === "pet_diary";
 const ACCEPT = "image/gif,image/webp,image/png,image/jpeg";
 const input = "w-full rounded-control bg-bg px-3 py-2 text-sm outline-none ring-1 ring-border focus:ring-accent";
 
-// 가구 추가/편집 시트 — 펫 편집 시트와 동일한 바텀시트 패턴.
+// 가구 편집 시트 — 배치된 가구의 모양·종류(라이브러리 원본 item)와 위치 변형(placement)을 편집.
+//   추가는 FurniturePicker(라이브러리에서 골라 배치)가 담당. 이 시트는 편집 전용.
 export default function FurnitureSheet({
-  roomId,
   furniture,
   onClose,
   onSaved,
   onDeleted,
 }: {
-  roomId: number;
-  furniture: FurnitureVM | null; // null = 추가 모드
+  furniture: FurnitureVM; // 편집 대상(id=placementId, itemId=라이브러리 원본)
   onClose: () => void;
   onSaved: () => void;
-  onDeleted: (id: number) => void;
+  onDeleted: (placementId: number) => void;
 }) {
-  const editing = !!furniture;
   const dialog = useDialog();
-  const [kind, setKind] = useState<"seat" | "fixture">(furniture?.kind ?? "seat");
-  const [type, setType] = useState(furniture?.type ?? "");
-  const [action, setAction] = useState(furniture?.actionType ?? "letters");
-  const [facing, setFacing] = useState<"left" | "right">(furniture?.facing ?? "left");
-  const [seatY, setSeatY] = useState(furniture?.seatY ?? 40);
-  const [scale, setScale] = useState(furniture?.scale ?? 1);
-  const [rotation, setRotation] = useState(furniture?.rotation ?? 0);
+  const [kind, setKind] = useState<"seat" | "fixture">(furniture.kind);
+  const [type, setType] = useState(furniture.type ?? "");
+  const [action, setAction] = useState(furniture.actionType ?? "letters");
+  const [facing, setFacing] = useState<"left" | "right">(furniture.facing);
+  const [seatY, setSeatY] = useState(furniture.seatY);
+  const [scale, setScale] = useState(furniture.scale);
+  const [rotation, setRotation] = useState(furniture.rotation);
   const [file, setFile] = useState<File | null>(null);
   const [altFile, setAltFile] = useState<File | null>(null);
   const [busy, setBusy] = useState(false);
@@ -48,42 +46,31 @@ export default function FurnitureSheet({
   const showAlt = kind === "fixture" && hasState(action); // 알림 스프라이트 받을지
 
   async function save() {
-    if (!editing && !file) return setMsg("스프라이트를 올려주세요.");
     setBusy(true);
     setMsg("");
     try {
-      if (!editing) {
-        const fd = new FormData();
-        fd.append("file", file!);
-        fd.append("kind", kind);
-        if (type.trim()) fd.append("type", type.trim());
-        if (kind === "fixture") fd.append("actionType", action);
-        if (kind === "seat") {
-          fd.append("facing", facing);
-          fd.append("seatY", String(Math.round(seatY)));
-        }
-        if (showAlt && altFile) fd.append("altFile", altFile);
-        const res = await fetch(`/api/pet-rooms/${roomId}/furniture`, { method: "POST", body: fd });
-        if (!res.ok) return setMsg((await res.json().catch(() => ({})))?.error ?? "추가 실패");
-      } else {
-        // 메타(유형·라벨·액션·seat 방향/좌석높이)
-        const res = await fetch(`/api/furniture/${furniture!.id}`, {
-          method: "PATCH",
-          headers: { "content-type": "application/json" },
-          body: JSON.stringify({
-            kind,
-            type: type.trim() || undefined,
-            actionType: kind === "fixture" ? action : null,
-            ...(kind === "seat" ? { facing, seatY: Math.round(seatY) } : {}),
-            scale: Math.round(scale * 100) / 100,
-            rotation: Math.round(rotation),
-          }),
-        });
-        if (!res.ok) return setMsg((await res.json().catch(() => ({})))?.error ?? "저장 실패");
-        // 스프라이트 교체(올린 것만)
-        if (file) await replaceSprite(furniture!.id, "main", file);
-        if (altFile) await replaceSprite(furniture!.id, "alt", altFile);
-      }
+      // 모양·종류 = 라이브러리 원본 item(여러 방 배치에 공유 반영).
+      const metaRes = await fetch(`/api/pets/items/${furniture.itemId}`, {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          furnitureKind: kind,
+          type: type.trim() || undefined,
+          ...(kind === "fixture" ? { actionType: action } : {}),
+          ...(kind === "seat" ? { facing, seatY: Math.round(seatY) } : {}),
+        }),
+      });
+      if (!metaRes.ok) return setMsg((await metaRes.json().catch(() => ({})))?.error ?? "저장 실패");
+      // 위치 변형(크기·회전) = 이 배치(placement)만.
+      const trRes = await fetch(`/api/placements/${furniture.id}`, {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ scale: Math.round(scale * 100) / 100, rotation: Math.round(rotation) }),
+      });
+      if (!trRes.ok) return setMsg("저장 실패");
+      // 스프라이트 교체(올린 것만) — 라이브러리 원본에 반영.
+      if (file) await replaceSprite("main", file);
+      if (altFile) await replaceSprite("alt", altFile);
       onSaved();
     } catch {
       setMsg("네트워크 오류");
@@ -91,17 +78,16 @@ export default function FurnitureSheet({
       setBusy(false);
     }
   }
-  async function replaceSprite(id: number, slot: "main" | "alt", f: File) {
+  async function replaceSprite(slot: "main" | "alt", f: File) {
     const fd = new FormData();
     fd.append("file", f);
     fd.append("slot", slot);
-    await fetch(`/api/furniture/${id}/sprite`, { method: "POST", body: fd });
+    await fetch(`/api/pets/items/${furniture.itemId}/sprite`, { method: "POST", body: fd });
   }
   async function del() {
-    if (!furniture) return;
-    if (!(await dialog.confirm({ message: `'${furniture.type}' 가구를 삭제할까요? 앉아있던 펫은 일어나요.`, danger: true, confirmText: "삭제" }))) return;
+    if (!(await dialog.confirm({ message: `'${furniture.type}'을(를) 이 방에서 뺄까요? 앉아있던 펫은 일어나요. (라이브러리 원본은 남아요)`, danger: true, confirmText: "방에서 빼기" }))) return;
     setBusy(true);
-    await fetch(`/api/furniture/${furniture.id}`, { method: "DELETE" });
+    await fetch(`/api/placements/${furniture.id}`, { method: "DELETE" });
     onDeleted(furniture.id);
   }
 
@@ -112,7 +98,7 @@ export default function FurnitureSheet({
         onClick={(e) => e.stopPropagation()}
       >
         <div className="mx-auto mb-3 h-1 w-10 rounded-full bg-border" />
-        <h2 className="mb-3 font-display text-sm font-semibold">{editing ? "가구 편집" : "가구 추가"}</h2>
+        <h2 className="mb-3 font-display text-sm font-semibold">가구 편집</h2>
         <div className="flex flex-col gap-3 text-sm">
           {/* 유형 */}
           <div className="flex items-center gap-2">
@@ -171,22 +157,18 @@ export default function FurnitureSheet({
               <p className="text-[10px] opacity-40">좌석면 높이(0=위, 100=아래) — 펫 엉덩이가 닿을 선. 떠 보이면 ↓, 파묻히면 ↑.</p>
             </>
           )}
-          {/* 등록 후 수동조정 — 크기·회전(편집 시) */}
-          {editing && (
-            <>
-              <div className="flex items-center gap-2">
-                <span className="w-12 shrink-0 text-xs opacity-60">크기</span>
-                <input type="range" min={0.3} max={3} step={0.05} value={scale} onChange={(e) => setScale(Number(e.target.value))} className="flex-1 accent-accent" />
-                <span className="w-10 shrink-0 text-right text-xs opacity-60">{scale.toFixed(2)}×</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <span className="w-12 shrink-0 text-xs opacity-60">회전</span>
-                <input type="range" min={-180} max={180} step={5} value={rotation} onChange={(e) => setRotation(Number(e.target.value))} className="flex-1 accent-accent" />
-                <span className="w-10 shrink-0 text-right text-xs opacity-60">{Math.round(rotation)}°</span>
-                <button onClick={() => setRotation(0)} className="shrink-0 rounded-control px-2 py-0.5 text-[10px] ring-1 ring-border">0°</button>
-              </div>
-            </>
-          )}
+          {/* 위치 변형(이 배치만) — 크기·회전 */}
+          <div className="flex items-center gap-2">
+            <span className="w-12 shrink-0 text-xs opacity-60">크기</span>
+            <input type="range" min={0.3} max={3} step={0.05} value={scale} onChange={(e) => setScale(Number(e.target.value))} className="flex-1 accent-accent" />
+            <span className="w-10 shrink-0 text-right text-xs opacity-60">{scale.toFixed(2)}×</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="w-12 shrink-0 text-xs opacity-60">회전</span>
+            <input type="range" min={-180} max={180} step={5} value={rotation} onChange={(e) => setRotation(Number(e.target.value))} className="flex-1 accent-accent" />
+            <span className="w-10 shrink-0 text-right text-xs opacity-60">{Math.round(rotation)}°</span>
+            <button onClick={() => setRotation(0)} className="shrink-0 rounded-control px-2 py-0.5 text-[10px] ring-1 ring-border">0°</button>
+          </div>
           {/* 라벨 */}
           <div className="flex items-center gap-2">
             <span className="w-12 shrink-0 text-xs opacity-60">이름</span>
@@ -194,13 +176,11 @@ export default function FurnitureSheet({
           </div>
           {/* 스프라이트(기본) */}
           <div className="flex items-center gap-2">
-            <span className="w-12 shrink-0 text-xs opacity-60">{editing ? "교체" : "그림"}</span>
-            {editing && furniture && (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img src={furniture.spritePath} alt="" className="h-10 w-10 rounded bg-bg object-contain" style={{ objectPosition: "bottom" }} />
-            )}
+            <span className="w-12 shrink-0 text-xs opacity-60">교체</span>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={furniture.spritePath} alt="" className="h-10 w-10 rounded bg-bg object-contain" style={{ objectPosition: "bottom" }} />
             <label className="cursor-pointer rounded-control bg-bg px-3 py-2 text-xs ring-1 ring-border">
-              {file ? file.name.slice(0, 16) : editing ? "기본 교체" : "기본 스프라이트"}
+              {file ? file.name.slice(0, 16) : "기본 교체"}
               <input type="file" accept={ACCEPT} className="hidden" onChange={(e) => setFile(e.target.files?.[0] ?? null)} />
             </label>
           </div>
@@ -208,7 +188,7 @@ export default function FurnitureSheet({
           {showAlt && (
             <div className="flex items-center gap-2">
               <span className="w-12 shrink-0 text-xs opacity-60">알림</span>
-              {editing && furniture?.spriteAltPath && (
+              {furniture.spriteAltPath && (
                 // eslint-disable-next-line @next/next/no-img-element
                 <img src={furniture.spriteAltPath} alt="" className="h-10 w-10 rounded bg-bg object-contain" style={{ objectPosition: "bottom" }} />
               )}
@@ -229,12 +209,11 @@ export default function FurnitureSheet({
             <button onClick={onClose} className="rounded-control px-4 py-2 text-sm opacity-60 ring-1 ring-border">
               취소
             </button>
-            {editing && (
-              <button onClick={del} disabled={busy} className="ml-auto rounded-control px-3 py-2 text-xs text-red-400 ring-1 ring-border">
-                삭제
-              </button>
-            )}
+            <button onClick={del} disabled={busy} className="ml-auto rounded-control px-3 py-2 text-xs text-red-400 ring-1 ring-border">
+              방에서 빼기
+            </button>
           </div>
+          <p className="text-[10px] opacity-40">모양·종류는 라이브러리 원본을 바꿔 다른 방의 같은 가구에도 반영돼요. 크기·회전은 이 배치만.</p>
           <p className="text-[10px] opacity-40">
             앉는 가구 = 펫이 다가가 앉아요(펫에 ‘앉기’ 스프라이트 필요). 기능 가구 = 탭하면 그 화면이 열려요.
           </p>

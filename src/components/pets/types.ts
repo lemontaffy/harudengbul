@@ -64,7 +64,8 @@ export interface ItemVM {
 }
 
 export interface FurnitureVM {
-  id: number;
+  id: number; // = 배치 인스턴스 id(furniture_placements.id) — 위치·삭제·좌석 점유 키
+  itemId: number; // 라이브러리 원본 items.id(모양·종류 편집 대상, 여러 방 공유)
   kind: "seat" | "fixture";
   type: string;
   spritePath: string;
