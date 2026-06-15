@@ -10,13 +10,12 @@ export interface ManagePet {
   name: string;
   stage: string;
   avatar: string | null;
-  roomId: number | null;
-  roomName: string | null;
+  roomNames: string[]; // 이 펫이 들어가 있는 방들(다대다). 방 배정은 각 방 화면에서.
 }
 
 const input = "w-full rounded-control bg-bg px-3 py-2 text-sm outline-none ring-1 ring-border focus:ring-accent";
 
-// 전역 펫 관리 — 방과 무관하게 전체 펫 나열·생성·방 배정·편집.
+// 펫 목록·생성·편집. 방 배정은 각 방 화면(헤더 🐾＋)에서 — 여기선 안 함.
 export default function PetManageView({
   pets,
   rooms,
@@ -31,23 +30,15 @@ export default function PetManageView({
   const [adding, setAdding] = useState(false);
   const [name, setName] = useState("");
   const [persona, setPersona] = useState("");
-  const [newRoom, setNewRoom] = useState<number | null>(null); // 기본 대기
   const [status, setStatus] = useState("");
 
-  async function assign(petId: number, roomId: number | null) {
-    await fetch(`/api/pets/${petId}`, {
-      method: "PATCH",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ roomId }),
-    });
-    router.refresh();
-  }
   async function create() {
     if (!name.trim()) return setStatus("이름을 입력하세요.");
+    // 대기로 생성 — 방에 넣는 건 방 화면에서.
     const res = await fetch("/api/pets", {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ name: name.trim(), personality: persona.trim() || null, roomId: newRoom }),
+      body: JSON.stringify({ name: name.trim(), personality: persona.trim() || null, roomId: null }),
     });
     if (res.ok) {
       setName("");
@@ -72,14 +63,7 @@ export default function PetManageView({
           <div className="flex flex-col gap-2">
             <input value={name} onChange={(e) => setName(e.target.value)} placeholder="펫 이름" className={input} />
             <textarea value={persona} onChange={(e) => setPersona(e.target.value)} rows={2} placeholder="성격(선택)" className={`${input} resize-none`} />
-            <select value={newRoom ?? ""} onChange={(e) => setNewRoom(e.target.value ? Number(e.target.value) : null)} className={input}>
-              <option value="">대기(어느 방에도 없음)</option>
-              {rooms.map((r) => (
-                <option key={r.id} value={r.id}>
-                  {r.name}
-                </option>
-              ))}
-            </select>
+            <p className="text-[11px] opacity-50">대기로 생성돼요 — 방에 넣는 건 각 방 화면(헤더 🐾＋)에서.</p>
             <div className="flex items-center justify-between">
               <span className="text-[11px] opacity-60">{status}</span>
               <button onClick={create} className="rounded-control bg-accent px-4 py-2 text-sm font-medium text-black">
@@ -106,21 +90,8 @@ export default function PetManageView({
                 <div className="truncate text-sm font-medium">
                   {p.name} <span className="text-[11px] opacity-40">· {p.stage}</span>
                 </div>
-                <div className="text-[11px] opacity-50">{p.roomName ?? "대기 중"}</div>
+                <div className="truncate text-[11px] opacity-50">{p.roomNames.length ? p.roomNames.join(", ") : "대기 중"}</div>
               </div>
-              <select
-                value={p.roomId ?? ""}
-                onChange={(e) => assign(p.id, e.target.value ? Number(e.target.value) : null)}
-                className="shrink-0 rounded-control bg-bg px-2 py-1.5 text-xs ring-1 ring-border"
-                title="방 배정"
-              >
-                <option value="">대기</option>
-                {rooms.map((r) => (
-                  <option key={r.id} value={r.id}>
-                    {r.name}
-                  </option>
-                ))}
-              </select>
               <button onClick={() => setEditId(p.id)} className="shrink-0 rounded-control bg-bg px-3 py-1.5 text-xs ring-1 ring-border hover:ring-accent">
                 편집
               </button>

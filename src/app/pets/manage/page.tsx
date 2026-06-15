@@ -2,6 +2,7 @@ import Link from "next/link";
 import { requireUser } from "@/lib/currentUser";
 import * as roomsRepo from "@/db/repo/petRooms";
 import * as petsRepo from "@/db/repo/pets";
+import * as membershipsRepo from "@/db/repo/petRoomMemberships";
 import * as spritesRepo from "@/db/repo/petSprites";
 import * as itemsRepo from "@/db/repo/items";
 import * as placementsRepo from "@/db/repo/furniturePlacements";
@@ -19,14 +20,22 @@ export default async function PetManagePage({
 }) {
   const user = await requireUser();
   const sp = await searchParams;
-  const [rooms, allPets, sprites, itemRows, placements] = await Promise.all([
+  const [rooms, allPets, sprites, itemRows, placements, memberships] = await Promise.all([
     roomsRepo.listByUser(user.id),
     petsRepo.listByUser(user.id),
     spritesRepo.listForUser(user.id),
     itemsRepo.listForUser(user.id),
     placementsRepo.allForUser(user.id),
+    membershipsRepo.listAllForUser(user.id), // 다대다 — 펫별 소속 방
   ]);
   const roomName = new Map(rooms.map((r) => [r.id, r.name]));
+  const roomNamesByPet = new Map<number, string[]>();
+  for (const m of memberships) {
+    const arr = roomNamesByPet.get(m.petId) ?? [];
+    const nm = roomName.get(m.roomId);
+    if (nm) arr.push(nm);
+    roomNamesByPet.set(m.petId, arr);
+  }
 
   const pets: ManagePet[] = allPets.map((p) => {
     const growth = stageFor(p.growthPoints, p.teenThreshold, p.adultThreshold);
@@ -40,8 +49,7 @@ export default async function PetManagePage({
       name: p.name,
       stage: display,
       avatar: pickSpritePath(sprites.filter((s) => s.petId === p.id), display, "idle"),
-      roomId: p.roomId,
-      roomName: p.roomId != null ? roomName.get(p.roomId) ?? null : null,
+      roomNames: roomNamesByPet.get(p.id) ?? [],
     };
   });
 

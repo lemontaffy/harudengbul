@@ -28,6 +28,7 @@ import {
 } from "@/lib/pets";
 import { isSleeping } from "@/lib/growth";
 import RoomView from "@/components/pets/RoomView";
+import RoomPetsManager from "@/components/pets/RoomPetsManager";
 import type { PetVM, RelationVM, FurnitureVM, ItemVM } from "@/components/pets/types";
 
 export const dynamic = "force-dynamic";
@@ -39,7 +40,7 @@ export default async function RoomPage({ params }: { params: Promise<{ roomId: s
   const room = await roomsRepo.getOne(user.id, roomId);
   if (!room) notFound();
 
-  const [petsRows, sprites, relations, lines, customs, panels, furnitureRows, settings, allRooms, allPetsRows] =
+  const [petsRows, sprites, relations, lines, customs, panels, furnitureRows, settings, allRooms, allPetsRows, allSprites] =
     await Promise.all([
       membershipsRepo.listPetsInRoom(user.id, roomId), // 멤버십(다대다) — 이 방의 펫 + 방별 위치
       spritesRepo.listForRoom(user.id, roomId),
@@ -51,6 +52,7 @@ export default async function RoomPage({ params }: { params: Promise<{ roomId: s
       settingsRepo.getByUser(user.id),
       roomsRepo.listByUser(user.id),
       petsRepo.listByUser(user.id),
+      spritesRepo.listForUser(user.id), // 모든 펫 idle 아바타(방 펫 추가 리스트용)
     ]);
   // v6: 아이템은 방 인스턴스(room_items). placed=true 는 방에 렌더, false 는 바구니(RoomView가 분리).
   const roomItemRows = await roomItemsRepo.listForRoom(user.id, roomId);
@@ -162,6 +164,15 @@ export default async function RoomPage({ params }: { params: Promise<{ roomId: s
     isLove: isLoveLabel(r.relationLabel),
   }));
 
+  // 방 펫 추가 리스트 — 모든 펫의 대표 idle 아바타 + 이 방 멤버 여부.
+  const roomPetIds = petsRows.map((p) => p.id);
+  const roomPetOpts = allPetsRows.map((p) => {
+    const growth = stageFor(p.growthPoints, p.teenThreshold, p.adultThreshold);
+    const display = displayStageFor(growth, p.displayStage, reachedStages(p.growthPoints, p.teenThreshold, p.adultThreshold));
+    const ps = allSprites.filter((s) => s.petId === p.id);
+    return { id: p.id, name: p.name, avatar: pickSpritePath(ps, display, "idle") };
+  });
+
   return (
     <main className="mx-auto max-w-md p-5">
       <div className="mb-4 flex items-center justify-between">
@@ -169,7 +180,7 @@ export default async function RoomPage({ params }: { params: Promise<{ roomId: s
           ← 펫 룸
         </Link>
         <h1 className="font-display text-base font-semibold">{room.name}</h1>
-        <span className="w-12" />
+        <RoomPetsManager roomId={room.id} pets={roomPetOpts} roomPetIds={roomPetIds} />
       </div>
       <RoomView
         room={{
