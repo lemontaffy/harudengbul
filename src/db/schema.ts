@@ -802,3 +802,56 @@ export const itemReactions = pgTable(
   },
   (t) => [index("item_reactions_item_pet_kind_idx").on(t.itemId, t.petId, t.kind)],
 );
+
+// 전역 아이템/가구 라이브러리(계정 단위) — 방마다 흩어 올리는 대신 한 곳에서 관리.
+//   기존 room_furniture(인스턴스/방) + pet_items 를 통합. kind 로 가구/아이템 구분.
+//   가구는 furniture_placements 로 여러 방에 배치(인스턴스), 아이템은 방 배치 없이 펫에 지급(owner).
+export const items = pgTable(
+  "items",
+  {
+    id: bigint("id", { mode: "number" }).primaryKey().generatedAlwaysAsIdentity(),
+    userId: bigint("user_id", { mode: "number" })
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    name: text("name").notNull(),
+    kind: text("kind").notNull(), // 'furniture' | 'item'
+    spritePath: text("sprite_path").notNull(),
+    ownerPetId: bigint("owner_pet_id", { mode: "number" }).references(() => pets.id, {
+      onDelete: "set null",
+    }), // 예: 도미닉의 찻잔(소유 펫)
+    pixelRender: boolean("pixel_render").notNull().default(true),
+    // 가구 속성(kind='furniture')
+    furnitureKind: text("furniture_kind"), // 'seat' | 'fixture'
+    type: text("type"), // 라벨('bench' 등)
+    spriteAltPath: text("sprite_alt_path"), // active 상태(우체통 열림 등)
+    actionType: text("action_type"), // fixture: 'letters'|'memo'|'diary'|'pet_diary'|'achievements'|'none'
+    facing: text("facing").notNull().default("left"), // seat 방향
+    seatY: real("seat_y").notNull().default(40), // seat 좌석면(%)
+    // 아이템 속성(kind='item')
+    brokenSpritePath: text("broken_sprite_path"),
+    durabilityMax: integer("durability_max"), // null = 무한
+    durabilityNow: integer("durability_now").notNull().default(0),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
+  },
+  (t) => [index("items_user_kind_idx").on(t.userId, t.kind)],
+);
+
+// 가구 배치 인스턴스 — 같은 가구(items)를 여러 방에 둘 수 있음. 위치·z·크기·회전은 배치별.
+export const furniturePlacements = pgTable(
+  "furniture_placements",
+  {
+    id: bigint("id", { mode: "number" }).primaryKey().generatedAlwaysAsIdentity(),
+    roomId: bigint("room_id", { mode: "number" })
+      .notNull()
+      .references(() => petRooms.id, { onDelete: "cascade" }),
+    itemId: bigint("item_id", { mode: "number" })
+      .notNull()
+      .references(() => items.id, { onDelete: "cascade" }),
+    posX: real("pos_x").notNull().default(50),
+    posY: real("pos_y").notNull().default(50),
+    zOrder: integer("z_order").notNull().default(0),
+    scale: real("scale").notNull().default(1),
+    rotation: real("rotation").notNull().default(0),
+  },
+  (t) => [index("furniture_placements_room_idx").on(t.roomId)],
+);
