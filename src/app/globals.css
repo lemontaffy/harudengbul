@@ -4,22 +4,25 @@
 
 /* ── 폰트(셀프호스팅) ──
    실제 woff2 는 public/fonts/ 에 드롭(아래 파일명). 없으면 시스템 폰트로 graceful fallback.
-   Pretendard=본문/UI, Paperlogy=제목/숫자 강조(SemiBold·ExtraBold 2웨이트만, 용량 때문). */
+   Pretendard=본문/UI, Paperlogy=제목/숫자 강조(SemiBold·ExtraBold 2웨이트만, 용량 때문).
+   ?v 쿼리 = SW(serwist CacheFirst)·브라우저가 '폰트 없던 시절의 404/폴백'을 캐싱해 고착되던
+   문제 대응(브라우저 캐시 비우기로는 SW 캐시가 안 지워짐). 폰트 교체 시 숫자를 올린다.
+   가변폰트는 format("woff2")로 둔다 — 일부 안드로이드 엔진이 "woff2-variations" 힌트를 거부함. */
 @font-face {
   font-family: "Pretendard";
-  src: url("/fonts/PretendardVariable.subset.woff2") format("woff2-variations");
+  src: url("/fonts/PretendardVariable.subset.woff2?v=1") format("woff2");
   font-weight: 45 920;
   font-display: swap;
 }
 @font-face {
   font-family: "Paperlogy";
-  src: url("/fonts/Paperlogy-SemiBold.subset.woff2") format("woff2");
+  src: url("/fonts/Paperlogy-SemiBold.subset.woff2?v=1") format("woff2");
   font-weight: 600;
   font-display: swap;
 }
 @font-face {
   font-family: "Paperlogy";
-  src: url("/fonts/Paperlogy-ExtraBold.subset.woff2") format("woff2");
+  src: url("/fonts/Paperlogy-ExtraBold.subset.woff2?v=1") format("woff2");
   font-weight: 800;
   font-display: swap;
 }
