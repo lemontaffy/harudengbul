@@ -1,0 +1,39 @@
+/* 펫 일기 전용 폰트 — 이 파일은 pet-diary 라우트(page.tsx)에서만 import 한다.
+   → 한글 풀셋 손글씨(수 MB)·픽셀 폰트가 평소 화면엔 실리지 않고, 펫 일기 진입 시에만 로드된다.
+   손글씨(Handletter·Bumsom, 한글 풀셋) + 픽셀(MaruMinya 서브셋·Terrarum).
+   ?v 쿼리 = PWA/브라우저 폰트 캐시 무력화(폰에서 폴백으로 고착되던 문제 대응). 없으면 시스템 폰트 폴백. */
+@font-face {
+  font-family: "Handletter"; /* 나눔 손편지체 — 일기 본문 기본 */
+  src: url("/fonts/handletter.woff2?v=2") format("woff2");
+  font-display: swap;
+}
+@font-face {
+  font-family: "Bumsom"; /* 나눔 범솜체 — 손글씨 대안 */
+  src: url("/fonts/bumsom.woff2?v=2") format("woff2");
+  font-display: swap;
+}
+@font-face {
+  font-family: "MaruMinya"; /* 12×12 픽셀 한글(서브셋 143KB) — 일기 헤더 기본 */
+  src: url("/fonts/MaruMinyaHangul.subset.woff2") format("woff2");
+  font-display: swap;
+}
+@font-face {
+  font-family: "TerrarumBitmap"; /* 픽셀 비트맵 — 픽셀 대안 */
+  src: url("/fonts/TerrarumSansBitmap.woff2?v=2") format("woff2");
+  font-display: swap;
+}
+
+/* 펫 일기 — 손글씨 본문 / 픽셀 헤더. 다른 글씨체로 바꾸려면 아래 한 줄만 교체
+   (후보: "Bumsom" · "Handletter" / 픽셀: "MaruMinya" · "TerrarumBitmap"). */
+:root {
+  --font-pet-diary: "Handletter", "Bumsom", var(--font-body);
+  --font-pixel: "MaruMinya", "TerrarumBitmap", var(--font-body);
+}
+
+/* 인라인 var 대신 클래스로(일부 모바일 엔진에서 더 안정적). */
+.diary-hand {
+  font-family: var(--font-pet-diary);
+}
+.diary-pixel {
+  font-family: var(--font-pixel);
+}

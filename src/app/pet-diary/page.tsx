@@ -1,3 +1,4 @@
+import "./pet-fonts.css"; // 펫 일기 전용 폰트 — 이 라우트에서만 로드(평소 화면 미적재)
 import Link from "next/link";
 import { requireUser } from "@/lib/currentUser";
 import * as diariesRepo from "@/db/repo/petDiaries";
