@@ -1460,55 +1460,57 @@ export default function RoomView({
         </div>
       </div>
 
-      {/* 메뉴 바 — 관리 모드 토글이 중심. 평소(일반 모드)엔 편집 버튼 숨김·레이아웃 잠금. */}
+      {/* 관리 모드 토글(독립 행) — 켜면 아래 타일 3개로 꾸미기. 일반 모드엔 아이템 주기 + 카메라만. */}
       <div className="flex items-center gap-2 text-xs">
         <button
           onClick={toggleManage}
-          title="켜면 가구·펫·배경을 옮기고 바꿀 수 있어요. 평소엔 꺼두면 무대가 흐트러지지 않아요."
-          className={`rounded-control px-3 py-1.5 ring-1 ring-border ${manageMode ? "bg-accent text-black" : "bg-surface"}`}
+          title="켜면 방·가구·펫·아이템을 옮기고 바꿀 수 있어요. 평소엔 꺼두면 무대가 흐트러지지 않아요."
+          className={`flex items-center gap-2 rounded-control px-3 py-1.5 ring-1 ring-border ${manageMode ? "bg-accent text-black" : "bg-surface"}`}
         >
-          🛠 {manageMode ? "관리 모드 ON" : "관리 모드"}
+          <span>✏️ 관리 모드</span>
+          <span className={`h-2 w-2 rounded-full ${manageMode ? "bg-black/70" : "bg-white/25"}`} aria-hidden />
         </button>
-        {manageMode ? (
+        {!manageMode && (
           <>
+            {pets.length > 0 && (
+              <button
+                onClick={() => setBasketMode("throw")}
+                className="rounded-control bg-accent px-3 py-1.5 font-medium text-black"
+              >
+                🧺 아이템 주기
+              </button>
+            )}
             <button
-              onClick={() => setMenu((m) => (m === "room" ? null : "room"))}
-              className={`rounded-control px-3 py-1.5 ring-1 ring-border ${menu === "room" ? "bg-accent text-black" : "bg-surface"}`}
+              onClick={captureRoom}
+              disabled={capturing}
+              title="펫 룸 스크린샷(배경+펫+말풍선, 이름표 제외)"
+              className="ml-auto rounded-control bg-surface px-3 py-1.5 ring-1 ring-border disabled:opacity-50"
             >
-              ⚙ 방
-            </button>
-            <button
-              onClick={() => { setFurnitureMode((v) => !v); setItemMode(false); setMenu(null); }}
-              className={`rounded-control px-3 py-1.5 ring-1 ring-border ${furnitureMode ? "bg-accent text-black" : "bg-surface"}`}
-            >
-              🪑 가구
-            </button>
-            <button
-              onClick={() => { setItemMode((v) => !v); setFurnitureMode(false); setMenu(null); }}
-              className={`rounded-control px-3 py-1.5 ring-1 ring-border ${itemMode ? "bg-accent text-black" : "bg-surface"}`}
-            >
-              🎁 아이템 배치
+              {capturing ? "📷 …" : "📷"}
             </button>
           </>
-        ) : (
-          pets.length > 0 && (
-            <button
-              onClick={() => setBasketMode("throw")}
-              className="rounded-control bg-accent px-3 py-1.5 font-medium text-black"
-            >
-              🧺 아이템 주기
-            </button>
-          )
         )}
-        <button
-          onClick={captureRoom}
-          disabled={capturing}
-          title="펫 룸 스크린샷(배경+펫+말풍선, 이름표 제외)"
-          className="ml-auto rounded-control bg-surface px-3 py-1.5 ring-1 ring-border disabled:opacity-50"
-        >
-          {capturing ? "📷 …" : "📷"}
-        </button>
       </div>
+
+      {/* 관리 모드 — 방·가구·아이템 동일 타일 3개. */}
+      {manageMode && (
+        <div className="grid grid-cols-3 gap-2">
+          {([
+            { key: "room", icon: "🖼", label: "방", active: menu === "room", onClick: () => { setMenu((m) => (m === "room" ? null : "room")); setFurnitureMode(false); setItemMode(false); } },
+            { key: "furn", icon: "🪑", label: "가구", active: furnitureMode, onClick: () => { setFurnitureMode((v) => !v); setItemMode(false); setMenu(null); } },
+            { key: "item", icon: "🎁", label: "아이템", active: itemMode, onClick: () => { setItemMode((v) => !v); setFurnitureMode(false); setMenu(null); } },
+          ] as const).map((t) => (
+            <button
+              key={t.key}
+              onClick={t.onClick}
+              className={`flex flex-col items-center gap-1 rounded-card px-2 py-3 ring-1 ring-border ${t.active ? "bg-accent text-black" : "bg-surface-2"}`}
+            >
+              <span className="text-lg leading-none">{t.icon}</span>
+              <span className="text-xs">{t.label}</span>
+            </button>
+          ))}
+        </div>
+      )}
 
       {!manageMode ? (
         <span className="text-[11px] opacity-40">{N > 1 ? "옆으로 스와이프 · " : ""}펫을 탭하면 반응 · 🧺로 아이템을 줘 보세요</span>
@@ -1536,7 +1538,7 @@ export default function RoomView({
           </button>
         </div>
       ) : (
-        <span className="text-[11px] opacity-40">관리 모드 — 펫을 끌어 배치 · 위 ‘가구/아이템 배치’로 꾸미기 · 끄면 잠겨요</span>
+        <span className="text-[11px] opacity-40">펫을 끌어 배치 · 위 버튼으로 꾸미기 · 끄면 잠겨요</span>
       )}
 
       {/* 방 설정 메뉴 — 분주함 · 이름표 · 배경 패널 (관리 모드에서만) */}
