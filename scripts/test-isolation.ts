@@ -13,6 +13,7 @@ import * as messagesRepo from "../src/db/repo/messages";
 import * as petRoomsRepo from "../src/db/repo/petRooms";
 import * as petItemsLibRepo from "../src/db/repo/items";
 import * as placementsRepo from "../src/db/repo/furniturePlacements";
+import * as roomItemsRepo from "../src/db/repo/roomItems";
 import { buildContext, buildSystemPrompt, type Role } from "../src/lib/persona";
 import { executeTool } from "../src/lib/tools";
 
@@ -201,6 +202,16 @@ async function main() {
   // 내구도 wear/repair 타 유저 스코프 무동작.
   await petItemsLibRepo.wear(B.id, aItem.id); // 타인 → 무동작
   check("B의 wear로 A 아이템 내구도 안 줄어듦", (await petItemsLibRepo.getOne(A.id, aItem.id))?.durabilityNow === 10);
+
+  // ── v6 방 인스턴스(room_items): 상태(내구도·소유·placed)는 인스턴스, 교차 격리 ──
+  const aInst = await roomItemsRepo.pull({ roomId: aRoom.id, assetId: aItem.id, durabilityMax: 10, placed: true });
+  check("A방 인스턴스 생성됨(placed)", (await roomItemsRepo.listForRoom(A.id, aRoom.id)).length === 1);
+  check("B는 A방 인스턴스 조회 못 함", (await roomItemsRepo.listForRoom(B.id, aRoom.id)).length === 0);
+  check("B는 A 인스턴스 단건 조회 못 함", (await roomItemsRepo.getOne(B.id, aInst.id)) === null);
+  await roomItemsRepo.wear(B.id, aInst.id); // 타인 → 무동작
+  check("B의 wear로 A 인스턴스 내구도 안 줄어듦", (await roomItemsRepo.getOne(A.id, aInst.id))?.durabilityNow === 10);
+  await roomItemsRepo.remove(B.id, aInst.id); // 타인 → 무동작
+  check("B의 remove로 A 인스턴스 안 지워짐", (await roomItemsRepo.getOne(A.id, aInst.id)) !== null);
 
   console.log(failed === 0 ? "\n격리 테스트 통과 ✅" : `\n${failed}건 실패 ❌`);
   process.exit(failed === 0 ? 0 : 1);

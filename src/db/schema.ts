@@ -862,6 +862,35 @@ export const furniturePlacements = pgTable(
   (t) => [index("furniture_placements_room_idx").on(t.roomId)],
 );
 
+// v6 아이템 인스턴스(방 단위) — 풀(items=asset)에서 꺼내 방에 만든 실체. 상태는 전부 여기:
+//   소유(방 내)·내구도·파손·placed(배치 ↔ 바구니)·위치. asset 은 상태 없는 스프라이트 원본.
+//   한 인스턴스는 한 곳에만(placed=false 바구니 ↔ placed=true 선반). 던지기는 바구니에서만.
+export const roomItems = pgTable(
+  "room_items",
+  {
+    id: bigint("id", { mode: "number" }).primaryKey().generatedAlwaysAsIdentity(),
+    roomId: bigint("room_id", { mode: "number" })
+      .notNull()
+      .references(() => petRooms.id, { onDelete: "cascade" }),
+    assetId: bigint("asset_id", { mode: "number" })
+      .notNull()
+      .references(() => items.id, { onDelete: "cascade" }), // items 풀(=asset)
+    ownerPetId: bigint("owner_pet_id", { mode: "number" }).references(() => pets.id, {
+      onDelete: "set null",
+    }), // 방 안 소유 펫(선택)
+    durabilityMax: integer("durability_max"), // null = 무한(마모·파손 없음)
+    durabilityNow: integer("durability_now").notNull().default(0),
+    broken: boolean("broken").notNull().default(false),
+    placed: boolean("placed").notNull().default(false), // false=바구니, true=방에 배치
+    posX: real("pos_x").notNull().default(50),
+    posY: real("pos_y").notNull().default(70),
+    scale: real("scale").notNull().default(1),
+    zOrder: integer("z_order").notNull().default(0),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
+  },
+  (t) => [index("room_items_room_idx").on(t.roomId, t.placed)],
+);
+
 // 아이템 '주기' 반응 대사 풀 — (이 아이템 × 받는 펫 × kind) 캐시. 스테이지 미반영(조합폭발 방지).
 //   kind: 'received'(주인없음 일반) | 'owner_recognize'(받는펫=주인) | 'other_owner'(다른펫, 주인 언급).
 //   ※ 레거시 item_reactions(pet_items FK)와 별개 — 전역 items용. source 로 auto/manual 편집 구분.
