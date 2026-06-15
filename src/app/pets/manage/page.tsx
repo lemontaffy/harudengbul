@@ -3,19 +3,31 @@ import { requireUser } from "@/lib/currentUser";
 import * as roomsRepo from "@/db/repo/petRooms";
 import * as petsRepo from "@/db/repo/pets";
 import * as spritesRepo from "@/db/repo/petSprites";
+import * as itemsRepo from "@/db/repo/items";
+import * as placementsRepo from "@/db/repo/furniturePlacements";
 import { stageFor, reachedStages, displayStageFor, pickSpritePath } from "@/lib/pets";
-import PetManageView, { type ManagePet } from "@/components/pets/PetManageView";
+import PetManageHub from "@/components/pets/PetManageHub";
+import type { ManagePet } from "@/components/pets/PetManageView";
+import type { LibraryItem } from "@/components/pets/ItemsLibraryView";
 
 export const dynamic = "force-dynamic";
 
-export default async function PetManagePage() {
+export default async function PetManagePage({
+  searchParams,
+}: {
+  searchParams: Promise<{ tab?: string }>;
+}) {
   const user = await requireUser();
-  const [rooms, allPets, sprites] = await Promise.all([
+  const sp = await searchParams;
+  const [rooms, allPets, sprites, itemRows, placements] = await Promise.all([
     roomsRepo.listByUser(user.id),
     petsRepo.listByUser(user.id),
     spritesRepo.listForUser(user.id),
+    itemsRepo.listForUser(user.id),
+    placementsRepo.allForUser(user.id),
   ]);
   const roomName = new Map(rooms.map((r) => [r.id, r.name]));
+  const petName = new Map(allPets.map((p) => [p.id, p.name]));
 
   const pets: ManagePet[] = allPets.map((p) => {
     const growth = stageFor(p.growthPoints, p.teenThreshold, p.adultThreshold);
@@ -34,19 +46,49 @@ export default async function PetManagePage() {
     };
   });
 
+  // 가구별 배치된 방 묶기(라이브러리 목록 표시·삭제 확인용).
+  const roomsByItem = new Map<number, { roomId: number; roomName: string }[]>();
+  for (const pl of placements) {
+    const arr = roomsByItem.get(pl.itemId) ?? [];
+    arr.push({ roomId: pl.roomId, roomName: pl.roomName });
+    roomsByItem.set(pl.itemId, arr);
+  }
+  const items: LibraryItem[] = itemRows.map((r) => ({
+    id: r.id,
+    name: r.name,
+    kind: r.kind as "furniture" | "item",
+    spritePath: r.spritePath,
+    spriteAltPath: r.spriteAltPath,
+    brokenSpritePath: r.brokenSpritePath,
+    pixelRender: r.pixelRender,
+    ownerPetId: r.ownerPetId,
+    ownerName: r.ownerPetId != null ? petName.get(r.ownerPetId) ?? null : null,
+    furnitureKind: r.furnitureKind as "seat" | "fixture" | null,
+    type: r.type,
+    actionType: r.actionType,
+    facing: (r.facing as "left" | "right") ?? "left",
+    seatY: r.seatY,
+    durabilityMax: r.durabilityMax,
+    durabilityNow: r.durabilityNow,
+    placedRooms: roomsByItem.get(r.id) ?? [],
+  }));
+
   return (
     <main className="mx-auto max-w-md p-5">
       <div className="mb-4 flex items-center justify-between">
         <Link href="/pets" className="text-sm opacity-60 hover:opacity-100">
           ← 펫 룸
         </Link>
-        <h1 className="font-display text-base font-semibold">펫 관리</h1>
+        <h1 className="font-display text-base font-semibold">관리</h1>
         <span className="w-12" />
       </div>
-      <PetManageView
+      <PetManageHub
         pets={pets}
         rooms={rooms.map((r) => ({ id: r.id, name: r.name }))}
         allPets={allPets.map((p) => ({ id: p.id, name: p.name }))}
+        items={items}
+        petOpts={allPets.map((p) => ({ id: p.id, name: p.name }))}
+        initialTab={sp.tab === "items" ? "items" : "pets"}
       />
     </main>
   );
