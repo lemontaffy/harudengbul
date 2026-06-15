@@ -22,6 +22,12 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   if (!item || (item.kind !== "furniture" && item.kind !== "item"))
     return Response.json({ error: "없는 아이템" }, { status: 404 });
 
+  // 기능 가구(fixture, 액션 있음)는 1방 1개 — 우체통·일기 등 같은 기능을 한 방에 둘 수 없음.
+  if (item.furnitureKind === "fixture" && item.actionType && item.actionType !== "none") {
+    if (await placementsRepo.fixtureActionExists(user.id, roomId, item.actionType))
+      return Response.json({ error: "이 방엔 이미 같은 기능의 가구가 있어요(기능물은 방당 1개)." }, { status: 409 });
+  }
+
   // 현재 보는 패널 중앙에 배치(클라가 posX 전달). 미전달 시 방 가운데.
   const clamp = (v: number) => Math.max(2, Math.min(98, v));
   const posX = Number.isFinite(body.posX) ? clamp(Number(body.posX)) : 50;

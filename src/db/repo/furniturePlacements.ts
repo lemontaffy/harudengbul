@@ -83,6 +83,28 @@ export async function roomsForItem(userId: number, itemId: number) {
     .orderBy(asc(petRooms.id));
 }
 
+/** 이 방에 같은 기능(actionType)의 fixture 가구가 이미 배치됐는지 — 기능물 1방 유일 제약용. */
+export async function fixtureActionExists(
+  userId: number,
+  roomId: number,
+  actionType: string,
+): Promise<boolean> {
+  const [row] = await db
+    .select({ id: furniturePlacements.id })
+    .from(furniturePlacements)
+    .innerJoin(items, eq(items.id, furniturePlacements.itemId))
+    .innerJoin(petRooms, eq(petRooms.id, furniturePlacements.roomId))
+    .where(
+      and(
+        eq(petRooms.userId, userId),
+        eq(furniturePlacements.roomId, roomId),
+        eq(items.actionType, actionType),
+      ),
+    )
+    .limit(1);
+  return !!row;
+}
+
 /** 유저의 모든 가구 배치(item별 배치된 방). 관리 화면에서 가구별 '배치된 방' 표시용. */
 export async function allForUser(userId: number) {
   return db

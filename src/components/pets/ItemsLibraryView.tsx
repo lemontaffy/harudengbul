@@ -147,15 +147,11 @@ function Row({ it, onChange }: { it: LibraryItem; onChange: () => void }) {
               {it.kind === "furniture" ? (it.furnitureKind === "seat" ? "의자" : "설치물") : "아이템"}
             </span>
           </div>
-          <p className="mt-0.5 truncate text-xs text-text-dim">
-            {it.kind === "furniture"
-              ? it.placedRooms.length > 0
-                ? `배치: ${it.placedRooms.map((r) => r.roomName).join(", ")}`
-                : "배치 안 됨"
-              : it.durabilityMax != null
-                ? `내구 상한 ${it.durabilityMax}`
-                : "내구 무한"}
-          </p>
+          {it.kind === "item" && (
+            <p className="mt-0.5 truncate text-xs text-text-dim">
+              {it.durabilityMax != null ? `내구 상한 ${it.durabilityMax}` : "내구 무한"}
+            </p>
+          )}
         </div>
         <button onClick={() => setEditing((v) => !v)} className="shrink-0 rounded-control px-2 py-1 text-xs ring-1 ring-border">
           {editing ? "취소" : "수정"}
