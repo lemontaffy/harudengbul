@@ -1,7 +1,9 @@
 import { z } from "zod";
 import { getCurrentUser } from "@/lib/currentUser";
 import * as eventsRepo from "@/db/repo/events";
+import * as settingsRepo from "@/db/repo/settings";
 import { pushUpdate, pushDelete } from "@/lib/googlesync";
+import { parseRule, ruleToString, nextOccurrence } from "@/lib/recurrence";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -12,6 +14,9 @@ const patchSchema = z.object({
   endsAt: z.string().min(1).nullable().optional(),
   alarmMinutesBefore: z.number().int().min(0).max(10080).nullable().optional(),
   alarmKeepMinutes: z.number().int().min(0).max(1440).nullable().optional(),
+  recurrence: z.string().max(64).nullable().optional(),
+  endDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable().optional(),
+  active: z.boolean().optional(), // false=내리기(보관) / true=재활성
 });
 
 function parseDate(v: string): Date | null {
@@ -41,6 +46,21 @@ export async function PATCH(
   if (!parsed.success) return Response.json({ error: "잘못된 입력" }, { status: 400 });
   const d = parsed.data;
 
+  // 활성 전환(내리기/재활성)은 별도 처리 — 삭제와 구분(설정 보존, 재활성 가능).
+  if (d.active !== undefined) {
+    let rearmStartsAt: Date | undefined;
+    if (d.active && ev.category === "standing" && ev.recurrence) {
+      // 재활성: 과거에서 울리지 않게 다음 발생으로 startsAt 재설정.
+      const rule = parseRule(ev.recurrence);
+      const s = await settingsRepo.getByUser(user.id);
+      const tz = s?.timezone ?? "Asia/Seoul";
+      const next = rule ? nextOccurrence(rule, ev.startsAt as Date, tz, new Date()) : null;
+      if (next) rearmStartsAt = next;
+    }
+    await eventsRepo.setActive(user.id, ev.id, d.active, rearmStartsAt);
+    return Response.json({ ok: true });
+  }
+
   const patch: Parameters<typeof eventsRepo.update>[2] = {};
   if (d.title !== undefined) patch.title = d.title;
   if (d.startsAt !== undefined) {
@@ -51,6 +71,15 @@ export async function PATCH(
   if (d.endsAt !== undefined) patch.endsAt = d.endsAt ? parseDate(d.endsAt) : null;
   if (d.alarmMinutesBefore !== undefined) patch.alarmMinutesBefore = d.alarmMinutesBefore;
   if (d.alarmKeepMinutes !== undefined) patch.alarmKeepMinutes = d.alarmKeepMinutes;
+  if (d.recurrence !== undefined) {
+    if (d.recurrence === null) patch.recurrence = null;
+    else {
+      const rule = parseRule(d.recurrence);
+      if (!rule) return Response.json({ error: "반복 규칙이 올바르지 않아요." }, { status: 400 });
+      patch.recurrence = ruleToString(rule);
+    }
+  }
+  if (d.endDate !== undefined) patch.endDate = d.endDate;
 
   await eventsRepo.update(user.id, ev.id, patch);
   // Google에 미러링(연결+매핑돼 있을 때만). 갱신된 값으로.

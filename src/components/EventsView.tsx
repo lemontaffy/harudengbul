@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useDialog } from "@/components/ui/Dialog";
+import { parseRule, describeRule } from "@/lib/recurrence";
 
 export interface EventItem {
   id: number;
@@ -10,7 +11,13 @@ export interface EventItem {
   endsAt: string | null;
   alarmMinutesBefore: number | null;
   alarmKeepMinutes: number | null;
+  category?: "oneoff" | "standing";
+  recurrence?: string | null;
+  endDate?: string | null;
+  active?: boolean;
 }
+
+const WEEKDAYS = ["일", "월", "화", "수", "목", "금", "토"];
 
 const ALARM_OPTIONS: { label: string; value: number | null }[] = [
   { label: "없음", value: null },
@@ -103,18 +110,43 @@ export default function EventsView({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  const [archived, setArchived] = useState<EventItem[]>([]);
+  const [archivedOpen, setArchivedOpen] = useState(false);
+
+  async function loadArchived() {
+    const res = await fetch("/api/events?archived=1");
+    if (res.ok) setArchived((await res.json()).events);
+  }
+
   async function remove(ev: EventItem) {
-    if (!(await dialog.confirm({ message: `'${ev.title}' 일정을 삭제할까요?`, danger: true, confirmText: "삭제" }))) return;
+    if (!(await dialog.confirm({ message: `'${ev.title}'을(를) 영구 삭제할까요? (보관함에서도 사라져요)`, danger: true, confirmText: "삭제" }))) return;
     const res = await fetch(`/api/events/${ev.id}`, { method: "DELETE" });
     if (res.ok) {
       setStatus("삭제됨");
       await refresh();
+      if (archivedOpen) await loadArchived();
     } else setStatus("삭제 실패");
   }
 
-  // 날짜별 그룹
+  // 내리기/종료(비활성, 삭제 아님) ↔ 재활성. 보관함 동기화.
+  async function setActive(ev: EventItem, active: boolean) {
+    const res = await fetch(`/api/events/${ev.id}`, {
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ active }),
+    });
+    if (res.ok) {
+      setStatus(active ? "다시 켜짐 ✓" : "내렸어요(보관) ✓");
+      await refresh();
+      if (archivedOpen) await loadArchived();
+    } else setStatus("실패");
+  }
+
+  // 상시알람(활성)은 별도 그룹, 나머지는 날짜별 그룹.
+  const standing = events.filter((e) => e.category === "standing");
+  const oneoff = events.filter((e) => e.category !== "standing");
   const groups: { key: string; items: EventItem[] }[] = [];
-  for (const e of events) {
+  for (const e of oneoff) {
     const k = dayKey(e.startsAt);
     const g = groups.find((x) => x.key === k);
     if (g) g.items.push(e);
@@ -170,7 +202,49 @@ export default function EventsView({
         <CalendarView dataVersion={dataVersion} onError={setStatus} onMutated={refresh} />
       ) : (
         <>
-          {groups.length === 0 && !adding && (
+          {/* 상시알람 — 약·루틴처럼 반복되는 알람. 약 끝나면 여기서 '내리기'로 한 번에 조용히. */}
+          {standing.length > 0 && (
+            <section>
+              <h3 className="mb-1 flex items-center gap-1.5 text-xs font-semibold opacity-60">
+                <span>🔁 상시알람</span>
+                <span className="opacity-50">{standing.length}</span>
+              </h3>
+              <ul className="flex flex-col gap-2">
+                {standing.map((e) =>
+                  editingId === e.id ? (
+                    <li key={e.id}>
+                      <EventForm
+                        initial={e}
+                        onCancel={() => setEditingId(null)}
+                        onSaved={async () => { setEditingId(null); setStatus("저장됨 ✓"); await refresh(); }}
+                        onError={setStatus}
+                      />
+                    </li>
+                  ) : (
+                    <li key={e.id} className="flex items-center gap-3 rounded-xl bg-surface p-3 ring-1 ring-border">
+                      <div className="min-w-0 flex-1">
+                        <div className="truncate text-sm">{e.title}</div>
+                        <div className="text-[11px] opacity-50">
+                          {describeRule(e.recurrence)}
+                          {" · "}
+                          {new Date(e.startsAt).toLocaleTimeString("ko-KR", { hour: "2-digit", minute: "2-digit" })}
+                          {e.endDate && ` · ~${e.endDate}까지`}
+                        </div>
+                      </div>
+                      <button onClick={() => setActive(e, false)} className="rounded-control bg-bg px-3 py-1.5 text-xs ring-1 ring-border" title="울림 정지(보관) — 삭제 아님">
+                        내리기
+                      </button>
+                      <button onClick={() => { setEditingId(e.id); setAdding(false); }} className="rounded-control bg-bg px-3 py-1.5 text-xs ring-1 ring-border">
+                        편집
+                      </button>
+                    </li>
+                  ),
+                )}
+              </ul>
+            </section>
+          )}
+
+          {groups.length === 0 && standing.length === 0 && !adding && (
             emptyCta ? (
               <a
                 href={emptyCta.href}
@@ -238,6 +312,42 @@ export default function EventsView({
               </ul>
             </section>
           ))}
+
+          {/* 보관함 — 내려진(종료/수동) 알람. 삭제와 구분: 재활성 가능, 설정 보존. */}
+          <section className="mt-2">
+            <button
+              onClick={async () => {
+                const open = !archivedOpen;
+                setArchivedOpen(open);
+                if (open) await loadArchived();
+              }}
+              className="text-xs font-semibold opacity-60 hover:opacity-100"
+            >
+              📦 보관함 {archivedOpen ? "▾" : "▸"}
+            </button>
+            {archivedOpen && (
+              <ul className="mt-1 flex flex-col gap-2">
+                {archived.length === 0 && <li className="py-2 text-[11px] opacity-40">보관된 알람이 없어요.</li>}
+                {archived.map((e) => (
+                  <li key={e.id} className="flex items-center gap-3 rounded-xl bg-bg p-3 ring-1 ring-border">
+                    <div className="min-w-0 flex-1">
+                      <div className="truncate text-sm opacity-70">{e.title}</div>
+                      <div className="text-[11px] opacity-40">
+                        {e.category === "standing" ? describeRule(e.recurrence) : new Date(e.startsAt).toLocaleString("ko-KR", { dateStyle: "short", timeStyle: "short" })}
+                        {e.endDate && ` · ~${e.endDate}`}
+                      </div>
+                    </div>
+                    <button onClick={() => setActive(e, true)} className="rounded-control bg-accent px-3 py-1.5 text-xs font-medium text-black">
+                      다시 켜기
+                    </button>
+                    <button onClick={() => remove(e)} className="px-2 py-1.5 text-xs opacity-60 hover:text-red-400">
+                      삭제
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </section>
         </>
       )}
     </div>
@@ -450,22 +560,47 @@ function EventForm({
   const [keep, setKeep] = useState<number | null>(
     initial?.alarmKeepMinutes ?? null,
   );
+  // 상시알람 — 반복 규칙 + 종료일.
+  const initRule = initial?.recurrence ? parseRule(initial.recurrence) : null;
+  const [standing, setStanding] = useState(initial?.category === "standing");
+  const [recKind, setRecKind] = useState<"daily" | "weekly" | "interval">(initRule?.kind ?? "daily");
+  const [weekDays, setWeekDays] = useState<number[]>(
+    initRule?.kind === "weekly" ? initRule.days : [1, 2, 3, 4, 5],
+  );
+  const [intervalMin, setIntervalMin] = useState<number>(
+    initRule?.kind === "interval" ? initRule.minutes : 240,
+  );
+  const [endDate, setEndDate] = useState<string>(initial?.endDate ?? "");
   const [saving, setSaving] = useState(false);
+
+  function buildRecurrence(): string | null {
+    if (recKind === "daily") return "daily";
+    if (recKind === "weekly") return weekDays.length ? `weekly:${[...weekDays].sort((a, b) => a - b).join(",")}` : null;
+    return `interval:${Math.max(1, Math.floor(intervalMin))}`;
+  }
 
   async function save() {
     if (!title.trim() || !startsAt) {
       onError("제목과 시작 일시를 입력하세요.");
       return;
     }
+    const recurrence = standing ? buildRecurrence() : null;
+    if (standing && !recurrence) {
+      onError("요일을 하나 이상 고르세요.");
+      return;
+    }
     setSaving(true);
     try {
-      const payload = {
+      const base = {
         title: title.trim(),
         startsAt: fromLocalInput(startsAt),
         endsAt: endsAt ? fromLocalInput(endsAt) : null,
         alarmMinutesBefore: alarm,
         alarmKeepMinutes: keep,
       };
+      const payload = standing
+        ? { ...base, ...(initial ? {} : { category: "standing" as const }), recurrence, endDate: endDate || null }
+        : { ...base, ...(initial ? {} : { category: "oneoff" as const }) };
       const res = await fetch(
         initial ? `/api/events/${initial.id}` : "/api/events",
         {
@@ -489,17 +624,32 @@ function EventForm({
 
   return (
     <div className="rounded-xl bg-surface p-4 ring-1 ring-border">
+      {/* 종류 — 일회성 / 상시(반복). 편집 중엔 종류 전환 없음(생성 때만). */}
+      {!initial && (
+        <div className="mb-3 flex gap-1.5 text-xs">
+          {([["oneoff", "일회성"], ["standing", "상시(반복)"]] as const).map(([k, l]) => (
+            <button
+              key={k}
+              type="button"
+              onClick={() => setStanding(k === "standing")}
+              className={`rounded-control px-3 py-1.5 ${(standing ? "standing" : "oneoff") === k ? "bg-accent text-black" : "bg-bg ring-1 ring-border"}`}
+            >
+              {l}
+            </button>
+          ))}
+        </div>
+      )}
       <label className="mb-1 block text-xs opacity-60">제목</label>
       <input
         value={title}
         onChange={(e) => setTitle(e.target.value)}
         maxLength={120}
-        placeholder="예: 치과 예약"
+        placeholder={standing ? "예: 지사제 복용" : "예: 치과 예약"}
         className={inputCls}
       />
       <div className="mt-3 flex gap-2">
         <label className="flex-1 text-xs opacity-60">
-          시작
+          {standing ? "첫 알람 시각" : "시작"}
           <input
             type="datetime-local"
             value={startsAt}
@@ -507,16 +657,76 @@ function EventForm({
             className={`${inputCls} mt-1`}
           />
         </label>
-        <label className="flex-1 text-xs opacity-60">
-          종료(선택)
-          <input
-            type="datetime-local"
-            value={endsAt}
-            onChange={(e) => setEndsAt(e.target.value)}
-            className={`${inputCls} mt-1`}
-          />
-        </label>
+        {!standing && (
+          <label className="flex-1 text-xs opacity-60">
+            종료(선택)
+            <input
+              type="datetime-local"
+              value={endsAt}
+              onChange={(e) => setEndsAt(e.target.value)}
+              className={`${inputCls} mt-1`}
+            />
+          </label>
+        )}
       </div>
+
+      {standing && (
+        <div className="mt-3 rounded-control bg-bg p-2.5 ring-1 ring-border">
+          <label className="mb-1.5 block text-xs opacity-60">반복</label>
+          <div className="flex flex-wrap gap-1.5">
+            {([["daily", "매일"], ["weekly", "요일"], ["interval", "시간 간격"]] as const).map(([k, l]) => (
+              <button
+                key={k}
+                type="button"
+                onClick={() => setRecKind(k)}
+                className={`rounded-control px-2.5 py-1 text-[11px] ${recKind === k ? "bg-accent text-black" : "bg-surface ring-1 ring-border"}`}
+              >
+                {l}
+              </button>
+            ))}
+          </div>
+          {recKind === "weekly" && (
+            <div className="mt-2 flex flex-wrap gap-1">
+              {WEEKDAYS.map((w, i) => (
+                <button
+                  key={i}
+                  type="button"
+                  onClick={() => setWeekDays((ds) => (ds.includes(i) ? ds.filter((d) => d !== i) : [...ds, i]))}
+                  className={`h-7 w-7 rounded-full text-[11px] ${weekDays.includes(i) ? "bg-accent text-black" : "bg-surface ring-1 ring-border"}`}
+                >
+                  {w}
+                </button>
+              ))}
+            </div>
+          )}
+          {recKind === "interval" && (
+            <div className="mt-2 flex items-center gap-2 text-xs opacity-80">
+              <input
+                type="number"
+                min={1}
+                max={1440}
+                value={intervalMin}
+                onChange={(e) => setIntervalMin(Number(e.target.value) || 1)}
+                className="w-20 rounded-control bg-surface px-2 py-1 ring-1 ring-border"
+              />
+              <span>분마다 (첫 알람 시각 기준)</span>
+            </div>
+          )}
+          <label className="mb-1 mt-3 block text-xs opacity-60">종료일(선택) — 그날까지만</label>
+          <input
+            type="date"
+            value={endDate}
+            onChange={(e) => setEndDate(e.target.value)}
+            className={inputCls}
+          />
+          <p className="mt-1 text-[11px] opacity-40">
+            종료일을 지나면 알아서 내려가요(보관). 비우면 직접 내릴 때까지 계속 울려요.
+          </p>
+        </div>
+      )}
+
+      {!standing && (
+        <>
       <label className="mb-1 mt-3 block text-xs opacity-60">알람 (몇 분 전)</label>
       <div className="flex items-center gap-2">
         <input
@@ -555,6 +765,8 @@ function EventForm({
       <p className="mt-1 text-[11px] opacity-40">
         직접 입력하거나 칩을 누르세요. 알람은 알림(웹푸시)을 켠 기기로 와요.
       </p>
+        </>
+      )}
 
       <label className="mb-1 mt-3 block text-xs opacity-60">
         알람 유지(반복) — 확인할 때까지

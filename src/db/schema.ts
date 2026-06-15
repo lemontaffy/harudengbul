@@ -294,6 +294,14 @@ export const events = pgTable(
     alarmAcked: boolean("alarm_acked").default(false), // 사용자가 확인(탭)하면 중단
     // '10분 뒤 다시'(스누즈) — 이 시각까지 반복 억제, 도래 시 1회 재푸시.
     alarmSnoozeUntil: timestamp("alarm_snooze_until", { withTimezone: true }),
+    // 알람 카테고리 — 'oneoff'(기본, 일회성) | 'standing'(상시: 반복 규칙 보유, 발화 후 자가 재무장).
+    category: text("category").notNull().default("oneoff"),
+    // 상시알람 반복 규칙 — 'daily' | 'weekly:0,3,5'(0=일~6=토) | 'interval:N'(N분). oneoff면 null.
+    recurrence: text("recurrence"),
+    // 상시알람 종료일(YYYY-MM-DD, 그날 포함). 지나면 자동 비활성(보관). null=무기한.
+    endDate: date("end_date"),
+    // 활성 여부. false = '내림/보관'(울림 정지, 삭제 아님 — 재활성 가능). 상시알람 종료/수동 내리기에 사용.
+    active: boolean("active").notNull().default(true),
     source: text("source").default("local"), // 'local' | 'google'
     googleEventId: text("google_event_id"), // Google 캘린더 이벤트 연결(양방향 매핑)
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
@@ -301,6 +309,7 @@ export const events = pgTable(
   (t) => [
     index("events_user_starts_idx").on(t.userId, t.startsAt),
     index("events_user_google_idx").on(t.userId, t.googleEventId),
+    index("events_user_category_active_idx").on(t.userId, t.category, t.active),
   ],
 );
 

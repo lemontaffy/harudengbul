@@ -37,6 +37,7 @@ import {
   resolveDeliveryPersona,
 } from "../src/lib/timecapsule";
 import { issueSnoozeToken } from "../src/lib/snoozeToken";
+import { parseRule, nextOccurrence, pastEndDate } from "../src/lib/recurrence";
 import { runBackup } from "../src/lib/backup";
 import { googleConfigured } from "../src/lib/google";
 import { syncUser } from "../src/lib/googlesync";
@@ -94,9 +95,41 @@ async function notifyAlarm(e: {
   log(`  event#${e.id} "${e.title}" → ${sent}건 발송`);
 }
 
-/** 매 1분 — 신규 알람 청구 + 반복(스누즈) 청구 후 해당 사용자에게 푸시. */
+/**
+ * 상시알람 재무장 — 현재 발생이 끝난(keep 창 경과) 상시알람을 다음 발생으로 옮긴다.
+ *   다음 발생이 종료일(end_date)을 넘으면 자동 비활성(보관, 삭제 아님). 다음 틱부터 그 시각에 다시 울림.
+ */
+async function rearmStandingAlarms() {
+  try {
+    const rows = await eventsRepo.listStandingToRearm();
+    if (rows.length === 0) return;
+    const now = new Date();
+    let rearmed = 0;
+    let archived = 0;
+    for (const r of rows) {
+      const rule = parseRule(r.recurrence);
+      if (!rule) continue;
+      const s = await settingsRepo.getByUser(r.userId);
+      const tz = s?.timezone ?? "Asia/Seoul";
+      const next = nextOccurrence(rule, r.startsAt as Date, tz, now);
+      if (!next || pastEndDate(next, r.endDate as string | null, tz)) {
+        await eventsRepo.deactivateById(r.id); // 코스 끝 → 알아서 내려감
+        archived++;
+      } else {
+        await eventsRepo.setStartsAtRearm(r.id, next);
+        rearmed++;
+      }
+    }
+    if (rearmed || archived) log(`rearmStanding: 재무장 ${rearmed} + 보관 ${archived}건`);
+  } catch (err) {
+    log(`rearmStanding 오류: ${(err as Error)?.message}`);
+  }
+}
+
+/** 매 1분 — 상시 재무장 + 신규 알람 청구 + 반복(스누즈) 청구 후 해당 사용자에게 푸시. */
 async function alarmJob() {
   try {
+    await rearmStandingAlarms(); // 지난 발생 → 다음 발생/보관(청구 전에)
     const due = await eventsRepo.claimDueAlarms();
     const repeats = await eventsRepo.claimDueRepeats(ALARM_REPEAT_MIN);
     const snoozes = await eventsRepo.claimDueSnoozes();
