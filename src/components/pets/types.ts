@@ -57,6 +57,7 @@ export interface ItemVM {
   pixelRender: boolean;
   posX: number;
   posY: number;
+  scale: number; // 크기 배율(수동조정)
   durabilityMax: number | null; // null=무한(안 깨짐)
   durabilityNow: number; // 0=파손(금 간 상태)
   heldByPetId: number | null; // 특정 펫에게 준 경우

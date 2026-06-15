@@ -59,6 +59,7 @@ export default async function RoomPage({ params }: { params: Promise<{ roomId: s
     pixelRender: it.pixelRender,
     posX: it.posX,
     posY: it.posY,
+    scale: it.scale,
     durabilityMax: it.durabilityMax,
     durabilityNow: it.durabilityNow,
     heldByPetId: it.heldByPetId,

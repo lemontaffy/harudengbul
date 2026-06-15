@@ -13,6 +13,7 @@ const ITEM_COLS = {
   pixelRender: petItems.pixelRender,
   posX: petItems.posX,
   posY: petItems.posY,
+  scale: petItems.scale,
   durabilityMax: petItems.durabilityMax,
   durabilityNow: petItems.durabilityNow,
   heldByPetId: petItems.heldByPetId,
@@ -77,6 +78,13 @@ export async function setPosition(userId: number, id: number, posX: number, posY
   await db
     .update(petItems)
     .set({ posX: clamp(posX), posY: clamp(posY) })
+    .where(and(eq(petItems.id, id), eq(petItems.userId, userId)));
+}
+
+export async function setScale(userId: number, id: number, scale: number) {
+  await db
+    .update(petItems)
+    .set({ scale })
     .where(and(eq(petItems.id, id), eq(petItems.userId, userId)));
 }
 

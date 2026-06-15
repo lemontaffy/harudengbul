@@ -21,6 +21,9 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
   if (typeof body.pixelRender === "boolean") {
     await itemsRepo.setPixel(user.id, id, body.pixelRender);
   }
+  if (typeof body.scale === "number" && Number.isFinite(body.scale)) {
+    await itemsRepo.setScale(user.id, id, Math.max(0.3, Math.min(3, body.scale)));
+  }
   if ("heldByPetId" in body) {
     let pid: number | null = null;
     if (body.heldByPetId != null) {

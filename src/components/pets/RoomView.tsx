@@ -940,6 +940,20 @@ export default function RoomView({
       body: JSON.stringify({ pixelRender: v }),
     }).catch(() => {});
   }
+  // 크기 조절 — 라이브 미리보기는 state, 저장은 디바운스(슬라이더 연속 변경 → 마지막 값 1회 PATCH).
+  const itemScaleSaveRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  function setItemScale(it: ItemVM, v: number) {
+    const scale = Math.max(0.3, Math.min(3, v));
+    setItems((xs) => xs.map((q) => (q.id === it.id ? { ...q, scale } : q)));
+    if (itemScaleSaveRef.current) clearTimeout(itemScaleSaveRef.current);
+    itemScaleSaveRef.current = setTimeout(() => {
+      fetch(`/api/pet-items/${it.id}`, {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ scale }),
+      }).catch(() => {});
+    }, 300);
+  }
   async function uploadItemBroken(it: ItemVM, file: File) {
     const fd = new FormData();
     fd.set("file", file);
@@ -1199,7 +1213,7 @@ export default function RoomView({
                     alt={it.name}
                     draggable={false}
                     className={`h-16 w-16 object-contain ${itemMode ? "rounded ring-2 ring-accent/60" : ""}`}
-                    style={{ objectPosition: "bottom", ...pixel(it.pixelRender), filter: broken && !useBrokenSprite ? "grayscale(0.5) brightness(0.92)" : undefined }}
+                    style={{ objectPosition: "bottom", ...pixel(it.pixelRender), transform: `scale(${it.scale})`, filter: broken && !useBrokenSprite ? "grayscale(0.5) brightness(0.92)" : undefined }}
                   />
                   {broken && !useBrokenSprite && (
                     <span className="pointer-events-none absolute inset-0" aria-hidden>
@@ -1569,6 +1583,20 @@ export default function RoomView({
                 <button onClick={() => setItemSheetId(null)} className="ml-auto rounded-control bg-surface-2 px-3 py-1.5 text-sm ring-1 ring-border">
                   닫기
                 </button>
+              </div>
+              {/* 크기 조절 — 너무 크게/작게 보일 때. */}
+              <div className="mt-2 flex items-center gap-2 border-t border-border pt-2 text-[11px]">
+                <span className="w-8 shrink-0 opacity-60">크기</span>
+                <input
+                  type="range"
+                  min={0.3}
+                  max={3}
+                  step={0.05}
+                  value={it.scale}
+                  onChange={(e) => setItemScale(it, Number(e.target.value))}
+                  className="flex-1 accent-accent"
+                />
+                <span className="w-10 shrink-0 text-right opacity-60">{it.scale.toFixed(2)}×</span>
               </div>
               {/* 파손 모양 — 업로드/교체/해제. 없으면 깨질 때 CSS 금만. */}
               <div className="mt-2 flex flex-wrap items-center gap-2 border-t border-border pt-2 text-[11px]">

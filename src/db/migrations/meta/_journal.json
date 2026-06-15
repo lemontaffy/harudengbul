@@ -309,6 +309,13 @@
       "when": 1781499027619,
       "tag": "0043_item_give_reactions",
       "breakpoints": true
+    },
+    {
+      "idx": 44,
+      "version": "7",
+      "when": 1781503599375,
+      "tag": "0044_pet_item_scale",
+      "breakpoints": true
     }
   ]
 }

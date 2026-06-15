@@ -780,6 +780,7 @@ export const petItems = pgTable(
     pixelRender: boolean("pixel_render").notNull().default(true),
     posX: real("pos_x").notNull().default(50),
     posY: real("pos_y").notNull().default(70),
+    scale: real("scale").notNull().default(1), // 크기 배율(수동조정, 0.3~3)
     durabilityMax: integer("durability_max"), // null = 무한(마모·파손 없음)
     durabilityNow: integer("durability_now").notNull().default(0),
     heldByPetId: bigint("held_by_pet_id", { mode: "number" }).references(() => pets.id, { onDelete: "set null" }),
