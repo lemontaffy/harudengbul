@@ -52,7 +52,12 @@ const bodySchema = z.object({
   customCss: z.string().max(20480).nullable().optional(),
   // 아이템 반응 대사 LLM 생성 빈도.
   itemReactionFreq: z.enum(["always", "sometimes", "never"]).optional(),
+  // 홈에서 숨긴 섹션 키 목록.
+  hiddenHome: z.array(z.string().max(20)).max(20).optional(),
 });
+
+// 홈에서 숨길 수 있는 섹션 키(화이트리스트).
+const HOME_KEYS = new Set(["weather", "chat", "pets", "memo", "events", "mood", "phrase"]);
 
 async function snapshot(userId: number) {
   const [s, llm] = await Promise.all([
@@ -129,6 +134,7 @@ export async function POST(req: Request) {
   // 화면: 테마 프리셋 / 커스텀 CSS(원문 저장, 렌더 시 sanitize).
   if (typeof d.theme === "string") set.theme = d.theme;
   if (d.customCss !== undefined) set.customCss = d.customCss?.trim() || null;
+  if (d.hiddenHome) set.hiddenHome = d.hiddenHome.filter((k) => HOME_KEYS.has(k));
   if (typeof d.itemReactionFreq === "string") set.itemReactionFreq = d.itemReactionFreq;
 
   // 보조 모델 연결: null=해제, 숫자=본인 소유 연결만.

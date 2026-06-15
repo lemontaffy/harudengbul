@@ -16,6 +16,7 @@ import GoogleCalendarSection, { type GoogleInitial } from "@/components/GoogleCa
 import PasswordChange from "@/components/PasswordChange";
 import LogoutButton from "@/components/LogoutButton";
 import AppearanceSection from "@/components/AppearanceSection";
+import HomeLayoutSection from "@/components/HomeLayoutSection";
 import PetSettingsSection from "@/components/PetSettingsSection";
 import { googleConfigured } from "@/lib/google";
 import * as googleRepo from "@/db/repo/google";
@@ -111,6 +112,7 @@ export default async function SettingsPage({
   const THEME_LABEL: Record<string, string> = { lantern: "등불", dawn: "새벽", paper: "종이" };
   const sum = {
     theme: (THEME_LABEL[s?.theme ?? "lantern"] ?? "등불") + (s?.customCss ? " · 커스텀 CSS" : ""),
+    home: (s?.hiddenHome?.length ?? 0) > 0 ? `${s!.hiddenHome!.length}개 숨김` : "전부 표시",
     profile: profile.nickname.trim() || "닉네임 미설정",
     noti: initial.proactiveEnabled ? "선제 톡 켜짐" : "선제 톡 꺼짐",
     reminder: diaryReminder.enabled ? `켜짐 · ${diaryReminder.time}` : "꺼짐",
@@ -143,6 +145,9 @@ export default async function SettingsPage({
             initialCss={s?.customCss ?? ""}
             initialThemes={cssThemes}
           />
+        </Section>
+        <Section title="홈 구성" status={sum.home}>
+          <HomeLayoutSection initialHidden={s?.hiddenHome ?? []} />
         </Section>
         <Section title="프로필" status={sum.profile}>
           <ProfileSection initial={profile} />

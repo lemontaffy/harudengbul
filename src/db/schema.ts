@@ -140,6 +140,8 @@ export const settings = pgTable("settings", {
   growthToday: integer("growth_today").default(0),
   lastActivityAt: timestamp("last_activity_at", { withTimezone: true }),
   petLastRoomId: bigint("pet_last_room_id", { mode: "number" }),
+  // 홈 화면에서 숨긴 섹션 키 목록(null/빈 배열 = 전부 표시).
+  hiddenHome: text("hidden_home").array(),
 });
 
 // CSS 테마 보관함 — 사용자가 이름 붙여 여러 개 저장해두고 골라 적용(적용본은 settings.custom_css).

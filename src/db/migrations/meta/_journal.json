@@ -288,6 +288,13 @@
       "when": 1781401200000,
       "tag": "0040_item_broken_sprite",
       "breakpoints": true
+    },
+    {
+      "idx": 41,
+      "version": "7",
+      "when": 1781487633738,
+      "tag": "0041_hidden_home",
+      "breakpoints": true
     }
   ]
 }

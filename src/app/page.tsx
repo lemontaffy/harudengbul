@@ -95,6 +95,9 @@ export default async function DashboardPage() {
   const phrase = phraseForDate(today);
   const personaName = active?.name?.trim() || "캐릭터";
   const sec = findSecretary(personaRows);
+  // 홈에서 숨긴 섹션(설정 > 화면 > 홈 구성). null/빈 = 전부 표시.
+  const hidden = new Set(s?.hiddenHome ?? []);
+  const show = (key: string) => !hidden.has(key);
 
   return (
     <main className="mx-auto flex min-h-screen max-w-md flex-col gap-4 p-4">
@@ -108,15 +111,16 @@ export default async function DashboardPage() {
         <ConnectionSwitcher />
       </header>
 
-      {/* 시계 + 날씨 슬롯 */}
+      {/* 시계 + 날씨 슬롯 (날씨 숨기면 시계가 전체 폭) */}
       <div className="flex gap-3">
         <div className="flex-1 rounded-card bg-surface p-4">
           <LiveClock />
         </div>
-        <WeatherSlot />
+        {show("weather") && <WeatherSlot />}
       </div>
 
       {/* 채팅 입구 카드 */}
+      {show("chat") && (
       <Link
         href="/chat"
         className="flex items-center gap-3 rounded-card bg-surface p-4 ring-1 ring-border hover:ring-accent"
@@ -144,16 +148,20 @@ export default async function DashboardPage() {
         </div>
         <span className="text-lg opacity-30">›</span>
       </Link>
+      )}
 
       {/* 핸드오프(상담가가 전달한 항목) — pending 있을 때만 */}
       <HandoffCard initial={handoffs} />
       <AchievementCard initial={achievementSuggestions} />
 
-      {petMini && <PetMiniWidget roomId={petMini.roomId} items={petMini.items} />}
+      {show("pets") && petMini && (
+        <PetMiniWidget roomId={petMini.roomId} items={petMini.items} />
+      )}
 
-      <MemoCapture initial={memoPreview} />
+      {show("memo") && <MemoCapture initial={memoPreview} />}
 
       {/* 오늘 일정 미니 */}
+      {show("events") && (
       <section className="rounded-card bg-surface p-4">
         <div className="mb-2 flex items-center justify-between">
           <h2 className="font-display text-sm font-semibold">오늘 일정</h2>
@@ -187,16 +195,19 @@ export default async function DashboardPage() {
           </ul>
         )}
       </section>
+      )}
 
       {/* 기분 체크인 칩 */}
-      <MoodChips
-        today={today}
-        initialMood={(todayDiary?.mood as Mood) ?? null}
-        initialCondition={(todayDiary?.bodyCondition as Condition) ?? null}
-      />
+      {show("mood") && (
+        <MoodChips
+          today={today}
+          initialMood={(todayDiary?.mood as Mood) ?? null}
+          initialCondition={(todayDiary?.bodyCondition as Condition) ?? null}
+        />
+      )}
 
       {/* 한마디 카드 (정적 즉시 → 생성형 교체) */}
-      <PhraseCard initial={phrase} />
+      {show("phrase") && <PhraseCard initial={phrase} />}
     </main>
   );
 }
