@@ -960,7 +960,10 @@ export default function RoomView({
       .then((d) => {
         if (d.durabilityNow == null) return; // 무한 등
         setItems((xs) => xs.map((q) => (q.id === it.id ? { ...q, durabilityNow: d.durabilityNow, broken: !!d.broke } : q)));
-        if (d.broke) onItemBreak(it, pet, d.breakLine, d.ownerPetId); // 사용하다 깨짐 — 라이브 파손 만담
+        if (!d.broke) return;
+        // 큰 만담이 씬으로 승격됐으면 자막 연출, 아니면 평소 라이브 만담 버블.
+        if (d.scene?.script?.length) setMomentScript({ script: d.scene.script, kind: d.scene.relationKind });
+        else onItemBreak(it, pet, d.breakLine, d.ownerPetId);
       })
       .catch(() => {});
     return true;

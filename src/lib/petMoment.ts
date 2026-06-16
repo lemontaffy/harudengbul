@@ -74,6 +74,51 @@ function fallbackScene(a: PetRef, b: PetRef, kind: RelationKind): MomentLine[] {
   ];
 }
 
+// 파손 만담 승격 씬 — 깬 펫(a)이 주인 펫(b)의 아이템을 깬 사건. 관계 톤으로 짧게.
+function buildBreakMessages(breaker: PetRef, owner: PetRef, itemName: string, relationLabel: string) {
+  const system = [
+    `너는 펫 토이박스의 '사건 씬' 작가다.`,
+    `사건: A='${breaker.name}'(성격: ${breaker.personality ?? "표현 풍부"})가 B='${owner.name}'(성격: ${owner.personality ?? "표현 풍부"})의 소중한 '${itemName}'(을)를 그만 깨뜨렸다! 둘의 관계: ${relationLabel}.`,
+    `나레이터는 정극 다큐처럼 사건을 깔고, B는 발끈/충격, A는 발뺌/사과/딴청 — 관계 톤으로 티격태격.`,
+    `구성: 사건 → 추궁 → 펀치라인. 5~7줄. 나레이터와 펫 대사 번갈아.`,
+    `규칙: 자연스러운 한국어. 죽음·자해 금지. 가벼운 험담·"꺼져"류 OK(서로에게). 각 줄 30자 내외.`,
+    `출력은 JSON 배열로만. {"speaker":"narrator"|"a"|"b","text":"..."}.`,
+  ].join("\n");
+  return [
+    { role: "system" as const, content: system },
+    { role: "user" as const, content: `'${breaker.name}'가 '${owner.name}'의 '${itemName}' 깬 사건 씬(JSON):` },
+  ];
+}
+
+/** 파손 만담을 자막 씬으로 승격 생성(메인→aux→폴백). a=깬 펫, b=주인. */
+export async function generateBreakScene(
+  userId: number,
+  breaker: PetRef,
+  owner: PetRef,
+  itemName: string,
+  relationLabel: string,
+): Promise<MomentLine[]> {
+  const messages = buildBreakMessages(breaker, owner, itemName, relationLabel);
+  for (const getCfg of [() => getLlmConfig(userId), () => getPetAuxConfig(userId)]) {
+    try {
+      const cfg = await getCfg();
+      if (!cfg.configured) continue;
+      const raw = await completeChat(cfg, messages);
+      const scene = parseScene(raw, breaker.id, owner.id);
+      if (scene.length >= 3) return scene;
+    } catch {
+      /* 다음 폴백 */
+    }
+  }
+  return [
+    { type: "narrator", text: `${owner.name}의 '${itemName}'… 산산이 부서졌다.` },
+    { type: "pet", petId: owner.id, text: `내 거잖아!! 너 이거 어쩔 거야!` },
+    { type: "pet", petId: breaker.id, text: `나… 난 안 그랬어! 원래 금 가 있었어!` },
+    { type: "narrator", text: `누가 봐도 범인은 하나뿐이었지만,` },
+    { type: "pet", petId: breaker.id, text: `…미안. 새거 구해줄게, 진짜로.` },
+  ];
+}
+
 /** 씬 1회 생성 — 메인 모델 우선, 실패 시 aux, 둘 다 실패 시 하드코딩 폴백. 항상 유효한 시퀀스 반환. */
 export async function generateScene(
   userId: number,

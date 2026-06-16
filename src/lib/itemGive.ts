@@ -3,6 +3,7 @@
 //   톤: 짧지만 강렬, 성격 과장해 드라마틱+웃기게. 캐릭터다우면 가벼운 욕설·모국어 OK.
 import { completeChat } from "@/lib/llm";
 import { getPetAuxConfig } from "@/modules/pets/auxConfig";
+import * as linesRepo from "@/db/repo/itemReactionLines";
 
 export type GiveKind = "received" | "owner_recognize" | "other_owner" | "eating";
 export type EffectType = "sparkle" | "notes" | "hearts";
@@ -156,6 +157,13 @@ export async function ensureGiveLine(
     }
   } catch {
     /* 호출 실패 → 폴백 */
+  }
+  // 폴백 1순위: 사용자가 편집해 둔 풀(itemReactionLines, asset×pet×kind). 없으면 하드코딩 템플릿.
+  try {
+    const edited = await linesRepo.listFor(item.id, pet.id, kind);
+    if (edited.length) return pick(edited);
+  } catch {
+    /* 풀 조회 실패 → 템플릿 */
   }
   return pick(fill(TEMPLATES[kind], item.name, ownerName));
 }
