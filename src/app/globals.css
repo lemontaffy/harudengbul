@@ -89,7 +89,8 @@ body {
 /* ── 앱 배경 이미지 모드 ── (layout 이 배경 있을 때만 html[data-app-bg] 부여)
    본문/표면을 반투명으로 바꿔 뒤 배경이 비치게 + 블러로 가독성 확보.
    배경 없을 땐 이 블록이 통째로 비활성 → 평소대로 불투명. */
-html[data-app-bg],
+/* body 만 투명(중앙 컬럼 뒤 배경이 비침). html 은 --bg 유지 → PC 와이드 화면의
+   양옆 여백이 테마색으로 채워져 '폰 프레임'처럼 보임(배경 레이어도 max-w-md 로 가둠). */
 html[data-app-bg] body {
   background: transparent;
 }

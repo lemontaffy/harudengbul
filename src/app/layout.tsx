@@ -40,7 +40,7 @@ export default async function RootLayout({
         {appBgPath && (
           <div
             aria-hidden
-            className="pointer-events-none fixed inset-0 -z-10 bg-cover bg-center bg-no-repeat"
+            className="pointer-events-none fixed inset-y-0 left-1/2 -z-10 w-full max-w-md -translate-x-1/2 bg-cover bg-center bg-no-repeat"
             style={{ backgroundImage: `linear-gradient(rgba(0,0,0,0.45),rgba(0,0,0,0.45)), url("${appBgPath}")` }}
           />
         )}
