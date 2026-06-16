@@ -175,9 +175,15 @@ export default async function RoomPage({ params }: { params: Promise<{ roomId: s
     return { id: p.id, name: p.name, avatar: pickSpritePath(ps, display, "idle") };
   });
 
-  // 관계 이벤트 하루 1회 캡 — 사용자 tz 당일 생성 수.
-  const { start: dayStart } = dayBoundsInTz(settings?.timezone ?? "Asia/Seoul");
-  const momentUsedToday = (await momentsRepo.countSince(user.id, dayStart)) >= 1;
+  // 관계 이벤트 하루 1회 캡 — 사용자 tz 당일 생성 수. 비핵심 기능이라 실패해도 방은 정상 로드.
+  //   (예: pet_moments 마이그 미적용 등 — 관계 이벤트만 비활성화하고 넘어간다.)
+  let momentUsedToday = true;
+  try {
+    const { start: dayStart } = dayBoundsInTz(settings?.timezone ?? "Asia/Seoul");
+    momentUsedToday = (await momentsRepo.countSince(user.id, dayStart)) >= 1;
+  } catch (e) {
+    console.error("[room] moment cap check skipped:", (e as Error)?.message);
+  }
 
   return (
     <main className="mx-auto max-w-md p-5">
