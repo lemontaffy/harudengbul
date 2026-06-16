@@ -86,6 +86,33 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
+/* ── 앱 배경 이미지 모드 ── (layout 이 배경 있을 때만 html[data-app-bg] 부여)
+   본문/표면을 반투명으로 바꿔 뒤 배경이 비치게 + 블러로 가독성 확보.
+   배경 없을 땐 이 블록이 통째로 비활성 → 평소대로 불투명. */
+html[data-app-bg],
+html[data-app-bg] body {
+  background: transparent;
+}
+/* 표면 토큰만 알파 추가(테마 hex 그대로, 투명도만). 보더는 불투명 유지 — 경계 살리기. */
+html[data-app-bg][data-theme="lantern"],
+html[data-app-bg]:not([data-theme]) {
+  --surface: color-mix(in srgb, #222531 70%, transparent);
+  --surface-2: color-mix(in srgb, #2b2f3d 70%, transparent);
+}
+html[data-app-bg][data-theme="dawn"] {
+  --surface: color-mix(in srgb, #172241 70%, transparent);
+  --surface-2: color-mix(in srgb, #1f2d52 70%, transparent);
+}
+html[data-app-bg][data-theme="paper"] {
+  --surface: color-mix(in srgb, #ffffff 70%, transparent);
+  --surface-2: color-mix(in srgb, #efece2 70%, transparent);
+}
+/* 카드 뒤 블러 — 반투명 표면 글자 가독성의 핵심. */
+html[data-app-bg] .rounded-card {
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+}
+
 /* Paperlogy 표시 텍스트 — 살짝 좁은 자간 */
 .font-display {
   letter-spacing: -0.01em;

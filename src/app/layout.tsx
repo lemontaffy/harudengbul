@@ -33,14 +33,15 @@ export default async function RootLayout({
 }) {
   const { theme, customCss, appBgPath } = await getAppearance();
   return (
-    <html lang="ko" data-theme={theme}>
+    // data-app-bg: 배경 이미지가 있을 때만 표면을 반투명+블러로 전환(globals.css). 없으면 평소대로 불투명.
+    <html lang="ko" data-theme={theme} data-app-bg={appBgPath ? "" : undefined}>
       <body>
-        {/* 앱 배경 이미지(선택) — 테마 배경 위에 고정 레이어로 깔되, 콘텐츠 가독성 위해 살짝 어둡게. */}
+        {/* 앱 배경 이미지(선택) — 테마 배경 위에 고정 레이어로 깔되, 콘텐츠 가독성 위해 살짝 어둡게(45%). */}
         {appBgPath && (
           <div
             aria-hidden
             className="pointer-events-none fixed inset-0 -z-10 bg-cover bg-center bg-no-repeat"
-            style={{ backgroundImage: `linear-gradient(rgba(0,0,0,0.35),rgba(0,0,0,0.35)), url("${appBgPath}")` }}
+            style={{ backgroundImage: `linear-gradient(rgba(0,0,0,0.45),rgba(0,0,0,0.45)), url("${appBgPath}")` }}
           />
         )}
         <DialogProvider>
