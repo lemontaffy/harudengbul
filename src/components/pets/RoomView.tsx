@@ -5,6 +5,8 @@ import { useRouter } from "next/navigation";
 import PetEffects, { type ActiveEffect, type EffectType } from "./PetEffects";
 import FurnitureSheet from "./FurnitureSheet";
 import FurniturePicker from "./FurniturePicker";
+import MomentPlayer from "./MomentPlayer";
+import type { MomentLine } from "@/db/schema";
 import GiveItemSheet, { type GiveResult, type FeedResult, type FoodOpt } from "./GiveItemSheet";
 import {
   walkDurationMs,
@@ -47,6 +49,7 @@ export default function RoomView({
   rooms,
   allPets,
   foods = [],
+  momentUsedToday = false,
 }: {
   room: RoomVM;
   pets: PetVM[];
@@ -55,6 +58,7 @@ export default function RoomView({
   rooms: PetRef[];
   allPets: PetRef[];
   foods?: FoodOpt[];
+  momentUsedToday?: boolean; // 오늘 관계 이벤트 1회 캡 소진 여부(서버 계산)
 }) {
   const router = useRouter();
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -89,6 +93,10 @@ export default function RoomView({
   const [customPlay, setCustomPlay] = useState<{ petId: number; path: string; flip: boolean } | null>(null);
   // 바구니 시트 — 'throw'(일반: 펫에게 던지기) / 'place'(관리: 방에 놓기) / null(닫힘).
   const [basketMode, setBasketMode] = useState<null | "throw" | "place">(null);
+  // 관계 이벤트 — 후보 카드(제안) → '보기'면 메인 모델이 씬 생성 → 디밍 연출. 하루 1회 캡(서버).
+  const [momentCard, setMomentCard] = useState<{ aId: number; bId: number; aName: string; bName: string; kind: "hostile" | "love" } | null>(null);
+  const [momentScript, setMomentScript] = useState<{ script: MomentLine[]; kind: "hostile" | "love" } | null>(null);
+  const [momentBusy, setMomentBusy] = useState(false);
   // 던지기 연출 — 준 아이템 스프라이트가 펫에게 잠깐 날아가 닿음(CSS transform/opacity, reduced-motion 존중).
   const [toss, setToss] = useState<{ id: number; src: string; pixel: boolean; xPct: number; yPct: number } | null>(null);
   const tossSeq = useRef(0);
@@ -448,8 +456,37 @@ export default function RoomView({
         showBubble(p.id, "나… 좀 컸지?", 3000, true);
       }
     }
+    // 관계 이벤트 후보 — 같은 방 관계 있는 두 펫(하루 1회 캡 안 썼을 때만). 제안 카드만(자동 재생 X).
+    if (!momentUsedToday) {
+      outer: for (let x = 0; x < pets.length; x++)
+        for (let y = x + 1; y < pets.length; y++) {
+          const a = pets[x], b = pets[y];
+          if (isLovePair(a.id, b.id)) { setMomentCard({ aId: a.id, bId: b.id, aName: a.name, bName: b.name, kind: "love" }); break outer; }
+          if (isHostilePair(a.id, b.id)) { setMomentCard({ aId: a.id, bId: b.id, aName: a.name, bName: b.name, kind: "hostile" }); break outer; }
+        }
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // '보기' — 메인 모델이 씬 1회 생성(짧은 로딩) → 디밍 연출. 실패 시 카드만 닫음.
+  async function openMoment() {
+    if (!momentCard || momentBusy) return;
+    setMomentBusy(true);
+    try {
+      const res = await fetch(`/api/pet-rooms/${room.id}/moment`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ petAId: momentCard.aId, petBId: momentCard.bId }),
+      });
+      const d = await res.json().catch(() => ({}));
+      if (res.ok && Array.isArray(d.script) && d.script.length) {
+        setMomentScript({ script: d.script as MomentLine[], kind: d.relationKind });
+      }
+      setMomentCard(null); // 제안 1회성(재추첨 없음)
+    } finally {
+      setMomentBusy(false);
+    }
+  }
 
   // ── 앰비언트 루프 ── 틱 간격은 liveliness 에 따라 짧아짐(분주함의 맥박).
   useEffect(() => {
@@ -1220,6 +1257,23 @@ export default function RoomView({
           100% { transform: translate(-50%, -50%) scale(0.9); opacity: 0; }
         }
       `}</style>
+
+      {/* 관계 이벤트 제안 카드 — 자동 재생 금지. '보기' 탭 시에만 메인 모델이 씬 생성. */}
+      {momentCard && !momentScript && (
+        <div className="flex items-center gap-2 rounded-card bg-accent-soft p-3 text-sm ring-1 ring-border">
+          <span className="text-lg">{momentCard.kind === "love" ? "💞" : "⚡"}</span>
+          <span className="min-w-0 flex-1">
+            <b>{momentCard.aName}</b>와 <b>{momentCard.bName}</b>… 무슨 일이 있는 것 같아요. 볼래요?
+          </span>
+          <button onClick={openMoment} disabled={momentBusy} className="shrink-0 rounded-control bg-accent px-3 py-1.5 text-xs font-medium text-black disabled:opacity-50">
+            {momentBusy ? "준비 중…" : "보기"}
+          </button>
+          <button onClick={() => setMomentCard(null)} className="shrink-0 rounded-control px-2 py-1.5 text-xs ring-1 ring-border">
+            나중에
+          </button>
+        </div>
+      )}
+
       {/* 무대(스트립) */}
       <div
         ref={scrollRef}
@@ -1476,6 +1530,16 @@ export default function RoomView({
           )}
 
           <PetEffects effects={effects} />
+
+          {/* 관계 이벤트 연출 — 방 디밍 + 말풍선/자막 번갈아(stage 안에 깔려 % 좌표 일치). */}
+          {momentScript && (
+            <MomentPlayer
+              script={momentScript.script}
+              relationKind={momentScript.kind}
+              petPos={new Map(petsRef.current.map((p) => [p.id, { x: p.posX, y: p.posY, name: p.name }]))}
+              onDone={() => setMomentScript(null)}
+            />
+          )}
 
           {toast && (
             <div className="pointer-events-none absolute bottom-2 left-1/2 -translate-x-1/2">

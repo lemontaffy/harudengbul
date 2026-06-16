@@ -777,6 +777,29 @@ export const petRelations = pgTable(
   (t) => [uniqueIndex("pet_relations_pair_idx").on(t.userId, t.petAId, t.petBId)],
 );
 
+// 펫 관계 이벤트 '순간' — 같은 방 관계 두 펫의 짧은 씬(메인 모델 1회 생성). 태그 시퀀스 저장 → 저장본 재생.
+//   script: [{type:'narrator'|'pet', petId?, text}]. 라이브로 안 봐도 안 사라짐. 뱃지·안읽음 없음.
+export type MomentLine = { type: "narrator" | "pet"; petId?: number; text: string };
+export const petMoments = pgTable(
+  "pet_moments",
+  {
+    id: bigint("id", { mode: "number" }).primaryKey().generatedAlwaysAsIdentity(),
+    userId: bigint("user_id", { mode: "number" })
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    roomId: bigint("room_id", { mode: "number" }).references(() => petRooms.id, { onDelete: "set null" }),
+    petAId: bigint("pet_a_id", { mode: "number" }).references(() => pets.id, { onDelete: "set null" }),
+    petBId: bigint("pet_b_id", { mode: "number" }).references(() => pets.id, { onDelete: "set null" }),
+    petAName: text("pet_a_name").notNull(), // 이름 스냅샷(펫이 떠나도 재생 가능)
+    petBName: text("pet_b_name").notNull(),
+    relationKind: text("relation_kind").notNull(), // 'hostile' | 'love'
+    script: jsonb("script").$type<MomentLine[]>().notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    seenAt: timestamp("seen_at", { withTimezone: true }),
+  },
+  (t) => [index("pet_moments_user_created_idx").on(t.userId, t.createdAt)],
+);
+
 export const petLines = pgTable(
   "pet_lines",
   {

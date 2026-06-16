@@ -14,7 +14,9 @@ import * as roomItemsRepo from "@/db/repo/roomItems";
 import * as itemsRepo from "@/db/repo/items";
 import * as letterRepliesRepo from "@/db/repo/petLetterReplies";
 import * as petDiariesRepo from "@/db/repo/petDiaries";
+import * as momentsRepo from "@/db/repo/petMoments";
 import * as settingsRepo from "@/db/repo/settings";
+import { dayBoundsInTz } from "@/lib/proactive";
 import { diaryDateInTz } from "@/lib/petDiary";
 import {
   stageFor,
@@ -173,6 +175,10 @@ export default async function RoomPage({ params }: { params: Promise<{ roomId: s
     return { id: p.id, name: p.name, avatar: pickSpritePath(ps, display, "idle") };
   });
 
+  // 관계 이벤트 하루 1회 캡 — 사용자 tz 당일 생성 수.
+  const { start: dayStart } = dayBoundsInTz(settings?.timezone ?? "Asia/Seoul");
+  const momentUsedToday = (await momentsRepo.countSince(user.id, dayStart)) >= 1;
+
   return (
     <main className="mx-auto max-w-md p-5">
       <div className="mb-4 flex items-center justify-between">
@@ -203,6 +209,7 @@ export default async function RoomPage({ params }: { params: Promise<{ roomId: s
         rooms={allRooms.map((r) => ({ id: r.id, name: r.name }))}
         allPets={allPetsRows.map((p) => ({ id: p.id, name: p.name }))}
         foods={foods}
+        momentUsedToday={momentUsedToday}
       />
     </main>
   );
