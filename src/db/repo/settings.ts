@@ -2,8 +2,15 @@ import { eq } from "drizzle-orm";
 import { db } from "../client";
 import { settings } from "../schema";
 
+// 전역 choke point — 거의 모든 페이지가 호출. 마이그가 코드보다 뒤처져(새 컬럼 미적용)
+//   select 가 실패해도 앱 전체가 죽지 않게 방어: 에러 로깅 후 undefined(→ 호출부가 기본값 사용).
 export async function getByUser(userId: number) {
-  return db.query.settings.findFirst({ where: eq(settings.userId, userId) });
+  try {
+    return await db.query.settings.findFirst({ where: eq(settings.userId, userId) });
+  } catch (e) {
+    console.error("[settings.getByUser] 실패(마이그 미적용 등) — 기본값으로:", (e as Error)?.message);
+    return undefined;
+  }
 }
 
 /** proactive 선제 톡 켠 사용자 전부(worker 루프용). */
