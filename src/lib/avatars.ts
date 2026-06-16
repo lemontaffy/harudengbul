@@ -90,6 +90,42 @@ export async function saveAvatar(userId: number, file: File): Promise<string> {
 }
 
 /**
+ * 앱 배경 이미지 저장 — 아바타와 달리 정사각 크롭하지 않고 종횡비 보존(최대 1280px, webp).
+ *   같은 저장소·서빙(/api/avatars/{userId}/{uuid}.webp) 재사용. 화이트리스트는 settings.app_bg_path.
+ */
+export async function saveAppBg(userId: number, file: File): Promise<string> {
+  if (file.size > MAX_BYTES) throw new AvatarError("이미지는 5MB 이하만 가능해요.");
+  const buf = Buffer.from(await file.arrayBuffer());
+  if (buf.byteLength < MIN_BYTES || buf.byteLength > MAX_BYTES)
+    throw new AvatarError("이미지 크기가 올바르지 않아요 (최대 5MB).");
+  if (!sniffAllowed(buf)) throw new AvatarError("PNG/JPEG/WEBP 이미지만 업로드할 수 있어요.");
+
+  let out: Buffer;
+  try {
+    out = await sharp(buf)
+      .rotate()
+      .resize(1280, 1280, { fit: "inside", withoutEnlargement: true }) // 종횡비 보존, 안 키움
+      .webp({ quality: 80 })
+      .toBuffer();
+  } catch {
+    throw new AvatarError("이미지를 처리할 수 없어요. 다른 파일을 시도해 주세요.");
+  }
+  const dir = path.join(AVATARS_DIR, String(userId));
+  const filename = `${randomUUID()}.webp`;
+  try {
+    await fs.mkdir(dir, { recursive: true });
+    await fs.writeFile(path.join(dir, filename), out);
+  } catch (err) {
+    if (isPermError(err)) {
+      console.error(`[app-bg] 저장 실패 — ${permGuidance(AVATARS_DIR)}`);
+      throw new AvatarError(permGuidance(AVATARS_DIR));
+    }
+    throw new AvatarError("이미지를 저장하지 못했어요. 잠시 후 다시 시도해 주세요.");
+  }
+  return `/api/avatars/${userId}/${filename}`;
+}
+
+/**
  * 서빙용 — DB가 화이트리스트. 요청 경로 세그먼트를 받아 디스크에서 읽되,
  * 호출부에서 먼저 DB의 avatar_path 와 대조한 뒤에만 사용해야 한다.
  * 추가 가드: 최종 경로가 AVATARS_DIR 하위인지 재확인.

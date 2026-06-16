@@ -132,9 +132,10 @@ export const settings = pgTable("settings", {
   llmBaseUrl: text("llm_base_url"),
   llmModel: text("llm_model"),
   llmEmbeddingModel: text("llm_embedding_model"),
-  // 화면 — 프리셋 테마(lantern/dawn/paper) + 고급 커스텀 CSS(본인 세션에만 주입).
+  // 화면 — 프리셋 테마(lantern/dawn/paper) + 고급 커스텀 CSS(본인 세션에만 주입) + 앱 배경 이미지(선택).
   theme: text("theme").default("lantern"),
   customCss: text("custom_css"),
+  appBgPath: text("app_bg_path"), // 앱 전체 배경 이미지(업로드, 테마와 별개). null=없음.
   // 펫 성장 일일 상한(5pt) 추적 + 마지막 앱 활동(48h 잠 판정) + 홈 위젯용 마지막 본 방.
   growthDate: date("growth_date"),
   growthToday: integer("growth_today").default(0),

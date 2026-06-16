@@ -1,6 +1,7 @@
 "use client";
 
 import { useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 
 const PRESETS: { id: string; label: string; desc: string }[] = [
   { id: "lantern", label: "등불", desc: "다크 + 주황" },
@@ -35,11 +36,14 @@ export default function AppearanceSection({
   initialTheme,
   initialCss,
   initialThemes = [],
+  initialAppBg = null,
 }: {
   initialTheme: string;
   initialCss: string;
   initialThemes?: CssTheme[];
+  initialAppBg?: string | null;
 }) {
+  const router = useRouter();
   const [theme, setTheme] = useState(initialTheme);
   const [css, setCss] = useState(initialCss);
   const [status, setStatus] = useState("");
@@ -47,6 +51,34 @@ export default function AppearanceSection({
   const [themes, setThemes] = useState<CssTheme[]>(initialThemes);
   const [newName, setNewName] = useState("");
   const fileRef = useRef<HTMLInputElement>(null);
+  // 앱 배경 이미지(테마와 별개) — 업로드/제거.
+  const [appBg, setAppBg] = useState<string | null>(initialAppBg);
+  const [bgBusy, setBgBusy] = useState(false);
+  const bgRef = useRef<HTMLInputElement>(null);
+
+  async function uploadBg(file: File) {
+    if (file.size > 5 * 1024 * 1024) return setStatus("배경 이미지는 5MB 이하만 가능해요.");
+    setBgBusy(true);
+    setStatus("");
+    const fd = new FormData();
+    fd.set("image", file);
+    const res = await fetch("/api/settings/app-bg", { method: "POST", body: fd });
+    const d = await res.json().catch(() => ({}));
+    setBgBusy(false);
+    if (res.ok) {
+      setAppBg(d.appBgPath);
+      setStatus("배경 적용됨 ✓");
+      router.refresh(); // 레이아웃(서버) 재렌더로 배경 반영
+    } else setStatus(d.error ?? "업로드 실패");
+  }
+  async function removeBg() {
+    setBgBusy(true);
+    await fetch("/api/settings/app-bg", { method: "DELETE" }).catch(() => {});
+    setBgBusy(false);
+    setAppBg(null);
+    setStatus("배경 제거됨");
+    router.refresh();
+  }
 
   // .css 파일 업로드 — 내용을 편집창에 채운다(검토 후 '적용'). 서버 업로드 아님(텍스트 로컬 읽기).
   function onPickCss(e: React.ChangeEvent<HTMLInputElement>) {
@@ -153,6 +185,44 @@ export default function AppearanceSection({
             </button>
           ))}
         </div>
+      </div>
+
+      {/* 앱 배경 이미지 — 테마와 별개로 이미지만 깔기. */}
+      <div>
+        <label className="mb-1.5 block text-xs text-text-dim">앱 배경 이미지</label>
+        <div className="flex items-center gap-2">
+          {appBg ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={appBg} alt="" className="h-12 w-16 rounded-control object-cover ring-1 ring-border" />
+          ) : (
+            <span className="flex h-12 w-16 items-center justify-center rounded-control bg-surface-2 text-[10px] text-text-dim ring-1 ring-border">없음</span>
+          )}
+          <button
+            type="button"
+            onClick={() => bgRef.current?.click()}
+            disabled={bgBusy}
+            className="rounded-control bg-surface-2 px-3 py-2 text-sm ring-1 ring-border disabled:opacity-50"
+          >
+            {bgBusy ? "처리 중…" : appBg ? "변경" : "이미지 올리기"}
+          </button>
+          {appBg && (
+            <button type="button" onClick={removeBg} disabled={bgBusy} className="rounded-control px-3 py-2 text-sm text-danger ring-1 ring-border disabled:opacity-50">
+              제거
+            </button>
+          )}
+          <input
+            ref={bgRef}
+            type="file"
+            accept="image/png,image/jpeg,image/webp"
+            className="hidden"
+            onChange={(e) => {
+              const f = e.target.files?.[0];
+              e.target.value = "";
+              if (f) void uploadBg(f);
+            }}
+          />
+        </div>
+        <p className="mt-1 text-[10px] text-text-dim">PNG/JPEG/WEBP · 5MB 이하. 가독성 위해 살짝 어둡게 깔려요.</p>
       </div>
 
       <div>

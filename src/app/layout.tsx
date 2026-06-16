@@ -31,10 +31,18 @@ export default async function RootLayout({
 }: {
   children: React.ReactNode;
 }) {
-  const { theme, customCss } = await getAppearance();
+  const { theme, customCss, appBgPath } = await getAppearance();
   return (
     <html lang="ko" data-theme={theme}>
       <body>
+        {/* 앱 배경 이미지(선택) — 테마 배경 위에 고정 레이어로 깔되, 콘텐츠 가독성 위해 살짝 어둡게. */}
+        {appBgPath && (
+          <div
+            aria-hidden
+            className="pointer-events-none fixed inset-0 -z-10 bg-cover bg-center bg-no-repeat"
+            style={{ backgroundImage: `linear-gradient(rgba(0,0,0,0.35),rgba(0,0,0,0.35)), url("${appBgPath}")` }}
+          />
+        )}
         <DialogProvider>
           {children}
           <TabBar />

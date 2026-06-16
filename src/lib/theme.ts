@@ -9,16 +9,18 @@ export const isTheme = (v: unknown): v is Theme =>
 export interface Appearance {
   theme: Theme;
   customCss: string | null;
+  appBgPath: string | null;
 }
 
 // 현재 세션 사용자의 화면 설정. 비로그인/미설정은 기본 lantern.
 export async function getAppearance(): Promise<Appearance> {
   const user = await getCurrentUser();
-  if (!user) return { theme: "lantern", customCss: null };
+  if (!user) return { theme: "lantern", customCss: null, appBgPath: null };
   const s = await settingsRepo.getByUser(user.id);
   return {
     theme: isTheme(s?.theme) ? (s!.theme as Theme) : "lantern",
     customCss: s?.customCss ?? null,
+    appBgPath: s?.appBgPath ?? null,
   };
 }
 

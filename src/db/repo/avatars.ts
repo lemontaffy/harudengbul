@@ -19,5 +19,12 @@ export async function avatarPathExists(url: string): Promise<boolean> {
     .from(settings)
     .where(eq(settings.userAvatarPath, url))
     .limit(1);
-  return !!s;
+  if (s) return true;
+  // 앱 배경 이미지(같은 저장소·서빙 재사용).
+  const [bg] = await db
+    .select({ userId: settings.userId })
+    .from(settings)
+    .where(eq(settings.appBgPath, url))
+    .limit(1);
+  return !!bg;
 }

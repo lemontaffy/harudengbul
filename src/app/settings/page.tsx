@@ -144,6 +144,7 @@ export default async function SettingsPage({
             initialTheme={s?.theme ?? "lantern"}
             initialCss={s?.customCss ?? ""}
             initialThemes={cssThemes}
+            initialAppBg={s?.appBgPath ?? null}
           />
         </Section>
         <Section title="홈 구성" status={sum.home}>
