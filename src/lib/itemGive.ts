@@ -103,7 +103,7 @@ function clean(s: string): string {
     .replace(/^["'“”\s\-*\d.]+|["'“”\s]+$/g, "")
     .replace(/\s+/g, " ")
     .trim()
-    .slice(0, 40);
+    .slice(0, 60); // 펀치라인 안 잘리게(말풍선은 줄바꿈됨)
 }
 
 function buildPrompt(

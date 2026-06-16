@@ -1433,8 +1433,8 @@ export default function RoomView({
                 {bubble?.petId === p.id && (
                   <div className="absolute bottom-full left-1/2 mb-1.5 -translate-x-1/2">
                     <div
-                      className="relative whitespace-nowrap rounded-md border border-white/25 px-2 py-1 text-[11px] text-white"
-                      style={{ background: CHIP_BG, textShadow: TEXT_OUTLINE }}
+                      className="relative whitespace-pre-wrap break-words rounded-md border border-white/25 px-2 py-1 text-center text-[11px] leading-snug text-white"
+                      style={{ background: CHIP_BG, textShadow: TEXT_OUTLINE, maxWidth: "min(70vw, 200px)" }}
                     >
                       {bubble.text}
                       {/* 꼬리(tail) — 칩과 같은 어두운 색 */}
