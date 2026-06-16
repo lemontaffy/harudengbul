@@ -32,6 +32,7 @@ export default function GiveItemSheet({
   ownerNames,
   posX,
   onClose,
+  onStart,
   onThrew,
   onFed,
   onChanged,
@@ -44,6 +45,7 @@ export default function GiveItemSheet({
   ownerNames: Map<number, string>;
   posX?: number;
   onClose: () => void;
+  onStart?: (petId: number) => void; // 라이브 생성 동안 펫에 '…' 로딩 표시(시트 닫은 뒤)
   onThrew: (petId: number, result: GiveResult, item: { spritePath: string; pixelRender: boolean }) => void;
   onFed?: (petId: number, result: FeedResult, food: { spritePath: string; pixelRender: boolean }) => void;
   onChanged: () => void;
@@ -61,10 +63,12 @@ export default function GiveItemSheet({
     return ao - bo || a.name.localeCompare(b.name);
   });
 
+  // 던지기/급여 = 라이브 생성(지연 있음). 시트 닫고 펫에 '…' 표시 → 응답 오면 실제 대사로 교체.
   async function throwTo(it: ItemVM) {
     if (petId == null) return setMsg("받는 펫을 고르세요.");
-    setBusy(true);
-    setMsg("");
+    if (it.broken) return setMsg("파손된 아이템이에요. 탭해서 수리한 뒤 줄 수 있어요.");
+    onStart?.(petId);
+    onClose();
     try {
       const res = await fetch(`/api/room-items/${it.id}/give`, {
         method: "POST",
@@ -72,18 +76,16 @@ export default function GiveItemSheet({
         body: JSON.stringify({ petId }),
       });
       const data = (await res.json().catch(() => ({}))) as GiveResult & { error?: string };
-      if (!res.ok) return setMsg(data.error ?? "주기 실패");
-      onThrew(petId, data, { spritePath: it.spritePath, pixelRender: it.pixelRender });
-      onClose();
-    } finally {
-      setBusy(false);
+      if (res.ok) onThrew(petId, data, { spritePath: it.spritePath, pixelRender: it.pixelRender });
+    } catch {
+      /* 네트워크 오류 — '…'는 타임아웃으로 사라짐 */
     }
   }
 
   async function feed(food: FoodOpt) {
     if (petId == null) return setMsg("먹일 펫을 고르세요.");
-    setBusy(true);
-    setMsg("");
+    onStart?.(petId);
+    onClose();
     try {
       const res = await fetch(`/api/pets/items/${food.id}/feed`, {
         method: "POST",
@@ -91,11 +93,9 @@ export default function GiveItemSheet({
         body: JSON.stringify({ petId }),
       });
       const data = (await res.json().catch(() => ({}))) as FeedResult & { error?: string };
-      if (!res.ok) return setMsg(data.error ?? "급여 실패");
-      onFed?.(petId, data, { spritePath: food.spritePath, pixelRender: food.pixelRender });
-      onClose();
-    } finally {
-      setBusy(false);
+      if (res.ok) onFed?.(petId, data, { spritePath: food.spritePath, pixelRender: food.pixelRender });
+    } catch {
+      /* 네트워크 오류 — '…'는 타임아웃으로 사라짐 */
     }
   }
 

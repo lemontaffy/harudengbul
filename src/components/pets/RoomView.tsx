@@ -1027,6 +1027,7 @@ export default function RoomView({
   }
   // 아이템을 펫에게 드래그-주기 — give 반응(playGive) 재생 + 소유 지정(이후 펫 옆에 붙는다).
   async function giveByDrag(it: ItemVM, pet: PetVM) {
+    showBubble(pet.id, "…", 9000, true); // 라이브 생성 동안 로딩
     try {
       const res = await fetch(`/api/room-items/${it.id}/give`, {
         method: "POST",
@@ -1635,6 +1636,11 @@ export default function RoomView({
           ownerNames={new Map(allPets.map((p) => [p.id, p.name]))}
           posX={viewCenterX()}
           onClose={() => setBasketMode(null)}
+          onStart={(petId) => {
+            // 라이브 생성 동안 받는 펫에 '…' 로딩(응답 오면 playGive/playFeed가 교체).
+            const p = petsRef.current.find((x) => x.id === petId);
+            if (p) showBubble(petId, "…", 9000, true);
+          }}
           onThrew={(petId, r, item) => {
             playGive(petId, r, item);
             router.refresh(); // 내구도/파손 변경 반영
