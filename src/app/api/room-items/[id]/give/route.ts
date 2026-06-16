@@ -6,7 +6,7 @@ import * as membershipsRepo from "@/db/repo/petRoomMemberships";
 import * as settingsRepo from "@/db/repo/settings";
 import * as givesRepo from "@/db/repo/itemGives";
 import { todayInTz } from "@/lib/proactive";
-import { ensureGiveLine, effectFor, ownerCallLine, type GiveKind } from "@/lib/itemGive";
+import { ensureGiveLine, breakageLine, effectFor, ownerCallLine, type GiveKind } from "@/lib/itemGive";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -72,6 +72,20 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
 
   // 내구도 차감(인스턴스) — 던지기는 의미 있는 제스처라 1 차감. 0 도달 시 broken.
   const worn = await roomItemsRepo.wear(user.id, instId); // 무한이면 null
+
+  // 던지다 파손 → 깬 펫(받은 펫) 라이브 파손 만담. ctx: 자기 것=self / 남의 것=other / 주인없음=solo.
+  let breakLine: string | null = null;
+  if (worn?.broke) {
+    const ctx = inst.ownerPetId === petId ? "self" : inst.ownerPetId != null ? "other" : "solo";
+    breakLine = await breakageLine(
+      user.id,
+      { name: asset.name },
+      { name: pet.name, personality: pet.personality },
+      ctx,
+      ownerName,
+    );
+  }
+
   await givesRepo.log(user.id, petId, inst.assetId);
   return Response.json({
     kind,
@@ -80,5 +94,6 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     ownerCall,
     durabilityNow: worn?.now ?? null,
     broke: worn?.broke ?? false,
+    breakLine,
   });
 }

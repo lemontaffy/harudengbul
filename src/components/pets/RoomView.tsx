@@ -401,7 +401,8 @@ export default function RoomView({
     setTimeout(() => showBubble(petId, r.content, 3200, true), delay);
     if (r.effect) setTimeout(() => spawnEffect(r.effect!, p.posX, p.posY - 8), delay);
     // 던지다가 내구도 0 → 파손 만담 1회(받은 펫이 깨뜨림).
-    if (r.broke) setTimeout(() => showBubble(petId, BREAK_LINES[Math.floor(Math.random() * BREAK_LINES.length)], 2600, true), delay + 1700);
+    // 던지다 파손 → 깬 펫 라이브 만담(서버 생성, 폴백 템플릿).
+    if (r.broke) setTimeout(() => showBubble(petId, r.breakLine || BREAK_LINES[Math.floor(Math.random() * BREAK_LINES.length)], 2600, true), delay + 1700);
     if (r.ownerCall) {
       const owner = petsRef.current.find((x) => x.id === r.ownerCall!.ownerPetId);
       if (owner) {
@@ -863,21 +864,25 @@ export default function RoomView({
   }
   // 파손 순간 깨뜨린 펫의 한마디(템플릿). 던지기→반응(Block 2)과 별개 — 배치 아이템 만담.
   const BREAK_LINES = ["앗… 깨졌어", "어, 망가졌다", "이런, 미안…", "헉 부서졌어"];
-  function onItemBreak(it: ItemVM, breaker: PetVM) {
-    showBubble(breaker.id, BREAK_LINES[Math.floor(Math.random() * BREAK_LINES.length)], 2600, true);
-    const other = petsRef.current.find(
-      (o) => o.id !== breaker.id && panelOf(o.posX) === panelOf(it.posX) && !isNapping(o.id),
+  // 파손 만담 — 깬 펫 라이브 라인(서버, 폴백 템플릿) + (주인 아이템 & 주인 같은 방이면) 주인이 받아침.
+  function onItemBreak(it: ItemVM, breaker: PetVM, breakLine?: string | null, ownerPetId?: number | null) {
+    showBubble(breaker.id, breakLine || BREAK_LINES[Math.floor(Math.random() * BREAK_LINES.length)], 2600, true);
+    // 만담: 주인(소유 펫)이 이 패널에 깨어 있고 깬 펫과 다르면 관계 톤으로 받아침. 주인 없으면 솔로(추가 X).
+    const ownerId = ownerPetId ?? it.ownerPetId;
+    if (ownerId == null || ownerId === breaker.id) return;
+    const owner = petsRef.current.find(
+      (o) => o.id === ownerId && panelOf(o.posX) === panelOf(breaker.posX) && !isNapping(o.id),
     );
-    if (!other) return;
+    if (!owner) return;
     const rel = relations.find(
-      (r) => (r.petAId === breaker.id && r.petBId === other.id) || (r.petAId === other.id && r.petBId === breaker.id),
+      (r) => (r.petAId === breaker.id && r.petBId === owner.id) || (r.petAId === owner.id && r.petBId === breaker.id),
     );
     const pair = pairBreakLineLocal(rel?.label ?? null, !!rel?.isLove, breaker.name);
     setTimeout(() => {
-      showBubble(other.id, pair.content, 2600);
-      if (pair.effect === "anger") spawnEffect("anger", other.posX, other.posY - 8);
-      else if (pair.effect === "hearts") loveBurst(other.id, other.posX, other.posY);
-    }, 1500);
+      showBubble(owner.id, `내 ${it.name}…! ${pair.content}`, 2800);
+      if (pair.effect === "anger") spawnEffect("anger", owner.posX, owner.posY - 8);
+      else if (pair.effect === "hearts") loveBurst(owner.id, owner.posX, owner.posY);
+    }, 1600);
   }
   // 아이템 '사용' 1회 시도(개그 타이머) — 보는 중에만. 소유 아이템은 주인이, 배치 아이템은 근처 펫이
   //   잠깐 갖고 놀며 사용 모션(이모지 이펙트 + 짧은 대사)을 낸다. 마모성이면 내구도 1↓, 0 되면 파손.
@@ -909,12 +914,16 @@ export default function RoomView({
     const y = (it.ownerPetId != null ? pet.posY : it.posY) - 8;
     spawnEffect(fx, x, y);
     showBubble(pet.id, USE_LINES[Math.floor(Math.random() * USE_LINES.length)], 2000);
-    fetch(`/api/room-items/${it.id}/wear`, { method: "POST" })
+    fetch(`/api/room-items/${it.id}/wear`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ breakerPetId: pet.id }),
+    })
       .then((r) => r.json())
       .then((d) => {
         if (d.durabilityNow == null) return; // 무한 등
         setItems((xs) => xs.map((q) => (q.id === it.id ? { ...q, durabilityNow: d.durabilityNow, broken: !!d.broke } : q)));
-        if (d.broke) onItemBreak(it, pet); // 사용하다 깨짐 — 파손 만담
+        if (d.broke) onItemBreak(it, pet, d.breakLine, d.ownerPetId); // 사용하다 깨짐 — 라이브 파손 만담
       })
       .catch(() => {});
     return true;

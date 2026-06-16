@@ -10,6 +10,7 @@ export interface GiveResult {
   ownerCall: { ownerPetId: number; content: string } | null;
   durabilityNow: number | null;
   broke: boolean;
+  breakLine?: string | null; // 던지다 파손 시 깬 펫 라이브 만담
 }
 
 // 식품(consumable) 급여 결과 — 인스턴스 없음, 먹고 사라짐. full=식후 배부름(차분 1개).

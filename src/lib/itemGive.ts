@@ -38,6 +38,55 @@ export function fullLine(): string {
   return pick(FULL_POOL);
 }
 
+// 파손 맥락(C3): solo=주인 없음/부재, self=깬 게 주인 본인, other=남의 것을 깸(들킴).
+export type BreakCtx = "solo" | "self" | "other";
+const BREAK_FALLBACK: Record<BreakCtx, string[]> = {
+  solo: ["으아악 깨졌어!!", "아 안 돼애애…", "(머쓱) 난 못 봤어", "어… 이거 어쩌지", "헉 부서졌다 ㅠㅠ"],
+  self: ["내 건데 내가 깼어… 흑", "아 내 소중한 거 ㅠㅠ", "이런 바보, 나란 펫…", "내 잘못이야 으윽"],
+  other: ["헉 {owner} 거 깼다 큰일", "나 아냐! 원래 금 가 있었어!", "{owner}한테 뭐라 하지…", "이거 어떻게 숨기지"],
+};
+
+export async function breakageLine(
+  userId: number,
+  asset: { name: string },
+  breaker: { name: string; personality: string | null },
+  ctx: BreakCtx,
+  ownerName?: string,
+): Promise<string> {
+  const what =
+    ctx === "self"
+      ? `자기 소유인 '${asset.name}'(을)를 그만 자기가 깨뜨렸다. 성격대로 자책하거나 머쓱해하거나 시큰둥.`
+      : ctx === "other"
+        ? `'${ownerName ?? "친구"}'의 '${asset.name}'(을)를 깨뜨려 버렸다(들킬 판!). 성격대로 발뺌·사과·당황.`
+        : `갖고 놀던 '${asset.name}'(이)가 깨졌다. 성격대로(까칠=발끈, 다정=미안, 능청=발뺌, 무심=시큰둥).`;
+  try {
+    const cfg = await getPetAuxConfig(userId);
+    if (cfg.configured) {
+      const system = [
+        `너는 '${breaker.name}'(이)라는 펫이다.`,
+        breaker.personality ? `성격: ${breaker.personality}` : "성격: 표현이 풍부함",
+        `이 상황에 성격을 과장해서 드라마틱하고 웃기게 반응해라. 밋밋한 한 줄 금지. 가벼운 욕설/감탄사 OK.`,
+        `진짜 금지: 죽음·자해 진지하게 / 미성년 부적절 / 실제 혐오.`,
+        `자연스러운 한국어, 펫 1인칭 한 줄(25자 내외), 따옴표·번호·행동지문 없이 대사만.`,
+      ].join("\n");
+      const raw = await completeChat(
+        cfg,
+        [
+          { role: "system", content: system },
+          { role: "user", content: `${what}\n→ 한 줄 대사:` },
+        ],
+        undefined,
+        FUN_OPTS,
+      );
+      const line = clean((raw ?? "").split("\n").find((l) => l.trim()) ?? "");
+      if (line && !HARD_BLOCK.test(line)) return line;
+    }
+  } catch {
+    /* 폴백 */
+  }
+  return pick(BREAK_FALLBACK[ctx]).replaceAll("{owner}", ownerName ?? "주인");
+}
+
 export function effectFor(kind: GiveKind): EffectType {
   if (kind === "owner_recognize") return "hearts";
   if (kind === "other_owner") return "notes";
