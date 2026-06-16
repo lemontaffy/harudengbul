@@ -14,6 +14,7 @@ import * as petRoomsRepo from "../src/db/repo/petRooms";
 import * as petItemsLibRepo from "../src/db/repo/items";
 import * as placementsRepo from "../src/db/repo/furniturePlacements";
 import * as roomItemsRepo from "../src/db/repo/roomItems";
+import * as momentsRepo from "../src/db/repo/petMoments";
 import { buildContext, buildSystemPrompt, type Role } from "../src/lib/persona";
 import { executeTool } from "../src/lib/tools";
 
@@ -212,6 +213,20 @@ async function main() {
   check("B의 wear로 A 인스턴스 내구도 안 줄어듦", (await roomItemsRepo.getOne(A.id, aInst.id))?.durabilityNow === 10);
   await roomItemsRepo.remove(B.id, aInst.id); // 타인 → 무동작
   check("B의 remove로 A 인스턴스 안 지워짐", (await roomItemsRepo.getOne(A.id, aInst.id)) !== null);
+
+  // ── 관계 이벤트 순간(pet_moments) 교차 격리 ──
+  const aMoment = await momentsRepo.create(A.id, {
+    roomId: aRoom.id,
+    petAId: null, // FK set null 허용 — 이름 스냅샷으로 재생(실제 펫 불요)
+    petBId: null,
+    petAName: "A펫1",
+    petBName: "A펫2",
+    relationKind: "hostile",
+    script: [{ type: "narrator", text: "A의 비밀 씬" }],
+  });
+  check("B는 A 순간 조회 못 함", (await momentsRepo.getOne(B.id, aMoment.id)) === null);
+  check("B 순간 목록에 A 것 없음", !(await momentsRepo.listForUser(B.id)).some((m) => m.id === aMoment.id));
+  check("A 본인은 A 순간 조회됨(양성)", (await momentsRepo.getOne(A.id, aMoment.id)) !== null);
 
   console.log(failed === 0 ? "\n격리 테스트 통과 ✅" : `\n${failed}건 실패 ❌`);
   process.exit(failed === 0 ? 0 : 1);

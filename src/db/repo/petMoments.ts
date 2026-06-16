@@ -10,8 +10,8 @@ export async function create(
   userId: number,
   input: {
     roomId: number;
-    petAId: number;
-    petBId: number;
+    petAId: number | null;
+    petBId: number | null;
     petAName: string;
     petBName: string;
     relationKind: "hostile" | "love";

@@ -85,7 +85,10 @@ export default function RoomListView({ rooms, waitingCount = 0 }: { rooms: RoomC
         <button onClick={createRoom} className="rounded-control bg-surface px-4 py-2 text-sm ring-1 ring-border">
           방 만들기
         </button>
-        <Link href="/pets/manage" className="ml-auto rounded-control bg-surface px-4 py-2 text-sm ring-1 ring-border">
+        <Link href="/pets/moments" className="ml-auto rounded-control bg-surface px-4 py-2 text-sm ring-1 ring-border">
+          🎬 순간
+        </Link>
+        <Link href="/pets/manage" className="rounded-control bg-surface px-4 py-2 text-sm ring-1 ring-border">
           🐾 관리{waitingCount > 0 ? ` · 대기 ${waitingCount}` : ""}
         </Link>
       </div>
