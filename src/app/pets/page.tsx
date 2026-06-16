@@ -44,7 +44,11 @@ export default async function PetsPage() {
       <div className="mb-5 flex items-center justify-between">
         <h1 className="font-display text-lg font-semibold">펫 룸</h1>
       </div>
-      <RoomListView rooms={cards} waitingCount={waitingCount} />
+      <RoomListView
+        rooms={cards}
+        waitingCount={waitingCount}
+        allPets={allPets.map((p) => ({ id: p.id, name: p.name }))}
+      />
     </main>
   );
 }
