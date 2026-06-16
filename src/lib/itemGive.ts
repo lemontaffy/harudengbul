@@ -1,27 +1,25 @@
-// 아이템 '주기' 반응 — 전역 items 대상. 분기(주인 인식/일반/타펫+주인 언급) + 캐시 + aux 생성.
-//   '주기'는 가끔 하는 의미 있는 제스처(빠른 반복 슬롯 아님): 쿨다운/캡은 give API가 담당.
+// 펫 반응 — v4 라이브 생성. 상호작용(던지기/급여)마다 aux(보조 모델, Gemini Flash) 1회 호출 → 그 자리 생성.
+//   사전 풀 추첨 아님(캐시 X). 실패·미설정·레이트리밋 → 하드코딩 폴백 풀로 즉시 대체(끊김 0).
+//   톤: 짧지만 강렬, 성격 과장해 드라마틱+웃기게. 캐릭터다우면 가벼운 욕설·모국어 OK.
 import { completeChat } from "@/lib/llm";
-import { forbiddenLine } from "@/lib/pets";
 import { getPetAuxConfig } from "@/modules/pets/auxConfig";
-import * as linesRepo from "@/db/repo/itemReactionLines";
 
-// 캐시되는 kind(펫×아이템별 풀). repeat/owner_call/full 은 고정 풀(아래) — 캐시·LLM 없음.
-//   eating = 식품(consumable) 급여 반응 — 페르소나 기반(이탈리아 늑대 + 파인애플 피자 = 질색 자동).
 export type GiveKind = "received" | "owner_recognize" | "other_owner" | "eating";
 export type EffectType = "sparkle" | "notes" | "hearts";
 
-// 기본 템플릿({item}=아이템, {owner}=주인 이름). aux 미설정/실패 시 항상 동작.
-const TEMPLATES: Record<GiveKind, string[]> = {
-  received: ["{item}, 나 주는 거야?", "오, {item}!", "이게 뭐야, 신기해", "{item} 받았다!", "고마워, 잘 둘게"],
-  owner_recognize: ["어, 내 {item}다!", "이거 내 거잖아 ㅎㅎ", "역시 {item}, 익숙해", "내 {item} 반가워"],
-  other_owner: ["이거 {owner} 거 아냐?", "{owner} {item} 같은데…", "{owner}한테 받은 거 맞지?", "음, {owner} 거 같은데"],
-  eating: ["냠냠, {item} 맛있다!", "{item}… 우물우물", "{item} 꿀꺽!", "오, {item} 좋은데?", "{item} 더 줘!"],
-};
+// 재미 톤 샘플링(작업 지시 B).
+const FUN_OPTS = { temperature: 0.95, topP: 0.92, topK: 60 } as const;
 
-// 고정 풀 — 연타 정착(repeat)·주인 부르기(owner_call)·식후 배부름(full). 캐시·LLM 없이 항상 차분.
-const REPEAT_POOL = ["또?", "아까 봤어 ㅎㅎ", "응, 알아 알아", "그거 또구나", "방금 줬잖아~"];
-const OWNER_CALL_POOL = ["어 그거 내 건데!", "{name}, 그거 내 거야~", "내 {item} 어디서 났어?", "그거 이리 줘 ㅎㅎ"];
-const FULL_POOL = ["아직 배불러…", "방금 먹었잖아", "지금은 됐어, 나중에", "으, 더는 못 먹어", "조금 있다 줘~"];
+// 폴백 풀({item}=아이템, {owner}=주인). aux 실패/미설정 시 즉시 대체(끊김 0).
+const TEMPLATES: Record<GiveKind, string[]> = {
+  received: ["{item}?! 이게 웬 떡이야!", "오오 {item}! 나 주는 거 맞지?!", "{item}이라니… 심장 떨려", "헉 {item}, 잘 간직할게!!"],
+  owner_recognize: ["내 {item}!! 드디어 돌아왔구나", "이거 내 거잖아, 어딨었어 ㅠㅠ", "역시 {item}, 손에 착 붙네", "내 {item} 반가워 죽겠다"],
+  other_owner: ["잠깐, 이거 {owner} 거 아냐?!", "{owner} {item}인데… 나 가져도 돼?", "{owner}한테 혼나는 거 아냐 이거", "음… {owner} 냄새 나는데 이거"],
+  eating: ["냠냠! {item} 최고야!!", "{item}… 우물우물… 천국", "꿀꺽! {item} 더 없어?!", "오 {item}, 이거 좀 하는데?"],
+};
+const REPEAT_POOL = ["또?!", "아까 봤다니까 ㅎㅎ", "응 응 알아 알아~", "방금 줬잖아 욕심쟁이"];
+const OWNER_CALL_POOL = ["야!! 그거 내 건데!", "{name}, 그거 내 거라고~", "내 {item} 어디서 났어 너!", "이리 내놔 그거 ㅋㅋ"];
+const FULL_POOL = ["으윽… 아직 배불러", "방금 먹었잖아 ㅠ", "지금은 진짜 못 먹어…", "조금만 있다 줘, 터질 것 같아"];
 
 function fill(tpl: string[], item: string, owner?: string): string[] {
   return tpl.map((t) => t.replaceAll("{item}", item).replaceAll("{owner}", owner ?? "주인"));
@@ -36,7 +34,6 @@ export function repeatLine(): string {
 export function ownerCallLine(itemName: string, recipientName: string): string {
   return pick(OWNER_CALL_POOL).replaceAll("{item}", itemName).replaceAll("{name}", recipientName);
 }
-/** 식후 '배부름' — 짧은 식후 쿨다운 중 재급여 시(게이지 아님). */
 export function fullLine(): string {
   return pick(FULL_POOL);
 }
@@ -48,7 +45,18 @@ export function effectFor(kind: GiveKind): EffectType {
   return Math.random() < 0.5 ? "sparkle" : "notes";
 }
 
-function buildMessages(
+// 반응 전용 금지선(재미와 무관한 실제 선만). 가벼운 욕설·감탄사는 허용(재미 톤).
+const HARD_BLOCK =
+  /(자살|목\s?매|손목\s?긋|죽어\s?버|뒤져\s?라|뒤져\s?버|강간|성폭|아동.*성|미성년.*성)/;
+function clean(s: string): string {
+  return s
+    .replace(/^["'“”\s\-*\d.]+|["'“”\s]+$/g, "")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, 40);
+}
+
+function buildPrompt(
   petName: string,
   personality: string | null,
   itemName: string,
@@ -57,55 +65,31 @@ function buildMessages(
 ) {
   const what =
     kind === "eating"
-      ? `'${itemName}'(을)를 받아 먹어 본 직후의 반응. 그 펫의 성격·취향에 따라 좋아할 수도, 질색할 수도 있다(억지로 좋아하지 말 것 — 안 맞으면 솔직히 싫어해도 된다)`
+      ? `방금 '${itemName}'(을)를 받아 먹었다. 성격·취향대로 황홀해하거나, 안 맞으면 질색하며 솔직히 싫어해도 된다(억지로 좋아하지 말 것).`
       : kind === "owner_recognize"
-        ? `자기 것인 '${itemName}'(을)를 다시 받아 '내 거다' 하고 알아보는 반가운 반응`
+        ? `자기 것인 '${itemName}'(을)를 다시 받았다. '내 거다!' 하고 격하게 반가워한다.`
         : kind === "other_owner"
-          ? `'${ownerName ?? "다른 친구"}'의 것인 '${itemName}'(을)를 받아 "이거 ${ownerName ?? "걔"} 거 아냐?" 하고 갸웃하는 반응`
-          : `'${itemName}'(을)를 처음 받아 신기해하며 받는 반응`;
+          ? `'${ownerName ?? "다른 친구"}'의 것인 '${itemName}'(을)를 받았다. "이거 ${ownerName ?? "걔"} 거 아냐?!" 하고 갸웃·당황한다.`
+          : `'${itemName}'(을)를 처음 받았다. 신기해하며 호들갑스럽게 받는다.`;
   const system = [
     `너는 '${petName}'(이)라는 펫이다.`,
-    personality ? `성격: ${personality}` : "",
-    `${what}을, 펫 1인칭 짧은 대사로 3개 만들어라.`,
-    `규칙: 각 20자 내외, 그 펫다운 말투. 자연스러운 한국어 — 사전에 없는 단어·어색한 음차 금지`,
-    `(예: "저주스"(X) → "저주를"(O)). 죽음·자해·비속어 금지. 행동지문 금지(대사만). 따옴표·번호·머리말 없이`,
-    `JSON 문자열 배열로만 출력. 예: ["...","...","..."]`,
+    personality ? `성격: ${personality}` : "성격: 장난기 많고 표현이 풍부함",
+    `이 상황에 그 성격을 과장해서 드라마틱하고 웃기게 반응해라. 밋밋한 한 줄 절대 금지.`,
+    `캐릭터다우면 가벼운 욕설·감탄사·모국어 한 마디(예: Porca…) 환영, 하이퍼볼리 좋아.`,
+    `단 이건 진짜 금지: 죽음·자해를 진지하게 / 미성년 부적절 / 실제 혐오.`,
+    `자연스러운 한국어. 펫 1인칭 대사 딱 한 줄(25자 내외). 행동지문·따옴표·번호·머리말 없이 대사만.`,
   ]
     .filter(Boolean)
     .join("\n");
   return [
     { role: "system" as const, content: system },
-    { role: "user" as const, content: `'${itemName}' — ${kind} 반응 3개(JSON 배열):` },
+    { role: "user" as const, content: `${what}\n→ 한 줄 대사:` },
   ];
 }
 
-function parseLines(raw: string): string[] {
-  const t = raw.trim();
-  try {
-    const m = t.match(/\[[\s\S]*\]/);
-    const arr = JSON.parse(m ? m[0] : t);
-    if (Array.isArray(arr)) return arr.map((x) => String(x).trim()).filter(Boolean).slice(0, 6);
-  } catch {
-    return t.split("\n").map((s) => s.replace(/^[-*\d.\s"]+|["\s]+$/g, "").trim()).filter(Boolean).slice(0, 6);
-  }
-  return [];
-}
-function sanitize(lines: string[]): string[] {
-  const seen = new Set<string>();
-  const out: string[] = [];
-  for (const l of lines) {
-    const s = l.replace(/^["'“”]|["'“”]$/g, "").trim().slice(0, 40);
-    if (!s || forbiddenLine(s) || seen.has(s)) continue;
-    seen.add(s);
-    out.push(s);
-  }
-  return out;
-}
-
 /**
- * (이 아이템 × 받는 펫 × kind) 반응 풀을 보장하고 한 줄 반환.
- *   캐시 히트 → 재호출 없음. 미스 → aux 생성(실패/미설정 시 템플릿) 후 저장.
- *   '주기'는 의도적 제스처라 freq 코인플립 없이 캐시 미스 시 한 번 생성한다.
+ * 라이브 1줄 생성(캐시 없음). 매번 aux 1회 호출 → 실패/미설정/금지선 → 폴백 풀.
+ *   (kind·맥락별 분기는 호출부에서 결정해 넘긴다.)
  */
 export async function ensureGiveLine(
   userId: number,
@@ -114,21 +98,15 @@ export async function ensureGiveLine(
   kind: GiveKind,
   ownerName?: string,
 ): Promise<string> {
-  const cached = await linesRepo.listFor(item.id, pet.id, kind);
-  if (cached.length) return pick(cached);
-
-  let lines: string[] = [];
   try {
     const cfg = await getPetAuxConfig(userId);
     if (cfg.configured) {
-      const raw = await completeChat(cfg, buildMessages(pet.name, pet.personality, item.name, kind, ownerName));
-      lines = sanitize(parseLines(raw));
+      const raw = await completeChat(cfg, buildPrompt(pet.name, pet.personality, item.name, kind, ownerName), undefined, FUN_OPTS);
+      const line = clean((raw ?? "").split("\n").find((l) => l.trim()) ?? "");
+      if (line && !HARD_BLOCK.test(line)) return line;
     }
   } catch {
-    /* 생성 실패 → 템플릿 폴백 */
+    /* 호출 실패 → 폴백 */
   }
-  if (lines.length === 0) lines = fill(TEMPLATES[kind], item.name, ownerName);
-
-  await linesRepo.addMany(item.id, pet.id, kind, "auto", lines);
-  return pick(lines);
+  return pick(fill(TEMPLATES[kind], item.name, ownerName));
 }
