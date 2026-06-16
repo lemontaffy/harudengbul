@@ -8,7 +8,13 @@ export const dynamic = "force-dynamic";
 // 순간 기록 보관함 — 관계 이벤트 씬 저장본. 같은 연출로 재생. 뱃지·안읽음 없음(단순 보관).
 export default async function MomentsPage() {
   const user = await requireUser();
-  const rows = await momentsRepo.listForUser(user.id, 80);
+  // 비핵심 보관함 — pet_moments 마이그(0051) 미적용 등으로 실패해도 빈 목록으로 안전하게 로드.
+  let rows: Awaited<ReturnType<typeof momentsRepo.listForUser>> = [];
+  try {
+    rows = await momentsRepo.listForUser(user.id, 80);
+  } catch (e) {
+    console.error("[moments] list skipped:", (e as Error)?.message);
+  }
   const moments: MomentItem[] = rows.map((m) => ({
     id: m.id,
     petAId: m.petAId,
