@@ -265,7 +265,7 @@ function AddForm({
         ))}
       </div>
 
-      <input value={name} onChange={(e) => setName(e.target.value)} className={input} placeholder="이름 (예: 도미닉의 찻잔)" />
+      <input value={name} onChange={(e) => setName(e.target.value)} className={input} placeholder="이름 (예: 고급 백자 찻잔)" />
 
       <label className="text-xs text-text-dim">스프라이트 (gif/webp/png, ≤5MB · 도트는 원본 보존)</label>
       <input ref={fileRef} type="file" accept="image/gif,image/webp,image/png,image/jpeg" className="text-xs" />
