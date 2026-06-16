@@ -7,7 +7,7 @@ import * as momentsRepo from "@/db/repo/petMoments";
 import * as settingsRepo from "@/db/repo/settings";
 import { isLoveLabel, isHostileLabel } from "@/lib/pets";
 import { dayBoundsInTz } from "@/lib/proactive";
-import { generateScene } from "@/lib/petMoment";
+import { generateScene, pickSceneBg } from "@/lib/petMoment";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -63,5 +63,6 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     relationKind: kind,
     script,
   });
-  return Response.json({ ok: true, momentId: row.id, relationKind: kind, script });
+  const sceneBg = await pickSceneBg(kind);
+  return Response.json({ ok: true, momentId: row.id, relationKind: kind, script, sceneBg });
 }

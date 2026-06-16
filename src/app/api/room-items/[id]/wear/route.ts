@@ -7,7 +7,7 @@ import * as membershipsRepo from "@/db/repo/petRoomMemberships";
 import * as momentsRepo from "@/db/repo/petMoments";
 import * as settingsRepo from "@/db/repo/settings";
 import { breakageLine } from "@/lib/itemGive";
-import { generateBreakScene as genBreakScene } from "@/lib/petMoment";
+import { generateBreakScene as genBreakScene, pickSceneBg } from "@/lib/petMoment";
 import { isLoveLabel, isHostileLabel } from "@/lib/pets";
 import { dayBoundsInTz } from "@/lib/proactive";
 
@@ -72,7 +72,8 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
           relationKind: kind,
           script,
         });
-        return Response.json({ ok: true, durabilityNow: worn.now, broke: true, scene: { momentId: moment.id, script, relationKind: kind } });
+        const sceneBg = await pickSceneBg(kind);
+        return Response.json({ ok: true, durabilityNow: worn.now, broke: true, scene: { momentId: moment.id, script, relationKind: kind, sceneBg } });
       }
     }
   }

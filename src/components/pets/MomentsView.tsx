@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import MomentPlayer from "./MomentPlayer";
+import MomentPlayer, { type SpriteInfo } from "./MomentPlayer";
 import type { MomentLine } from "@/db/schema";
 
 export interface MomentItem {
@@ -13,6 +13,8 @@ export interface MomentItem {
   relationKind: "hostile" | "love";
   script: MomentLine[];
   createdAt: string;
+  sceneBg: string | null;
+  cast: { id: number; name: string; sprite: string | null; pixel: boolean }[];
 }
 
 // 순간 기록 보관함 — 카드 탭 시 같은 연출(디밍+말풍선/자막)로 재생. 저장본(재생성 X). 뱃지 없음.
@@ -26,15 +28,6 @@ export default function MomentsView({ moments }: { moments: MomentItem[] }) {
       </p>
     );
   }
-
-  // 보관함 재생은 방이 없으니 합성 위치(좌·우)에 펫 배치 → 같은 말풍선/자막 연출.
-  const synthPos = (m: MomentItem) =>
-    new Map<number, { x: number; y: number; name: string }>(
-      [
-        m.petAId != null ? ([m.petAId, { x: 32, y: 52, name: m.petAName }] as const) : null,
-        m.petBId != null ? ([m.petBId, { x: 68, y: 52, name: m.petBName }] as const) : null,
-      ].filter(Boolean) as [number, { x: number; y: number; name: string }][],
-    );
 
   return (
     <>
@@ -60,32 +53,19 @@ export default function MomentsView({ moments }: { moments: MomentItem[] }) {
         ))}
       </ul>
 
-      {/* 재생 — 어두운 무대에 합성 위치로 같은 연출. */}
+      {/* 재생 — 자족형 시네마틱 플레이어(장면 배경 + idle 스프라이트 좌·우). */}
       {playing && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-3" onClick={() => setPlaying(null)}>
-          <div
-            className="relative aspect-[3/4] w-full max-w-md overflow-hidden rounded-card bg-surface-2 ring-1 ring-border"
-            onClick={(e) => e.stopPropagation()}
-          >
-            {/* 펫 자리 표식(이름) — 디밍 위에 말풍선이 뜬다. */}
-            {[
-              playing.petAId != null ? { x: 32, name: playing.petAName } : null,
-              playing.petBId != null ? { x: 68, name: playing.petBName } : null,
-            ]
-              .filter(Boolean)
-              .map((p, k) => (
-                <div key={k} className="absolute -translate-x-1/2 text-3xl" style={{ left: `${p!.x}%`, top: "52%" }}>
-                  {playing.relationKind === "love" ? "🐾" : "🐾"}
-                </div>
-              ))}
-            <MomentPlayer
-              script={playing.script}
-              relationKind={playing.relationKind}
-              petPos={synthPos(playing)}
-              onDone={() => setPlaying(null)}
-            />
-          </div>
-        </div>
+        <MomentPlayer
+          script={playing.script}
+          relationKind={playing.relationKind}
+          sceneBg={playing.sceneBg}
+          spriteOf={
+            new Map<number, SpriteInfo>(
+              playing.cast.map((c) => [c.id, { name: c.name, sprite: c.sprite, pixel: c.pixel }]),
+            )
+          }
+          onDone={() => setPlaying(null)}
+        />
       )}
     </>
   );

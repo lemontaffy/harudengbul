@@ -95,7 +95,7 @@ export default function RoomView({
   const [basketMode, setBasketMode] = useState<null | "throw" | "place">(null);
   // 관계 이벤트 — 후보 카드(제안) → '보기'면 메인 모델이 씬 생성 → 디밍 연출. 하루 1회 캡(서버).
   const [momentCard, setMomentCard] = useState<{ aId: number; bId: number; aName: string; bName: string; kind: "hostile" | "love" } | null>(null);
-  const [momentScript, setMomentScript] = useState<{ script: MomentLine[]; kind: "hostile" | "love" } | null>(null);
+  const [momentScript, setMomentScript] = useState<{ script: MomentLine[]; kind: "hostile" | "love"; sceneBg: string | null } | null>(null);
   const [momentBusy, setMomentBusy] = useState(false);
   // 던지기 연출 — 준 아이템 스프라이트가 펫에게 잠깐 날아가 닿음(CSS transform/opacity, reduced-motion 존중).
   const [toss, setToss] = useState<{ id: number; src: string; pixel: boolean; xPct: number; yPct: number } | null>(null);
@@ -480,7 +480,7 @@ export default function RoomView({
       });
       const d = await res.json().catch(() => ({}));
       if (res.ok && Array.isArray(d.script) && d.script.length) {
-        setMomentScript({ script: d.script as MomentLine[], kind: d.relationKind });
+        setMomentScript({ script: d.script as MomentLine[], kind: d.relationKind, sceneBg: d.sceneBg ?? null });
       }
       setMomentCard(null); // 제안 1회성(재추첨 없음)
     } finally {
@@ -962,7 +962,7 @@ export default function RoomView({
         setItems((xs) => xs.map((q) => (q.id === it.id ? { ...q, durabilityNow: d.durabilityNow, broken: !!d.broke } : q)));
         if (!d.broke) return;
         // 큰 만담이 씬으로 승격됐으면 자막 연출, 아니면 평소 라이브 만담 버블.
-        if (d.scene?.script?.length) setMomentScript({ script: d.scene.script, kind: d.scene.relationKind });
+        if (d.scene?.script?.length) setMomentScript({ script: d.scene.script, kind: d.scene.relationKind, sceneBg: d.scene.sceneBg ?? null });
         else onItemBreak(it, pet, d.breakLine, d.ownerPetId);
       })
       .catch(() => {});
@@ -1539,7 +1539,8 @@ export default function RoomView({
             <MomentPlayer
               script={momentScript.script}
               relationKind={momentScript.kind}
-              petPos={new Map(petsRef.current.map((p) => [p.id, { x: p.posX, y: p.posY, name: p.name }]))}
+              sceneBg={momentScript.sceneBg}
+              spriteOf={new Map(petsRef.current.map((p) => [p.id, { name: p.name, sprite: p.spritePath, pixel: p.pixelRender }]))}
               onDone={() => setMomentScript(null)}
             />
           )}
