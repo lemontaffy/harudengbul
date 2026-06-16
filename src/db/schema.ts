@@ -801,6 +801,21 @@ export const petMoments = pgTable(
   (t) => [index("pet_moments_user_created_idx").on(t.userId, t.createdAt)],
 );
 
+// 관계 이벤트 '장면 배경'(전역, 계정 단위) — 사용자가 업로드. 톤(love/hostile)별로 여러 장 → 재생 때 랜덤.
+export const sceneBackgrounds = pgTable(
+  "scene_backgrounds",
+  {
+    id: bigint("id", { mode: "number" }).primaryKey().generatedAlwaysAsIdentity(),
+    userId: bigint("user_id", { mode: "number" })
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    kind: text("kind").notNull(), // 'love' | 'hostile'
+    path: text("path").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("scene_backgrounds_user_kind_idx").on(t.userId, t.kind)],
+);
+
 export const petLines = pgTable(
   "pet_lines",
   {

@@ -45,7 +45,7 @@ export default async function MomentsPage() {
         relationKind: m.relationKind as "hostile" | "love",
         script: m.script,
         createdAt: (m.createdAt instanceof Date ? m.createdAt : new Date(m.createdAt)).toISOString(),
-        sceneBg: await pickSceneBg(m.relationKind as "hostile" | "love"),
+        sceneBg: await pickSceneBg(user.id, m.relationKind as "hostile" | "love"),
         cast: [
           m.petAId != null ? { id: m.petAId, name: m.petAName, sprite: a.sprite, pixel: a.pixel } : null,
           m.petBId != null ? { id: m.petBId, name: m.petBName, sprite: b.sprite, pixel: b.pixel } : null,

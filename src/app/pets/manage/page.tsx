@@ -6,10 +6,12 @@ import * as membershipsRepo from "@/db/repo/petRoomMemberships";
 import * as spritesRepo from "@/db/repo/petSprites";
 import * as itemsRepo from "@/db/repo/items";
 import * as placementsRepo from "@/db/repo/furniturePlacements";
+import * as sceneBgRepo from "@/db/repo/sceneBackgrounds";
 import { stageFor, reachedStages, displayStageFor, pickSpritePath } from "@/lib/pets";
 import PetManageHub from "@/components/pets/PetManageHub";
 import type { ManagePet } from "@/components/pets/PetManageView";
 import type { LibraryItem } from "@/components/pets/ItemsLibraryView";
+import type { SceneBg } from "@/components/pets/SceneBackgroundsView";
 
 export const dynamic = "force-dynamic";
 
@@ -78,6 +80,20 @@ export default async function PetManagePage({
     placedRooms: roomsByItem.get(r.id) ?? [],
   }));
 
+  // 장면 배경(전역). 테이블 미생성(마이그 지연) 시 빈 목록으로 폴백 — 페이지 전체가 죽지 않게.
+  let sceneBackgrounds: SceneBg[] = [];
+  try {
+    sceneBackgrounds = (await sceneBgRepo.listForUser(user.id)).map((b) => ({
+      id: b.id,
+      kind: b.kind as "love" | "hostile",
+      path: b.path,
+    }));
+  } catch (e) {
+    console.error("[manage] scene backgrounds skipped:", (e as Error)?.message);
+  }
+
+  const initialTab = sp.tab === "items" ? "items" : sp.tab === "scenes" ? "scenes" : "pets";
+
   return (
     <main className="mx-auto max-w-md p-5">
       <div className="mb-4 flex items-center justify-between">
@@ -92,7 +108,8 @@ export default async function PetManagePage({
         rooms={rooms.map((r) => ({ id: r.id, name: r.name }))}
         allPets={allPets.map((p) => ({ id: p.id, name: p.name }))}
         items={items}
-        initialTab={sp.tab === "items" ? "items" : "pets"}
+        sceneBackgrounds={sceneBackgrounds}
+        initialTab={initialTab}
       />
     </main>
   );

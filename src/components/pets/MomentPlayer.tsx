@@ -118,9 +118,9 @@ export default function MomentPlayer({
           );
         })()}
 
-        {/* 나레이터 = 하단 레터박스 자막 */}
+        {/* 나레이터 = 상단 자막(레터박스 아래) */}
         {line.type === "narrator" && (
-          <div className="absolute inset-x-0 bottom-8 z-10 px-5 pb-3">
+          <div className="absolute inset-x-0 top-8 z-10 px-5 pt-3">
             <p className="text-center text-[13px] italic leading-snug text-white/95" style={{ textShadow: TEXT_OUTLINE }}>{line.text}</p>
           </div>
         )}

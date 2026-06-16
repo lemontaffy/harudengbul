@@ -1,6 +1,6 @@
 import { eq } from "drizzle-orm";
 import { db } from "../client";
-import { personas, settings } from "../schema";
+import { personas, settings, sceneBackgrounds } from "../schema";
 
 /**
  * 주어진 public URL 이 실제 DB에 등록된 아바타 경로인지 확인(서빙 화이트리스트).
@@ -26,5 +26,12 @@ export async function avatarPathExists(url: string): Promise<boolean> {
     .from(settings)
     .where(eq(settings.appBgPath, url))
     .limit(1);
-  return !!bg;
+  if (bg) return true;
+  // 관계 이벤트 장면 배경.
+  const [scene] = await db
+    .select({ id: sceneBackgrounds.id })
+    .from(sceneBackgrounds)
+    .where(eq(sceneBackgrounds.path, url))
+    .limit(1);
+  return !!scene;
 }

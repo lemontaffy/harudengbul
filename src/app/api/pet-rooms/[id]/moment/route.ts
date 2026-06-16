@@ -63,6 +63,6 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     relationKind: kind,
     script,
   });
-  const sceneBg = await pickSceneBg(kind);
+  const sceneBg = await pickSceneBg(user.id, kind);
   return Response.json({ ok: true, momentId: row.id, relationKind: kind, script, sceneBg });
 }

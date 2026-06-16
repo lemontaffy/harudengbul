@@ -72,7 +72,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
           relationKind: kind,
           script,
         });
-        const sceneBg = await pickSceneBg(kind);
+        const sceneBg = await pickSceneBg(user.id, kind);
         return Response.json({ ok: true, durabilityNow: worn.now, broke: true, scene: { momentId: moment.id, script, relationKind: kind, sceneBg } });
       }
     }

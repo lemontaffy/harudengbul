@@ -6,21 +6,27 @@ import path from "node:path";
 import { completeChat } from "@/lib/llm";
 import { getLlmConfig } from "@/lib/config";
 import { getPetAuxConfig } from "@/modules/pets/auxConfig";
+import * as sceneBgRepo from "@/db/repo/sceneBackgrounds";
 import type { MomentLine } from "@/db/schema";
 
-// 장면 배경 — 사용자가 직접 넣는 PNG. public/scene-bg/{love|irritating}/*.{png,webp,jpg} 중 톤에 맞춰 랜덤.
-//   파일 없으면 null(MomentPlayer가 그라데이션 폴백). love=애정, irritating=대치.
-export async function pickSceneBg(kind: RelationKind): Promise<string | null> {
+// 장면 배경 — 사용자가 관리 화면에서 업로드(scene_backgrounds, kind별). 톤에 맞춰 랜덤 1장.
+//   DB에 없으면 레거시 폴더(public/scene-bg/{love|irritating}) 폴백, 그것도 없으면 null(그라데이션).
+export async function pickSceneBg(userId: number, kind: RelationKind): Promise<string | null> {
+  try {
+    const paths = await sceneBgRepo.listPaths(userId, kind);
+    if (paths.length) return paths[Math.floor(Math.random() * paths.length)];
+  } catch {
+    /* DB 실패 → 폴더 폴백 */
+  }
   const dir = kind === "love" ? "love" : "irritating";
   try {
     const abs = path.join(process.cwd(), "public", "scene-bg", dir);
     const files = (await fs.readdir(abs)).filter((f) => /\.(png|webp|jpe?g)$/i.test(f));
-    if (!files.length) return null;
-    const pick = files[Math.floor(Math.random() * files.length)];
-    return `/scene-bg/${dir}/${pick}`;
+    if (files.length) return `/scene-bg/${dir}/${files[Math.floor(Math.random() * files.length)]}`;
   } catch {
-    return null; // 폴더 없음 등
+    /* 폴더 없음 */
   }
+  return null;
 }
 
 type PetRef = { id: number; name: string; personality: string | null };
