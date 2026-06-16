@@ -59,7 +59,7 @@ export default function MomentPlayer({
       {/* 펫 대사 = 머리 위 말풍선(해당 펫 위치) */}
       {line.type === "pet" && pos && (
         <div className="absolute -translate-x-1/2 -translate-y-full" style={{ left: `${pos.x}%`, top: `${pos.y - 6}%` }}>
-          <div className="relative whitespace-pre-wrap rounded-md border border-white/30 px-2.5 py-1.5 text-center text-[12px] font-medium text-white" style={{ background: CHIP_BG, textShadow: TEXT_OUTLINE, maxWidth: 180 }}>
+          <div className="relative w-max whitespace-pre-wrap rounded-md border border-white/30 px-2.5 py-1.5 text-center text-[12px] font-medium text-white" style={{ background: CHIP_BG, textShadow: TEXT_OUTLINE, maxWidth: 180, overflowWrap: "anywhere" }}>
             <span className="mb-0.5 block text-[9px] text-white/60">{pos.name}</span>
             {line.text}
             <span className="absolute left-1/2 top-full -translate-x-1/2" style={{ width: 0, height: 0, borderLeft: "5px solid transparent", borderRight: "5px solid transparent", borderTop: `6px solid ${CHIP_BG}` }} />
