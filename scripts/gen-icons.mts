@@ -36,43 +36,36 @@ async function maskable(size: number, out: string) {
   console.log("✓", path.relative(root, out), `${size}x${size} (maskable)`);
 }
 
-// 원본(등불)은 알파가 없는 흰 배경 PNG라, 밝은 배경을 키아웃해 알파 마스크를 직접 만든다.
-//   greyscale→threshold(밝음=255)→negate ⇒ 등불(어두움)=255, 배경=0.
-async function keyAlphaMask(rgbResized: Buffer): Promise<Buffer> {
-  return sharp(rgbResized).greyscale().threshold(242).negate().toBuffer();
-}
+// 소스(icon-push.png)는 '투명 배경 + 등불' PNG라 알파가 곧 실루엣이다. 색상 키잉(밝기 임계) 대신
+//   소스 알파를 직접 쓴다 — 등불이 밝아도 안 깨짐. trim 으로 투명 여백 제거해 등불이 꽉 차게.
+const TRANSPARENT = { r: 0, g: 0, b: 0, alpha: 0 } as const;
 
-// 푸시 알림 본문 아이콘(컬러) — 흰 배경을 투명으로 키아웃해 등불만 띄운다.
+// 푸시 알림 본문 아이콘(컬러) — 등불을 trim 후 그대로(투명 배경 유지).
 async function pushIcon(size: number, out: string) {
   await ensureDir(out);
-  const colour = await sharp(PUSH_SRC)
-    .resize(size, size, { fit: "contain", background: "#ffffff" })
-    .removeAlpha()
-    .toBuffer();
-  const mask = await keyAlphaMask(colour);
-  await sharp(colour).joinChannel(mask).png().toFile(out);
+  await sharp(PUSH_SRC)
+    .trim()
+    .resize(size, size, { fit: "contain", background: TRANSPARENT })
+    .png()
+    .toFile(out);
   console.log("✓", path.relative(root, out), `${size}x${size} (push icon)`);
 }
 
-// 상태바 뱃지 — Android 는 알파만 보고 흰 실루엣으로 렌더한다.
-//   등불을 패딩 둔 흰 캔버스 중앙에 올려 키아웃 → 그 실루엣 알파를 흰색에 입힌다.
+// 상태바 뱃지 — Android 는 알파만 보고 흰 실루엣으로 렌더. 소스 알파를 흰 캔버스에 입힌다.
 async function badge(size: number, out: string) {
   await ensureDir(out);
-  const inner = Math.round(size * 0.8); // 약 10% 패딩
-  const lantern = await sharp(PUSH_SRC)
-    .resize(inner, inner, { fit: "contain", background: "#ffffff" })
-    .removeAlpha()
-    .png()
+  const inner = Math.round(size * 0.9);
+  const pad = Math.floor((size - inner) / 2);
+  // 소스 알파 채널 → inner 크기 → size 로 패딩한 단일채널 마스크.
+  const mask = await sharp(PUSH_SRC)
+    .trim()
+    .resize(inner, inner, { fit: "contain", background: TRANSPARENT })
+    .extractChannel("alpha")
+    .extend({ top: pad, bottom: size - inner - pad, left: pad, right: size - inner - pad, background: "#000000" })
+    .raw()
     .toBuffer();
-  const onWhite = await sharp({
-    create: { width: size, height: size, channels: 3, background: "#ffffff" },
-  })
-    .composite([{ input: lantern, gravity: "center" }])
-    .png()
-    .toBuffer(); // size×size RGB(PNG), 흰 배경 + 중앙 등불
-  const mask = await keyAlphaMask(onWhite); // 등불=255, 흰 배경/패딩=0
   await sharp({ create: { width: size, height: size, channels: 3, background: "#ffffff" } })
-    .joinChannel(mask) // 흰색 + 등불 실루엣 알파
+    .joinChannel(mask, { raw: { width: size, height: size, channels: 1 } })
     .png()
     .toFile(out);
   console.log("✓", path.relative(root, out), `${size}x${size} (status-bar badge)`);

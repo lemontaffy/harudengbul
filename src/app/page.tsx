@@ -105,7 +105,7 @@ export default async function DashboardPage() {
       <header className="flex items-center justify-between">
         <h1 className="flex items-center gap-1.5 font-display text-base font-semibold text-accent">
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/icon-title.png?v=2" alt="" width={22} height={22} className="h-[22px] w-[22px]" />
+          <img src="/icon-title.png?v=3" alt="" width={22} height={22} className="h-[22px] w-[22px]" />
           하루등불
         </h1>
         <ConnectionSwitcher />

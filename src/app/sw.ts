@@ -76,8 +76,8 @@ self.addEventListener("push", (event) => {
     actions?: { action: string; title: string }[];
   } = {
     body: data.body ?? "",
-    icon: "/icons/icon-push.png?v=2", // ?v = 폰 SW/OS 캐시 무력화(아이콘 교체 시 숫자 ↑)
-    badge: "/icons/badge.png?v=2",
+    icon: "/icons/icon-push.png?v=3", // ?v = 폰 SW/OS 캐시 무력화(아이콘 교체 시 숫자 ↑)
+    badge: "/icons/badge.png?v=3",
     tag: data.tag,
     renotify: !!data.tag,
     vibrate: [200, 100, 200],
