@@ -68,7 +68,7 @@ export async function breakageLine(
         breaker.personality ? `성격: ${breaker.personality}` : "성격: 표현이 풍부함",
         `이 상황에 성격을 과장해서 드라마틱하고 웃기게 반응해라. 밋밋한 한 줄 금지. 가벼운 욕설/감탄사 OK.`,
         `진짜 금지: 죽음·자해 진지하게 / 미성년 부적절 / 실제 혐오.`,
-        `자연스러운 한국어, 펫 1인칭 1~2문장(트위터 한 문단, 150자 내외까지 OK), 따옴표·번호·행동지문 없이 대사만.`,
+        `자연스러운 한국어, 펫 1인칭 1~2문장, 반드시 150자 이내로 완결(중간에 끊기지 않게 끝맺어라), 따옴표·번호·행동지문 없이 대사만.`,
       ].join("\n");
       const raw = await completeChat(
         cfg,
@@ -98,12 +98,16 @@ export function effectFor(kind: GiveKind): EffectType {
 // 반응 전용 금지선(재미와 무관한 실제 선만). 가벼운 욕설·감탄사는 허용(재미 톤).
 const HARD_BLOCK =
   /(자살|목\s?매|손목\s?긋|죽어\s?버|뒤져\s?라|뒤져\s?버|강간|성폭|아동.*성|미성년.*성)/;
+// 엄격히 150자 이내. 넘치면 단어 중간이 아니라 마지막 문장부호에서 깔끔히 끊는다(없으면 하드컷).
 function clean(s: string): string {
-  return s
+  const t = s
     .replace(/^["'“”\s\-*\d.]+|["'“”\s]+$/g, "")
     .replace(/\s+/g, " ")
-    .trim()
-    .slice(0, 150); // 트위터 1문단 분량까지(말풍선은 줄바꿈됨)
+    .trim();
+  if (t.length <= 150) return t;
+  const head = t.slice(0, 150);
+  const m = head.match(/^[\s\S]*[.!?…~。！？]/); // 150 안의 마지막 문장 끝
+  return (m && m[0].length >= 60 ? m[0] : head).trim();
 }
 
 function buildPrompt(
@@ -127,7 +131,7 @@ function buildPrompt(
     `이 상황에 그 성격을 과장해서 드라마틱하고 웃기게 반응해라. 밋밋한 한 줄 절대 금지.`,
     `캐릭터다우면 가벼운 욕설·감탄사·모국어 한 마디(예: Porca…) 환영, 하이퍼볼리 좋아.`,
     `단 이건 진짜 금지: 죽음·자해를 진지하게 / 미성년 부적절 / 실제 혐오.`,
-    `자연스러운 한국어. 펫 1인칭 대사 1~2문장(트위터 한 문단, 150자 내외까지 OK). 행동지문·따옴표·번호·머리말 없이 대사만.`,
+    `자연스러운 한국어. 펫 1인칭 대사 1~2문장, 반드시 150자 이내로 완결(중간에 끊기지 않게 끝맺어라). 행동지문·따옴표·번호·머리말 없이 대사만.`,
   ]
     .filter(Boolean)
     .join("\n");
