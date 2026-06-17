@@ -130,24 +130,27 @@ self.addEventListener("notificationclick", (event) => {
     return;
   }
 
-  // 본문 탭 → ack(알람) 후 앱 열기.
+  // 본문 탭 → 앱부터 연다. ack(알람) 은 병렬 fire-and-forget — 네트워크 await 가
+  // 사용자 제스처(activation)를 잡아먹어 openWindow 가 차단되는 걸 막는다(앱 닫혀 있을 때 "안 열림"의 원인).
   const url = nd.url || "/";
+  const ack =
+    typeof nd.eventId === "number"
+      ? fetch(`/api/events/${nd.eventId}/ack`, { method: "POST" }).catch(() => {})
+      : Promise.resolve();
   event.waitUntil(
     (async () => {
-      if (typeof nd.eventId === "number") {
-        await fetch(`/api/events/${nd.eventId}/ack`, { method: "POST" }).catch(() => {});
-      }
       const wins = await self.clients.matchAll({
         type: "window",
         includeUncontrolled: true,
       });
-      for (const c of wins) {
-        if ("focus" in c) {
-          await c.navigate(url).catch(() => {});
-          return c.focus();
-        }
+      const client = wins.find((c) => "focus" in c) as WindowClient | undefined;
+      if (client) {
+        await client.focus().catch(() => {}); // 먼저 포커스(가장 확실한 가시 동작)
+        client.navigate(url).catch(() => {}); // 이동은 best-effort(제어 안 된 창이면 실패 가능)
+      } else {
+        await self.clients.openWindow(url); // 열린 창 없음 → 새 창
       }
-      return self.clients.openWindow(url);
+      await ack;
     })(),
   );
 });
