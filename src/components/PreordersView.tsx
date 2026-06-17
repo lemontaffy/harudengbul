@@ -1,6 +1,20 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+
+// 현재 환율(1 from = ? to) 훅 — /api/fx(무료 소스, 6h 캐시). 실패 시 null(수동 입력 폴백).
+function useFxRate(from: string, to = "KRW"): number | null {
+  const [rate, setRate] = useState<number | null>(null);
+  useEffect(() => {
+    let alive = true;
+    fetch(`/api/fx?from=${encodeURIComponent(from)}&to=${to}`)
+      .then((r) => r.json())
+      .then((d) => { if (alive && typeof d.rate === "number") setRate(d.rate); })
+      .catch(() => {});
+    return () => { alive = false; };
+  }, [from, to]);
+  return rate;
+}
 
 export interface Preorder {
   id: number;
@@ -172,6 +186,11 @@ function EditForm({ p, onSaved, onCancel }: { p: Preorder; onSaved: (p: Preorder
   const [due, setDue] = useState(p.balanceDueDate);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
+  const rate = useFxRate(p.currency);
+  const applyFx = () => {
+    const n = Number(balCny.replace(/[, ]/g, "")) || 0;
+    if (rate && n > 0) setEst(String(Math.round(n * rate)));
+  };
 
   async function save() {
     setBusy(true);
@@ -199,6 +218,11 @@ function EditForm({ p, onSaved, onCancel }: { p: Preorder; onSaved: (p: Preorder
         <input inputMode="decimal" value={balCny} onChange={(e) => setBalCny(e.target.value)} className={inputCls} placeholder="잔금 CNY(선택)" />
         <input inputMode="numeric" value={est} onChange={(e) => setEst(e.target.value)} className={inputCls} placeholder="잔금 KRW 추정" />
       </div>
+      {rate != null && (
+        <button type="button" onClick={applyFx} className="self-start text-[11px] text-accent">
+          환율 적용 (1 {p.currency} ≈ ₩{rate.toFixed(1)})
+        </button>
+      )}
       <input type="date" value={due} onChange={(e) => setDue(e.target.value)} className={inputCls} />
       <div className="flex gap-2">
         <button disabled={busy} onClick={save} className="rounded-control bg-accent px-3 py-1.5 text-xs font-medium text-black disabled:opacity-50">{busy ? "저장 중…" : "저장"}</button>
@@ -219,8 +243,17 @@ function AddForm({ onAdded }: { onAdded: (p: Preorder) => void }) {
   const [due, setDue] = useState("");
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
+  const rate = useFxRate("CNY");
 
   const numv = (s: string) => Number(s.replace(/[, ]/g, "")) || 0;
+  // CNY 입력 시, 대응 KRW 칸이 비어 있으면 환율로 자동 채움(수동 입력은 덮지 않음).
+  const onCny = (v: string, setCny: (s: string) => void, krw: string, setKrw: (s: string) => void) => {
+    setCny(v);
+    if (rate && krw.trim() === "") {
+      const n = numv(v);
+      if (n > 0) setKrw(String(Math.round(n * rate)));
+    }
+  };
 
   async function submit() {
     if (!name.trim()) return setErr("상품/상점 이름을 입력하세요.");
@@ -250,15 +283,18 @@ function AddForm({ onAdded }: { onAdded: (p: Preorder) => void }) {
   return (
     <div className="flex flex-col gap-2 rounded-card bg-surface p-4">
       <input value={name} onChange={(e) => setName(e.target.value)} className={inputCls} placeholder="상품/상점" />
-      <div className="text-[11px] text-text-dim">보증금 (실제로 지금 나감 → 가계부 내역에 기록)</div>
+      <div className="text-[11px] text-text-dim">
+        보증금 (실제로 지금 나감 → 가계부 내역에 기록)
+        {rate != null && <span className="ml-1 text-accent">· 환율 1 CNY ≈ ₩{rate.toFixed(1)} 자동</span>}
+      </div>
       <div className="flex gap-2">
-        <input inputMode="decimal" value={depCny} onChange={(e) => setDepCny(e.target.value)} className={inputCls} placeholder="보증금 CNY(선택)" />
+        <input inputMode="decimal" value={depCny} onChange={(e) => onCny(e.target.value, setDepCny, depKrw, setDepKrw)} className={inputCls} placeholder="보증금 CNY(선택)" />
         <input inputMode="numeric" value={depKrw} onChange={(e) => setDepKrw(e.target.value)} className={inputCls} placeholder="보증금 실제 KRW *" />
       </div>
       <input type="date" value={depDate} onChange={(e) => setDepDate(e.target.value)} className={inputCls} />
       <div className="mt-1 text-[11px] text-text-dim">잔금 (아직 안 냄 → 대기 합계에만 표시)</div>
       <div className="flex gap-2">
-        <input inputMode="decimal" value={balCny} onChange={(e) => setBalCny(e.target.value)} className={inputCls} placeholder="잔금 CNY(선택)" />
+        <input inputMode="decimal" value={balCny} onChange={(e) => onCny(e.target.value, setBalCny, balEst, setBalEst)} className={inputCls} placeholder="잔금 CNY(선택)" />
         <input inputMode="numeric" value={balEst} onChange={(e) => setBalEst(e.target.value)} className={inputCls} placeholder="잔금 KRW 추정" />
       </div>
       <input type="date" value={due} onChange={(e) => setDue(e.target.value)} className={inputCls} placeholder="잔금 예정일" />
