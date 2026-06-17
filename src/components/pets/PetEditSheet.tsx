@@ -100,24 +100,6 @@ export default function PetEditSheet({
   );
 }
 
-function GrowthBar({ d }: { d: Detail }) {
-  const { growthPoints, teenThreshold, adultThreshold, stage } = d.pet;
-  const next = stage === "baby" ? teenThreshold : stage === "teen" ? adultThreshold : null;
-  const base = stage === "baby" ? 0 : stage === "teen" ? teenThreshold : adultThreshold;
-  const pct = next ? Math.min(100, ((growthPoints - base) / (next - base)) * 100) : 100;
-  return (
-    <div>
-      <div className="mb-1 flex justify-between text-[11px] opacity-60">
-        <span>성장 · {STAGE_KO[stage]}</span>
-        <span>{next ? `${growthPoints} / ${next}` : `${growthPoints} (다 자람)`}</span>
-      </div>
-      <div className="h-2 overflow-hidden rounded-full bg-bg ring-1 ring-border">
-        <div className="h-full bg-accent" style={{ width: `${pct}%` }} />
-      </div>
-    </div>
-  );
-}
-
 // 걷기 미리보기 — 현재 facing 기준, 왼쪽/오른쪽 이동 시 펫이 바라보는 모습을 즉석 표시.
 function WalkPreview({
   sprites,
@@ -251,7 +233,6 @@ function InfoTab({ d, rooms, onChanged, reload }: { d: Detail; rooms: PetRef[]; 
 
   return (
     <div className="flex flex-col gap-3">
-      <GrowthBar d={d} />
       <input value={name} onChange={(e) => setName(e.target.value)} className={input} placeholder="이름" />
       <textarea
         value={personality}
