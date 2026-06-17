@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
 import PetEffects, { type ActiveEffect, type EffectType } from "./PetEffects";
 import FurnitureSheet from "./FurnitureSheet";
@@ -1534,17 +1535,6 @@ export default function RoomView({
 
           <PetEffects effects={effects} />
 
-          {/* 관계 이벤트 연출 — 방 디밍 + 말풍선/자막 번갈아(stage 안에 깔려 % 좌표 일치). */}
-          {momentScript && (
-            <MomentPlayer
-              script={momentScript.script}
-              relationKind={momentScript.kind}
-              sceneBg={momentScript.sceneBg}
-              spriteOf={new Map(petsRef.current.map((p) => [p.id, { name: p.name, sprite: p.spritePath, pixel: p.pixelRender }]))}
-              onDone={() => setMomentScript(null)}
-            />
-          )}
-
           {toast && (
             <div className="pointer-events-none absolute bottom-2 left-1/2 -translate-x-1/2">
               <span
@@ -1557,6 +1547,21 @@ export default function RoomView({
           )}
         </div>
       </div>
+
+      {/* 관계 이벤트 연출 — 전체화면 자막 오버레이. body 로 포털해 무대 카드의
+          backdrop-filter/transform 에 fixed 가 갇히지 않게 한다(앱 배경 모드 회귀 방지). */}
+      {momentScript &&
+        typeof document !== "undefined" &&
+        createPortal(
+          <MomentPlayer
+            script={momentScript.script}
+            relationKind={momentScript.kind}
+            sceneBg={momentScript.sceneBg}
+            spriteOf={new Map(petsRef.current.map((p) => [p.id, { name: p.name, sprite: p.spritePath, pixel: p.pixelRender }]))}
+            onDone={() => setMomentScript(null)}
+          />,
+          document.body,
+        )}
 
       {/* 관리 모드 토글(독립 행) — 켜면 아래 타일 3개로 꾸미기. 일반 모드엔 아이템 주기 + 카메라만. */}
       <div className="flex items-center gap-2 text-xs">
