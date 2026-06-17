@@ -272,18 +272,28 @@ function AddForm({ onAdded }: { onAdded: (p: Preorder) => void }) {
   const [due, setDue] = useState("");
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
+  // KRW 칸을 사용자가 직접 손댔는지 — 손대기 전까진 CNY 변경마다 환율로 계속 재계산.
+  const [depKrwTouched, setDepKrwTouched] = useState(false);
+  const [balEstTouched, setBalEstTouched] = useState(false);
   const fx = useFx("CNY");
   const rate = fx.data?.rate ?? null;
 
   const numv = (s: string) => Number(s.replace(/[, ]/g, "")) || 0;
-  // CNY 입력 시, 대응 KRW 칸이 비어 있으면 환율로 자동 채움(수동 입력은 덮지 않음).
-  const onCny = (v: string, setCny: (s: string) => void, krw: string, setKrw: (s: string) => void) => {
+  // CNY 입력 시, 사용자가 KRW 칸을 직접 수정하기 전이면 매 입력마다 환율로 재계산(빈 값이면 비움).
+  const onCny = (v: string, setCny: (s: string) => void, touched: boolean, setKrw: (s: string) => void) => {
     setCny(v);
-    if (rate && krw.trim() === "") {
+    if (rate && !touched) {
       const n = numv(v);
-      if (n > 0) setKrw(String(Math.round(n * rate)));
+      setKrw(n > 0 ? String(Math.round(n * rate)) : "");
     }
   };
+  // 환율이 늦게 도착해도(비동기) 미수정 칸을 현재 CNY 기준으로 채움.
+  useEffect(() => {
+    if (rate == null) return;
+    if (!depKrwTouched) { const n = numv(depCny); if (n > 0) setDepKrw(String(Math.round(n * rate))); }
+    if (!balEstTouched) { const n = numv(balCny); if (n > 0) setBalEst(String(Math.round(n * rate))); }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rate]);
 
   async function submit() {
     if (!name.trim()) return setErr("상품/상점 이름을 입력하세요.");
@@ -316,14 +326,14 @@ function AddForm({ onAdded }: { onAdded: (p: Preorder) => void }) {
       <FxLine cur="CNY" fx={fx} />
       <div className="text-[11px] text-text-dim">보증금 (실제로 지금 나감 → 가계부 내역에 기록)</div>
       <div className="flex gap-2">
-        <input inputMode="decimal" value={depCny} onChange={(e) => onCny(e.target.value, setDepCny, depKrw, setDepKrw)} className={inputCls} placeholder="보증금 CNY(선택)" />
-        <input inputMode="numeric" value={depKrw} onChange={(e) => setDepKrw(e.target.value)} className={inputCls} placeholder="보증금 실제 KRW *" />
+        <input inputMode="decimal" value={depCny} onChange={(e) => onCny(e.target.value, setDepCny, depKrwTouched, setDepKrw)} className={inputCls} placeholder="보증금 CNY(선택)" />
+        <input inputMode="numeric" value={depKrw} onChange={(e) => { setDepKrw(e.target.value); setDepKrwTouched(true); }} className={inputCls} placeholder="보증금 실제 KRW *" />
       </div>
       <input type="date" value={depDate} onChange={(e) => setDepDate(e.target.value)} className={inputCls} />
       <div className="mt-1 text-[11px] text-text-dim">잔금 (아직 안 냄 → 대기 합계에만 표시)</div>
       <div className="flex gap-2">
-        <input inputMode="decimal" value={balCny} onChange={(e) => onCny(e.target.value, setBalCny, balEst, setBalEst)} className={inputCls} placeholder="잔금 CNY(선택)" />
-        <input inputMode="numeric" value={balEst} onChange={(e) => setBalEst(e.target.value)} className={inputCls} placeholder="잔금 KRW 추정" />
+        <input inputMode="decimal" value={balCny} onChange={(e) => onCny(e.target.value, setBalCny, balEstTouched, setBalEst)} className={inputCls} placeholder="잔금 CNY(선택)" />
+        <input inputMode="numeric" value={balEst} onChange={(e) => { setBalEst(e.target.value); setBalEstTouched(true); }} className={inputCls} placeholder="잔금 KRW 추정" />
       </div>
       <input type="date" value={due} onChange={(e) => setDue(e.target.value)} className={inputCls} placeholder="잔금 예정일" />
       <button disabled={busy} onClick={submit} className="rounded-control bg-accent px-3 py-2 text-sm font-medium text-black disabled:opacity-50">
