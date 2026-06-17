@@ -2,18 +2,44 @@
 
 import { useEffect, useMemo, useState } from "react";
 
+interface Fx { rate: number; asOf: string | null; fetchedAt: string }
 // 현재 환율(1 from = ? to) 훅 — /api/fx(무료 소스, 6h 캐시). 실패 시 null(수동 입력 폴백).
-function useFxRate(from: string, to = "KRW"): number | null {
-  const [rate, setRate] = useState<number | null>(null);
-  useEffect(() => {
-    let alive = true;
-    fetch(`/api/fx?from=${encodeURIComponent(from)}&to=${to}`)
-      .then((r) => r.json())
-      .then((d) => { if (alive && typeof d.rate === "number") setRate(d.rate); })
-      .catch(() => {});
-    return () => { alive = false; };
-  }, [from, to]);
-  return rate;
+//   refresh(): 캐시 무시 강제 재조회. busy: 조회 중. data: {rate, asOf(기준일), fetchedAt(받아온 시각)}.
+function useFx(from: string, to = "KRW") {
+  const [data, setData] = useState<Fx | null>(null);
+  const [busy, setBusy] = useState(false);
+  async function fetchRate(force = false) {
+    setBusy(true);
+    try {
+      const r = await fetch(`/api/fx?from=${encodeURIComponent(from)}&to=${to}${force ? "&refresh=1" : ""}`);
+      const d = await r.json();
+      if (typeof d.rate === "number") setData({ rate: d.rate, asOf: d.asOf ?? null, fetchedAt: d.fetchedAt });
+    } catch {
+      /* 유지(폴백) */
+    } finally {
+      setBusy(false);
+    }
+  }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => { void fetchRate(false); }, [from, to]);
+  return { data, busy, refresh: () => fetchRate(true) };
+}
+
+// 환율 줄 — 현재 환율 + 마지막 갱신 시각 + 새로고침 버튼.
+function FxLine({ cur, fx }: { cur: string; fx: ReturnType<typeof useFx> }) {
+  if (!fx.data) {
+    return fx.busy ? <span className="text-[11px] text-text-dim">환율 불러오는 중…</span> : null;
+  }
+  const at = new Date(fx.data.fetchedAt).toLocaleString("ko-KR", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
+  return (
+    <div className="flex items-center gap-1.5 text-[11px] text-text-dim">
+      <span className="text-accent">1 {cur} ≈ ₩{fx.data.rate.toFixed(1)}</span>
+      <span>· 갱신 {at}{fx.data.asOf ? ` · 기준 ${fx.data.asOf}` : ""}</span>
+      <button type="button" onClick={fx.refresh} disabled={fx.busy} className="rounded-full px-1.5 ring-1 ring-border disabled:opacity-50">
+        {fx.busy ? "…" : "↻"}
+      </button>
+    </div>
+  );
 }
 
 export interface Preorder {
@@ -186,10 +212,10 @@ function EditForm({ p, onSaved, onCancel }: { p: Preorder; onSaved: (p: Preorder
   const [due, setDue] = useState(p.balanceDueDate);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
-  const rate = useFxRate(p.currency);
+  const fx = useFx(p.currency);
   const applyFx = () => {
     const n = Number(balCny.replace(/[, ]/g, "")) || 0;
-    if (rate && n > 0) setEst(String(Math.round(n * rate)));
+    if (fx.data && n > 0) setEst(String(Math.round(n * fx.data.rate)));
   };
 
   async function save() {
@@ -218,11 +244,14 @@ function EditForm({ p, onSaved, onCancel }: { p: Preorder; onSaved: (p: Preorder
         <input inputMode="decimal" value={balCny} onChange={(e) => setBalCny(e.target.value)} className={inputCls} placeholder="잔금 CNY(선택)" />
         <input inputMode="numeric" value={est} onChange={(e) => setEst(e.target.value)} className={inputCls} placeholder="잔금 KRW 추정" />
       </div>
-      {rate != null && (
-        <button type="button" onClick={applyFx} className="self-start text-[11px] text-accent">
-          환율 적용 (1 {p.currency} ≈ ₩{rate.toFixed(1)})
-        </button>
-      )}
+      <div className="flex items-center justify-between">
+        <FxLine cur={p.currency} fx={fx} />
+        {fx.data && (
+          <button type="button" onClick={applyFx} className="shrink-0 rounded-control px-2 py-1 text-[11px] text-accent ring-1 ring-border">
+            환율 적용
+          </button>
+        )}
+      </div>
       <input type="date" value={due} onChange={(e) => setDue(e.target.value)} className={inputCls} />
       <div className="flex gap-2">
         <button disabled={busy} onClick={save} className="rounded-control bg-accent px-3 py-1.5 text-xs font-medium text-black disabled:opacity-50">{busy ? "저장 중…" : "저장"}</button>
@@ -243,7 +272,8 @@ function AddForm({ onAdded }: { onAdded: (p: Preorder) => void }) {
   const [due, setDue] = useState("");
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
-  const rate = useFxRate("CNY");
+  const fx = useFx("CNY");
+  const rate = fx.data?.rate ?? null;
 
   const numv = (s: string) => Number(s.replace(/[, ]/g, "")) || 0;
   // CNY 입력 시, 대응 KRW 칸이 비어 있으면 환율로 자동 채움(수동 입력은 덮지 않음).
@@ -283,10 +313,8 @@ function AddForm({ onAdded }: { onAdded: (p: Preorder) => void }) {
   return (
     <div className="flex flex-col gap-2 rounded-card bg-surface p-4">
       <input value={name} onChange={(e) => setName(e.target.value)} className={inputCls} placeholder="상품/상점" />
-      <div className="text-[11px] text-text-dim">
-        보증금 (실제로 지금 나감 → 가계부 내역에 기록)
-        {rate != null && <span className="ml-1 text-accent">· 환율 1 CNY ≈ ₩{rate.toFixed(1)} 자동</span>}
-      </div>
+      <FxLine cur="CNY" fx={fx} />
+      <div className="text-[11px] text-text-dim">보증금 (실제로 지금 나감 → 가계부 내역에 기록)</div>
       <div className="flex gap-2">
         <input inputMode="decimal" value={depCny} onChange={(e) => onCny(e.target.value, setDepCny, depKrw, setDepKrw)} className={inputCls} placeholder="보증금 CNY(선택)" />
         <input inputMode="numeric" value={depKrw} onChange={(e) => setDepKrw(e.target.value)} className={inputCls} placeholder="보증금 실제 KRW *" />
