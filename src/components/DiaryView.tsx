@@ -55,9 +55,47 @@ export default function DiaryView({
   const [replyPersona, setReplyPersona] = useState<string | null>(
     todays?.aiPersona ?? null,
   );
-  const [entries, setEntries] = useState<DiaryEntry[]>(past);
+  const [entries] = useState<DiaryEntry[]>(past);
   const [saving, setSaving] = useState(false);
   const [status, setStatus] = useState("");
+
+  // 지난 일기 검색/필터 — 기본은 최근 7일(entries), 검색하면 결과(results)로 전환·페이지네이션(10).
+  const [q, setQ] = useState("");
+  const [moodFilter, setMoodFilter] = useState<Mood | "">("");
+  const [from, setFrom] = useState("");
+  const [to, setTo] = useState("");
+  const [results, setResults] = useState<DiaryEntry[] | null>(null); // null = 기본(7일) 모드
+  const [offset, setOffset] = useState(0);
+  const [hasMore, setHasMore] = useState(false);
+  const [searching, setSearching] = useState(false);
+
+  async function runSearch(reset: boolean) {
+    setSearching(true);
+    try {
+      const p = new URLSearchParams();
+      if (q.trim()) p.set("q", q.trim());
+      if (moodFilter) p.set("mood", moodFilter);
+      if (from) p.set("from", from);
+      if (to) p.set("to", to);
+      const off = reset ? 0 : offset;
+      p.set("offset", String(off));
+      const res = await fetch(`/api/diary/list?${p.toString()}`);
+      const d = await res.json();
+      if (res.ok) {
+        setResults((prev) => (reset ? d.entries : [...(prev ?? []), ...d.entries]));
+        setHasMore(!!d.hasMore);
+        setOffset(d.nextOffset ?? 0);
+      }
+    } catch {
+      /* 무시 */
+    } finally {
+      setSearching(false);
+    }
+  }
+  function clearSearch() {
+    setQ(""); setMoodFilter(""); setFrom(""); setTo("");
+    setResults(null); setOffset(0); setHasMore(false);
+  }
 
   function addItem() {
     setItems((xs) => [...xs, { label: "", amount: "", weight: 3 }]);
@@ -300,61 +338,108 @@ export default function DiaryView({
         )}
       </section>
 
-      {/* 지난 일기 */}
-      {entries.length > 0 && (
-        <section className="rounded-card bg-surface p-5">
-          <h2 className="font-display mb-3 text-sm font-semibold">지난 일기</h2>
-          <ul className="flex flex-col gap-3">
-            {entries.map((e) => {
-              const m = moodOf(e.mood);
-              return (
-                <li key={e.id} className="rounded-xl bg-bg p-3 ring-1 ring-border">
-                  <div className="mb-1 flex items-center gap-2 text-xs">
-                    <span
-                      className="inline-block h-2.5 w-2.5 rounded-full"
-                      style={{ background: m?.color ?? "#555" }}
-                      title={m?.label}
-                    />
-                    <span className="opacity-60">{e.entryDate}</span>
-                    {m && <span className="opacity-40">{m.emoji} {m.label}</span>}
-                  </div>
-                  {e.photoPath && (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img
-                      src={e.photoPath}
-                      alt=""
-                      className="mb-1.5 max-h-52 w-full rounded-control object-cover"
-                    />
-                  )}
-                  {e.body && (
-                    <p className="whitespace-pre-wrap text-sm opacity-90">{e.body}</p>
-                  )}
-                  {e.items.length > 0 && (
-                    <p className="mt-1 text-[11px] opacity-50">
-                      {e.items
-                        .map(
-                          (it) =>
-                            `${it.label}${it.amount ? ` ${it.amount}` : ""}`,
-                        )
-                        .join(" · ")}
-                    </p>
-                  )}
-                  {e.aiReply && (
-                    <div className="mt-2 rounded-control bg-surface-2 p-2">
-                      <div className="mb-0.5 text-[11px] text-accent">
-                        {e.aiPersona ?? "상담가"}
-                      </div>
-                      <p className="whitespace-pre-wrap text-xs opacity-80">
-                        {e.aiReply}
-                      </p>
-                    </div>
-                  )}
-                </li>
-              );
-            })}
-          </ul>
-        </section>
-      )}
+      {/* 지난 일기 — 기본 최근 7일, 검색/필터로 그 이전까지 펼침(10개씩 더 보기). */}
+      <section className="rounded-card bg-surface p-5">
+        <div className="mb-3 flex items-center justify-between">
+          <h2 className="font-display text-sm font-semibold">지난 일기</h2>
+          <span className="text-[11px] opacity-50">{results === null ? "최근 7일" : "검색 결과"}</span>
+        </div>
+
+        {/* 검색/필터 */}
+        <div className="mb-3 flex flex-col gap-2">
+          <div className="flex gap-2">
+            <input
+              value={q}
+              onChange={(e) => setQ(e.target.value)}
+              onKeyDown={(e) => { if (e.key === "Enter") void runSearch(true); }}
+              placeholder="내용으로 검색"
+              className={`${inputCls} flex-1`}
+            />
+            <button
+              onClick={() => void runSearch(true)}
+              disabled={searching}
+              className="shrink-0 rounded-control bg-accent px-3 text-sm font-medium text-black disabled:opacity-50"
+            >
+              검색
+            </button>
+          </div>
+          <div className="flex items-center gap-2">
+            <select value={moodFilter} onChange={(e) => setMoodFilter(e.target.value as Mood | "")} className={`${inputCls} flex-1`}>
+              <option value="">기분 전체</option>
+              {MOODS.map((m) => (
+                <option key={m.key} value={m.key}>{m.emoji} {m.label}</option>
+              ))}
+            </select>
+            <input type="date" value={from} max={to || today} onChange={(e) => setFrom(e.target.value)} className={`${inputCls} w-36`} />
+            <span className="text-xs opacity-40">~</span>
+            <input type="date" value={to} max={today} onChange={(e) => setTo(e.target.value)} className={`${inputCls} w-36`} />
+          </div>
+          <div className="flex gap-3 text-xs">
+            {results === null ? (
+              <button onClick={() => void runSearch(true)} className="text-accent">전체 보기 →</button>
+            ) : (
+              <button onClick={clearSearch} className="opacity-60 hover:opacity-100">← 최근 7일로</button>
+            )}
+          </div>
+        </div>
+
+        {/* 목록 */}
+        {(() => {
+          const list = results ?? entries;
+          if (list.length === 0) {
+            return (
+              <p className="py-4 text-center text-xs opacity-50">
+                {results === null ? "최근 7일 일기가 없어요. 위에서 검색해 지난 일기를 찾아보세요." : "검색 결과가 없어요."}
+              </p>
+            );
+          }
+          return (
+            <>
+              <ul className="flex flex-col gap-3">
+                {list.map((e) => <EntryCard key={e.id} e={e} />)}
+              </ul>
+              {results !== null && hasMore && (
+                <button
+                  onClick={() => void runSearch(false)}
+                  disabled={searching}
+                  className="mt-3 w-full rounded-control py-2 text-sm ring-1 ring-border disabled:opacity-50"
+                >
+                  {searching ? "불러오는 중…" : "더 보기"}
+                </button>
+              )}
+            </>
+          );
+        })()}
+      </section>
     </div>
+  );
+}
+
+function EntryCard({ e }: { e: DiaryEntry }) {
+  const m = moodOf(e.mood);
+  return (
+    <li className="rounded-xl bg-bg p-3 ring-1 ring-border">
+      <div className="mb-1 flex items-center gap-2 text-xs">
+        <span className="inline-block h-2.5 w-2.5 rounded-full" style={{ background: m?.color ?? "#555" }} title={m?.label} />
+        <span className="opacity-60">{e.entryDate}</span>
+        {m && <span className="opacity-40">{m.emoji} {m.label}</span>}
+      </div>
+      {e.photoPath && (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img src={e.photoPath} alt="" className="mb-1.5 max-h-52 w-full rounded-control object-cover" />
+      )}
+      {e.body && <p className="whitespace-pre-wrap text-sm opacity-90">{e.body}</p>}
+      {e.items.length > 0 && (
+        <p className="mt-1 text-[11px] opacity-50">
+          {e.items.map((it) => `${it.label}${it.amount ? ` ${it.amount}` : ""}`).join(" · ")}
+        </p>
+      )}
+      {e.aiReply && (
+        <div className="mt-2 rounded-control bg-surface-2 p-2">
+          <div className="mb-0.5 text-[11px] text-accent">{e.aiPersona ?? "상담가"}</div>
+          <p className="whitespace-pre-wrap text-xs opacity-80">{e.aiReply}</p>
+        </div>
+      )}
+    </li>
   );
 }

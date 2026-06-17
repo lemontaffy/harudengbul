@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, gt, gte, lte } from "drizzle-orm";
+import { and, asc, desc, eq, gt, gte, ilike, inArray, lte } from "drizzle-orm";
 import { db } from "../client";
 import { diaryEntries, diaryItems } from "../schema";
 
@@ -163,4 +163,51 @@ export async function listByUser(userId: number, limit = 60) {
     .where(eq(diaryEntries.userId, userId))
     .orderBy(desc(diaryEntries.entryDate))
     .limit(limit);
+}
+
+/**
+ * 검색/필터 + 페이지네이션(최신순). 일기 관리 화면용.
+ *   q: 본문 부분일치(ILIKE), mood: 정확일치, from/to: entry_date 범위(YYYY-MM-DD).
+ *   limit+1 을 떠서 hasMore 판정 후 limit 까지만 반환.
+ */
+export async function search(
+  userId: number,
+  opts: { q?: string; mood?: string; from?: string; to?: string; limit?: number; offset?: number },
+): Promise<{ rows: (typeof diaryEntries.$inferSelect)[]; hasMore: boolean }> {
+  const limit = Math.min(Math.max(opts.limit ?? 10, 1), 50);
+  const offset = Math.max(opts.offset ?? 0, 0);
+  const conds = [eq(diaryEntries.userId, userId)];
+  if (opts.q?.trim()) conds.push(ilike(diaryEntries.body, `%${opts.q.trim()}%`));
+  if (opts.mood) conds.push(eq(diaryEntries.mood, opts.mood));
+  if (opts.from) conds.push(gte(diaryEntries.entryDate, opts.from));
+  if (opts.to) conds.push(lte(diaryEntries.entryDate, opts.to));
+
+  const rows = await db
+    .select()
+    .from(diaryEntries)
+    .where(and(...conds))
+    .orderBy(desc(diaryEntries.entryDate))
+    .limit(limit + 1)
+    .offset(offset);
+
+  const hasMore = rows.length > limit;
+  return { rows: hasMore ? rows.slice(0, limit) : rows, hasMore };
+}
+
+/** 여러 엔트리의 items 를 한 번에(N+1 회피). entryId → items 맵. */
+export async function getItemsForEntries(entryIds: number[]) {
+  const map = new Map<number, (typeof diaryItems.$inferSelect)[]>();
+  if (entryIds.length === 0) return map;
+  const rows = await db
+    .select()
+    .from(diaryItems)
+    .where(inArray(diaryItems.entryId, entryIds))
+    .orderBy(diaryItems.id);
+  for (const r of rows) {
+    if (r.entryId == null) continue;
+    const arr = map.get(r.entryId) ?? [];
+    arr.push(r);
+    map.set(r.entryId, arr);
+  }
+  return map;
 }
