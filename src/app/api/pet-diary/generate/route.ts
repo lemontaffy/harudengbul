@@ -7,7 +7,7 @@ import * as settingsRepo from "@/db/repo/settings";
 import { getLlmConfig } from "@/lib/config";
 import { completeChat } from "@/lib/llm";
 import { stageFor, forbiddenLine } from "@/lib/pets";
-import { buildDiaryMessages, fallbackDiary, diaryDateInTz, type DiaryRelation } from "@/lib/petDiary";
+import { buildDiaryMessages, fallbackDiary, diaryDateInTz, type DiaryRelation, type DiaryOther } from "@/lib/petDiary";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -45,12 +45,21 @@ export async function POST() {
       .filter((x): x is DiaryRelation => !!x);
     // 룸메이트 = 이 펫과 한 방이라도 같이 있는 다른 펫(다대다 멤버십).
     const roommates = (await membershipsRepo.roommatesOf(user!.id, pet.id)).map((p) => p.name);
+    // 다른 펫 전체의 실제 정보(성격·단계) — 일기에서 사실 왜곡(다른 펫에 대한 틀린 서술) 방지.
+    const others: DiaryOther[] = allPets
+      .filter((p) => p.id !== pet.id)
+      .map((p) => ({
+        name: p.name,
+        personality: p.personality,
+        stage: stageFor(p.growthPoints, p.teenThreshold, p.adultThreshold),
+      }));
     const msgs = buildDiaryMessages({
       name: pet.name,
       personality: pet.personality,
       stage: stageFor(pet.growthPoints, pet.teenThreshold, pet.adultThreshold),
       roommates,
       relations,
+      others,
     });
     for (let attempt = 0; attempt < 2; attempt++) {
       try {
