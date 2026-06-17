@@ -333,6 +333,45 @@ export const transactions = pgTable(
   (t) => [index("tx_user_date_idx").on(t.userId, t.txDate)],
 );
 
+// 예약·잔금 추적(타오바오류 보증금→잔금). 가계부 도메인에 통합되지만 *실제 거래(transactions)와는 분리*.
+//   - 보증금/잔금을 '실제로 낼 때만' transactions 행을 만들고 그 id를 deposit_txn_id/balance_txn_id 로 연결.
+//   - 대기 잔금(balance_krw_estimate)은 절대 transactions 로 insert하지 않음 — pending 동안 preorders 에만 존재.
+//   - 원통화 금액(CNY)은 표시용 numeric, 실제 가계부 반영은 KRW 정수(가계부 base=KRW).
+export const preorders = pgTable(
+  "preorders",
+  {
+    id: bigint("id", { mode: "number" }).primaryKey().generatedAlwaysAsIdentity(),
+    userId: bigint("user_id", { mode: "number" })
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    name: text("name").notNull(), // 상품/상점
+    currency: text("currency").notNull().default("CNY"), // 원통화
+    depositAmount: numeric("deposit_amount", { precision: 12, scale: 2 }), // 보증금(원통화)
+    depositKrw: integer("deposit_krw").notNull(), // 보증금 실제 지불 KRW
+    depositDate: date("deposit_date").notNull(),
+    balanceAmount: numeric("balance_amount", { precision: 12, scale: 2 }), // 잔금(원통화)
+    balanceKrwEstimate: integer("balance_krw_estimate").notNull().default(0), // 잔금 KRW 추정(대기 합계용)
+    balanceDueDate: date("balance_due_date").notNull(), // 잔금 예정일(대략)
+    balanceKrwActual: integer("balance_krw_actual"), // 완료 시 실제 지불 KRW (nullable)
+    status: text("status").notNull().default("pending"), // 'pending' | 'paid'
+    depositTxnId: bigint("deposit_txn_id", { mode: "number" }).references(() => transactions.id, {
+      onDelete: "set null",
+    }),
+    balanceTxnId: bigint("balance_txn_id", { mode: "number" }).references(() => transactions.id, {
+      onDelete: "set null",
+    }),
+    reminderId: bigint("reminder_id", { mode: "number" }).references(() => events.id, {
+      onDelete: "set null",
+    }),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
+    paidAt: timestamp("paid_at", { withTimezone: true }), // nullable
+  },
+  (t) => [
+    index("preorders_user_status_idx").on(t.userId, t.status),
+    index("preorders_user_due_idx").on(t.userId, t.balanceDueDate),
+  ],
+);
+
 // 주간 회고 편지 — 상담사가 한 주의 일기·기분·달성을 묶어 보내는 짧은 편지(아카이브).
 export const letters = pgTable(
   "letters",

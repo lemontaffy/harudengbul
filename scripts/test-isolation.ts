@@ -15,6 +15,7 @@ import * as petItemsLibRepo from "../src/db/repo/items";
 import * as placementsRepo from "../src/db/repo/furniturePlacements";
 import * as roomItemsRepo from "../src/db/repo/roomItems";
 import * as momentsRepo from "../src/db/repo/petMoments";
+import * as preordersRepo from "../src/db/repo/preorders";
 import { buildContext, buildSystemPrompt, type Role } from "../src/lib/persona";
 import { executeTool } from "../src/lib/tools";
 
@@ -227,6 +228,20 @@ async function main() {
   check("B는 A 순간 조회 못 함", (await momentsRepo.getOne(B.id, aMoment.id)) === null);
   check("B 순간 목록에 A 것 없음", !(await momentsRepo.listForUser(B.id)).some((m) => m.id === aMoment.id));
   check("A 본인은 A 순간 조회됨(양성)", (await momentsRepo.getOne(A.id, aMoment.id)) !== null);
+
+  // ── 예약·잔금(preorders) 교차 격리 ──
+  const aPre = await preordersRepo.create(A.id, {
+    name: "A비밀예약",
+    depositKrw: 1000,
+    depositDate: "2026-06-01",
+    balanceKrwEstimate: 5000,
+    balanceDueDate: "2026-07-01",
+  });
+  check("B는 A 예약 조회 못 함", (await preordersRepo.getOne(B.id, aPre.id)) === undefined);
+  check("B 예약 목록에 A 것 없음", !(await preordersRepo.listByUser(B.id)).some((p) => p.id === aPre.id));
+  check("A 본인은 A 예약 조회됨(양성)", (await preordersRepo.getOne(A.id, aPre.id)) !== undefined);
+  await preordersRepo.remove(B.id, aPre.id); // 타인 스코프 → no-op
+  check("B의 remove로 A 예약 안 지워짐", (await preordersRepo.getOne(A.id, aPre.id)) !== undefined);
 
   console.log(failed === 0 ? "\n격리 테스트 통과 ✅" : `\n${failed}건 실패 ❌`);
   process.exit(failed === 0 ? 0 : 1);
