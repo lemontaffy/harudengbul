@@ -76,7 +76,10 @@ export async function POST(req: Request) {
 
   const s = await settingsRepo.getByUser(user.id);
   const tz = s?.timezone ?? "Asia/Seoul";
-  const date = d.date ?? todayInTz(tz);
+  // 항상 서버 기준 '오늘'로 저장 — 클라가 보낸 date 는 무시한다.
+  //   (PWA 페이지를 자정 넘겨 열어두면 렌더 시점 날짜가 굳어 어제 날짜로 저장 → worker 가
+  //    오늘 일기를 못 찾고 리마인드가 오발송되던 문제. 작성은 항상 '지금 그날'이므로 서버가 권위.)
+  const date = todayInTz(tz);
 
   // 1) 일기 저장(upsert) — 제공된 필드만(mood-only 호출이 본문을 지우지 않게).
   const patch: { mood?: string | null; bodyCondition?: string | null; body?: string | null } = {};

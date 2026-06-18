@@ -6,7 +6,6 @@ import * as settingsRepo from "@/db/repo/settings";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-const dateRe = /^\d{4}-\d{2}-\d{2}$/;
 function todayInTz(tz: string): string {
   return new Intl.DateTimeFormat("en-CA", { timeZone: tz }).format(new Date());
 }
@@ -21,12 +20,9 @@ export async function POST(req: Request) {
   if (!(file instanceof File)) {
     return Response.json({ error: "사진 파일이 필요해요." }, { status: 400 });
   }
-  const dateRaw = form?.get("date");
+  // 항상 서버 기준 '오늘' (클라 date 무시) — 본문 저장과 같은 날짜로 맞춰 스테일 날짜 분리 방지.
   const s = await settingsRepo.getByUser(user.id);
-  const date =
-    typeof dateRaw === "string" && dateRe.test(dateRaw)
-      ? dateRaw
-      : todayInTz(s?.timezone ?? "Asia/Seoul");
+  const date = todayInTz(s?.timezone ?? "Asia/Seoul");
 
   try {
     const photoPath = await saveDiaryPhoto(user.id, file);
@@ -41,15 +37,11 @@ export async function POST(req: Request) {
   }
 }
 
-export async function DELETE(req: Request) {
+export async function DELETE(_req: Request) {
   const user = await getCurrentUser();
   if (!user) return Response.json({ error: "unauthorized" }, { status: 401 });
-  const dateRaw = new URL(req.url).searchParams.get("date");
   const s = await settingsRepo.getByUser(user.id);
-  const date =
-    dateRaw && dateRe.test(dateRaw)
-      ? dateRaw
-      : todayInTz(s?.timezone ?? "Asia/Seoul");
+  const date = todayInTz(s?.timezone ?? "Asia/Seoul");
   await diaryRepo.upsertEntry(user.id, date, { photoPath: null });
   return Response.json({ ok: true });
 }
