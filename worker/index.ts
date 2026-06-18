@@ -440,19 +440,6 @@ async function proactiveJob() {
   }
 }
 
-// 일기/체크인 기록(사진 포함)이 하나라도 있으면 "작성한 날"로 본다.
-function hasDiaryActivity(e: {
-  mood: string | null;
-  bodyCondition: string | null;
-  body: string | null;
-  photoPath: string | null;
-} | undefined): boolean {
-  return (
-    !!e &&
-    (!!e.mood || !!e.bodyCondition || !!(e.body && e.body.trim()) || !!e.photoPath)
-  );
-}
-
 // 일기 리마인드 — 담당 캐릭터의 선제 톡으로 생성(대화방 + 푸시). askReduce면 "줄여줄까?" 포함.
 async function sendDiaryReminder(
   userId: number,
@@ -500,9 +487,8 @@ async function diaryReminderJob() {
       if (!s.diaryReminderPersonaId || !rTime) continue;
       if (!isSlotDue(now, rTime, s.diaryReminderLastSent ?? null, today)) continue;
 
-      // 당일 일기/체크인 있으면 스킵(청구도 안 함).
-      const todayEntry = await diaryRepo.getByDate(s.userId, today);
-      if (hasDiaryActivity(todayEntry)) continue;
+      // 당일 일기/체크인/한 일 있으면 스킵(청구도 안 함). '오늘 한 일' 항목만 적어도 작성으로 인정.
+      if (await diaryRepo.hasContentOn(s.userId, today)) continue;
 
       const conn = await getLlmConfig(s.userId);
       if (!conn.configured) continue;
@@ -511,8 +497,7 @@ async function diaryReminderJob() {
       let streak = s.diaryReminderNoWriteStreak ?? 0;
       const prev = s.diaryReminderLastSent;
       if (prev && prev !== today) {
-        const prevEntry = await diaryRepo.getByDate(s.userId, prev);
-        streak = hasDiaryActivity(prevEntry) ? 0 : streak + 1;
+        streak = (await diaryRepo.hasContentOn(s.userId, prev)) ? 0 : streak + 1;
       }
       const askReduce = streak >= 7;
 

@@ -194,6 +194,23 @@ export async function search(
   return { rows: hasMore ? rows.slice(0, limit) : rows, hasMore };
 }
 
+/**
+ * 그 날짜에 "일기를 썼다"고 볼 내용이 있는지 — 리마인드 스킵 판정용.
+ *   mood/컨디션/본문/사진 중 하나라도, 또는 '오늘 한 일' 항목이 하나라도 있으면 true.
+ *   (빈 행은 mood-only 호출 등으로 생길 수 있어 '행 존재'만으론 판정하지 않는다.)
+ */
+export async function hasContentOn(userId: number, date: string): Promise<boolean> {
+  const e = await getByDate(userId, date);
+  if (!e) return false;
+  if (e.mood || e.bodyCondition || (e.body && e.body.trim()) || e.photoPath) return true;
+  const [it] = await db
+    .select({ id: diaryItems.id })
+    .from(diaryItems)
+    .where(eq(diaryItems.entryId, e.id))
+    .limit(1);
+  return !!it;
+}
+
 /** 여러 엔트리의 items 를 한 번에(N+1 회피). entryId → items 맵. */
 export async function getItemsForEntries(entryIds: number[]) {
   const map = new Map<number, (typeof diaryItems.$inferSelect)[]>();
