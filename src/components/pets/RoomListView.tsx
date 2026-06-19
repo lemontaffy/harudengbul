@@ -195,7 +195,7 @@ export default function RoomListView({
                     {r.avatars.slice(0, 5).map((a, i) =>
                       a ? (
                         // eslint-disable-next-line @next/next/no-img-element
-                        <img key={i} src={a} alt="" className="h-8 w-8 rounded-full bg-bg object-contain ring-2 ring-surface" />
+                        <img key={i} src={a} alt="" decoding="async" loading="lazy" className="h-8 w-8 rounded-full bg-bg object-contain ring-2 ring-surface" />
                       ) : (
                         <span key={i} className="flex h-8 w-8 items-center justify-center rounded-full bg-bg text-sm ring-2 ring-surface">🐾</span>
                       ),

@@ -1299,6 +1299,8 @@ export default function RoomView({
                 src={panel.path}
                 alt=""
                 draggable={false}
+                decoding="async"
+                loading={i === 0 ? "eager" : "lazy"}
                 className="absolute top-0 h-full snap-start object-cover"
                 style={{ left: `${(i * 100) / N}%`, width: `${100 / N}%`, ...pixel(panel.pixelRender) }}
               />
@@ -1352,6 +1354,7 @@ export default function RoomView({
                   src={fsrc}
                   alt={f.type}
                   draggable={false}
+                  decoding="async"
                   className={`h-20 w-20 object-contain ${furnitureMode ? "rounded ring-2 ring-accent/60" : ""}`}
                   style={{
                     objectPosition: "bottom",
@@ -1383,6 +1386,7 @@ export default function RoomView({
                     src={isrc}
                     alt={it.name}
                     draggable={false}
+                    decoding="async"
                     className={`h-16 w-16 object-contain ${itemMode ? "rounded ring-2 ring-accent/60" : ""}`}
                     style={{ objectPosition: "bottom", ...pixel(it.pixelRender), transform: `scale(${it.scale})`, filter: broken && !useBrokenSprite ? "grayscale(0.5) brightness(0.92)" : undefined }}
                   />
@@ -1463,6 +1467,7 @@ export default function RoomView({
                       src={src}
                       alt={p.name}
                       draggable={false}
+                      decoding="async"
                       className="h-20 w-20 object-contain"
                       style={{ ...pixel(p.pixelRender), transform: `scaleX(${flip ? -scale : scale}) scaleY(${scale})` }}
                     />
@@ -1489,6 +1494,7 @@ export default function RoomView({
                             src={isrc}
                             alt={it.name}
                             draggable={false}
+                            decoding="async"
                             onClick={(e) => { e.stopPropagation(); setItemSheetId(it.id); }}
                             className="block h-7 w-7 cursor-pointer object-contain"
                             style={{
