@@ -98,22 +98,19 @@ html[data-app-bg] body {
    rgba() 로 둔다(color-mix 는 html2canvas 1.4.1 이 파싱 못 해 펫 룸 스크린샷이 깨짐). */
 html[data-app-bg][data-theme="lantern"],
 html[data-app-bg]:not([data-theme]) {
-  --surface: rgba(34, 37, 49, 0.7); /* #222531 */
-  --surface-2: rgba(43, 47, 61, 0.7); /* #2b2f3d */
+  --surface: rgba(34, 37, 49, 0.78); /* #222531 */
+  --surface-2: rgba(43, 47, 61, 0.78); /* #2b2f3d */
 }
 html[data-app-bg][data-theme="dawn"] {
-  --surface: rgba(23, 34, 65, 0.7); /* #172241 */
-  --surface-2: rgba(31, 45, 82, 0.7); /* #1f2d52 */
+  --surface: rgba(23, 34, 65, 0.78); /* #172241 */
+  --surface-2: rgba(31, 45, 82, 0.78); /* #1f2d52 */
 }
 html[data-app-bg][data-theme="paper"] {
-  --surface: rgba(255, 255, 255, 0.7); /* #ffffff */
-  --surface-2: rgba(239, 236, 226, 0.7); /* #efece2 */
+  --surface: rgba(255, 255, 255, 0.78); /* #ffffff */
+  --surface-2: rgba(239, 236, 226, 0.78); /* #efece2 */
 }
-/* 카드 뒤 블러 — 반투명 표면 글자 가독성의 핵심. */
-html[data-app-bg] .rounded-card {
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
-}
+/* 가독성은 반투명 표면(위) + 배경 45% 스크림으로 확보. 카드별 backdrop-filter blur 는
+   제거 — 카드 수만큼 매 프레임 배경을 다시 블러해 스크롤·룸 애니메이션이 크게 끊겼다. */
 
 /* Paperlogy 표시 텍스트 — 살짝 좁은 자간 */
 .font-display {
