@@ -458,13 +458,17 @@ export default function RoomView({
       }
     }
     // 관계 이벤트 후보 — 같은 방 관계 있는 두 펫(하루 1회 캡 안 썼을 때만). 제안 카드만(자동 재생 X).
+    // 모든 자격 쌍을 모아 랜덤 1쌍을 고른다(예전엔 첫 쌍만 골라 늘 같은 둘만 떴음).
     if (!momentUsedToday) {
-      outer: for (let x = 0; x < pets.length; x++)
+      const candidates: NonNullable<typeof momentCard>[] = [];
+      for (let x = 0; x < pets.length; x++)
         for (let y = x + 1; y < pets.length; y++) {
           const a = pets[x], b = pets[y];
-          if (isLovePair(a.id, b.id)) { setMomentCard({ aId: a.id, bId: b.id, aName: a.name, bName: b.name, kind: "love" }); break outer; }
-          if (isHostilePair(a.id, b.id)) { setMomentCard({ aId: a.id, bId: b.id, aName: a.name, bName: b.name, kind: "hostile" }); break outer; }
+          const card = { aId: a.id, bId: b.id, aName: a.name, bName: b.name };
+          if (isLovePair(a.id, b.id)) candidates.push({ ...card, kind: "love" });
+          else if (isHostilePair(a.id, b.id)) candidates.push({ ...card, kind: "hostile" });
         }
+      if (candidates.length) setMomentCard(candidates[Math.floor(Math.random() * candidates.length)]);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
