@@ -4,11 +4,7 @@ import MemosView, { type Memo } from "@/components/MemosView";
 
 export const dynamic = "force-dynamic";
 
-export default async function MemosPage({
-  searchParams,
-}: {
-  searchParams: Promise<{ focus?: string }>;
-}) {
+export default async function MemosPage() {
   const user = await requireUser();
   const rows = await memosRepo.listOpen(user.id);
   const initialOpen: Memo[] = rows.map((m) => ({
@@ -19,15 +15,12 @@ export default async function MemosPage({
     doneAt: m.doneAt ? new Date(m.doneAt).toISOString() : null,
   }));
 
-  const focusRaw = Number((await searchParams)?.focus);
-  const focusId = Number.isInteger(focusRaw) && focusRaw > 0 ? focusRaw : null;
-
   return (
     <main className="mx-auto max-w-md p-5">
       <div className="mb-5 flex items-center justify-between">
         <h1 className="font-display text-lg font-semibold">주머니 메모</h1>
       </div>
-      <MemosView initialOpen={initialOpen} focusId={focusId} />
+      <MemosView initialOpen={initialOpen} />
     </main>
   );
 }

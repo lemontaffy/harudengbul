@@ -18,7 +18,6 @@ import {
   PawPrint,
   Inbox,
   Award,
-  Search,
   type LucideIcon,
 } from "lucide-react";
 
@@ -30,7 +29,6 @@ const TABS: Tab[] = [
   { href: "/events", label: "일정", Icon: CalendarDays },
 ];
 const MORE: { href: string; label: string; Icon: LucideIcon; admin?: boolean }[] = [
-  { href: "/search", label: "통합 검색", Icon: Search },
   { href: "/ledger", label: "가계부", Icon: Wallet },
   { href: "/letters", label: "편지", Icon: Mail },
   { href: "/memos", label: "주머니 메모", Icon: Inbox },

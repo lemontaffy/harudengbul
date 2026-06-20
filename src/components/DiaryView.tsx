@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
 
 type Mood = "storm" | "rain" | "cloud" | "haze" | "sun";
 interface DiaryItem {
@@ -36,12 +36,10 @@ export default function DiaryView({
   today,
   initialEntries,
   mainSupportsVision,
-  focusDate,
 }: {
   today: string;
   initialEntries: DiaryEntry[];
   mainSupportsVision: boolean;
-  focusDate?: string | null;
 }) {
   const todays = initialEntries.find((e) => e.entryDate === today) ?? null;
   const past = initialEntries.filter((e) => e.entryDate !== today);
@@ -398,7 +396,7 @@ export default function DiaryView({
           return (
             <>
               <ul className="flex flex-col gap-3">
-                {list.map((e) => <EntryCard key={e.id} e={e} focus={!!focusDate && e.entryDate === focusDate} />)}
+                {list.map((e) => <EntryCard key={e.id} e={e} />)}
               </ul>
               {results !== null && hasMore && (
                 <button
@@ -417,21 +415,10 @@ export default function DiaryView({
   );
 }
 
-function EntryCard({ e, focus }: { e: DiaryEntry; focus?: boolean }) {
+function EntryCard({ e }: { e: DiaryEntry }) {
   const m = moodOf(e.mood);
-  const ref = useRef<HTMLLIElement>(null);
-  const [lit, setLit] = useState(!!focus);
-  useEffect(() => {
-    if (!focus) return;
-    ref.current?.scrollIntoView({ block: "center", behavior: "smooth" });
-    const t = setTimeout(() => setLit(false), 2500);
-    return () => clearTimeout(t);
-  }, [focus]);
   return (
-    <li
-      ref={ref}
-      className={`rounded-xl bg-bg p-3 ring-1 transition-colors ${lit ? "ring-accent" : "ring-border"}`}
-    >
+    <li className="rounded-xl bg-bg p-3 ring-1 ring-border">
       <div className="mb-1 flex items-center gap-2 text-xs">
         <span className="inline-block h-2.5 w-2.5 rounded-full" style={{ background: m?.color ?? "#555" }} title={m?.label} />
         <span className="opacity-60">{e.entryDate}</span>

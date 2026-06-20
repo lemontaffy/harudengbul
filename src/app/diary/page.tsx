@@ -16,33 +16,17 @@ function daysBefore(today: string, n: number): string {
   return d.toISOString().slice(0, 10);
 }
 
-export default async function DiaryPage({
-  searchParams,
-}: {
-  searchParams: Promise<{ focus?: string }>;
-}) {
+export default async function DiaryPage() {
   const user = await requireUser();
   const s = await settingsRepo.getByUser(user.id);
   const today = todayInTz(s?.timezone ?? "Asia/Seoul");
   const conn = await getLlmConfig(user.id);
 
-  // 검색 등에서 ?focus=YYYY-MM-DD 로 들어오면 그 날 일기를 강조·스크롤.
-  const focusRaw = (await searchParams)?.focus;
-  const focusDate = focusRaw && /^\d{4}-\d{2}-\d{2}$/.test(focusRaw) ? focusRaw : null;
-
   // 기본 노출은 '오늘 + 지난 7일'만. 그 이전은 DiaryView 의 검색/필터(=/api/diary/list)로 펼친다.
   const weekAgo = daysBefore(today, 7);
   const rows = await diaryRepo.search(user.id, { from: weekAgo, to: today, limit: 50 });
-  const list = [...rows.rows];
-
-  // 포커스 날짜가 기본 창(최근 7일) 밖이면 그 한 건만 추가로 끌어와 합친다.
-  if (focusDate && !list.some((e) => e.entryDate === focusDate)) {
-    const one = await diaryRepo.getByDate(user.id, focusDate);
-    if (one) list.push(one);
-  }
-
-  const itemsMap = await diaryRepo.getItemsForEntries(list.map((r) => r.id));
-  const entries: DiaryEntry[] = list.map((e) => ({
+  const itemsMap = await diaryRepo.getItemsForEntries(rows.rows.map((r) => r.id));
+  const entries: DiaryEntry[] = rows.rows.map((e) => ({
     id: e.id,
     entryDate: e.entryDate,
     mood: (e.mood as DiaryEntry["mood"]) ?? null,
@@ -67,7 +51,6 @@ export default async function DiaryPage({
         today={today}
         initialEntries={entries}
         mainSupportsVision={conn.supportsVision}
-        focusDate={focusDate}
       />
     </main>
   );

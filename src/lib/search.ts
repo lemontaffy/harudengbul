@@ -1,23 +1,4 @@
-// 통합 검색 — 순수 헬퍼(테스트 용이). 실제 조회는 repo, 조립은 /api/search.
-//   대상: 채팅(messages) · 일기(diary_entries) · 주머니메모(memos). 전부 userId 스코프.
-
-export type SearchType = "chat" | "diary" | "memo";
-
-export interface SearchHit {
-  type: SearchType;
-  id: number;
-  /** 채팅만 — 어느 대화 상대의 메시지인지. */
-  personaId?: number;
-  personaName?: string;
-  /** 정렬·표시용 시각. 채팅/메모=createdAt ISO, 일기=entry_date(YYYY-MM-DD). */
-  date: string | null;
-  /** 매칭 부위 앞뒤를 잘라낸 스니펫. */
-  snippet: string;
-  /** 채팅 핀 여부(결과에서 살짝 강조). */
-  pinned?: boolean;
-  /** 탭 시 이동 경로(해당 위치로 포커스). */
-  href: string;
-}
+// 대화방 내 검색 — 순수 헬퍼(테스트 용이). 실제 조회는 messagesRepo, 조립은 /api/messages/search.
 
 // 2글자 미만은 trgm 정확도가 급격히 떨어져 노이즈만 많다 → 안내 메시지로 막는다.
 export const MIN_QUERY_LEN = 2;

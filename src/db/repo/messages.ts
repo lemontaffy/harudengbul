@@ -1,4 +1,4 @@
-import { and, asc, count, desc, eq, gt, gte, ilike, inArray, lt, lte, notInArray, sql } from "drizzle-orm";
+import { and, asc, count, desc, eq, gt, ilike, inArray, lt, lte, notInArray, sql } from "drizzle-orm";
 import { db } from "../client";
 import { messages } from "../schema";
 
@@ -321,39 +321,43 @@ export async function searchMessages(
   return [...exact, ...extra].map(toHit);
 }
 
-export interface UnifiedMsgHit {
+export interface RoomMsgHit {
   id: number;
-  personaId: number;
+  role: MsgRole;
   content: string;
   pinned: boolean;
   createdAt: Date | null;
 }
 
 /**
- * 통합 검색용 — 본문 ILIKE(부분일치) 우선, 부족하면 트라이그램 유사도 보조. userId 스코프.
- * 전체 원문을 돌려준다(스니펫은 호출부에서 매칭 둘레만 잘라낸다). 선택 필터: personaId / 기간(createdAt).
+ * 대화방 내 검색 — 현재 대화 상대(personaId)의 메시지만. userId+personaId 스코프 필수.
+ * 본문 ILIKE(부분일치) 우선, 부족하면 트라이그램 유사도 보조(messages_content_trgm_idx, 0017).
+ * 전체 원문을 돌려준다(스니펫은 호출부에서 매칭 둘레만 잘라낸다). 최신순.
  */
-export async function searchUnified(
+export async function searchInRoom(
   userId: number,
+  personaId: number,
   query: string,
-  opts: { personaId?: number; from?: Date; to?: Date; limit?: number } = {},
-): Promise<UnifiedMsgHit[]> {
+  limit = 50,
+): Promise<RoomMsgHit[]> {
   const q = query.trim();
-  const limit = opts.limit ?? 30;
   if (!q || limit <= 0) return [];
 
-  const scope = [eq(messages.userId, userId)];
-  if (opts.personaId != null) scope.push(eq(messages.personaId, opts.personaId));
-  if (opts.from) scope.push(gte(messages.createdAt, opts.from));
-  if (opts.to) scope.push(lte(messages.createdAt, opts.to));
-
+  const scope = [eq(messages.userId, userId), eq(messages.personaId, personaId)];
   const cols = {
     id: messages.id,
-    personaId: messages.personaId,
+    role: messages.role,
     content: messages.content,
     pinned: messages.pinned,
     createdAt: messages.createdAt,
   };
+  const toHit = (r: {
+    id: number;
+    role: string;
+    content: string;
+    pinned: boolean;
+    createdAt: Date | null;
+  }): RoomMsgHit => ({ ...r, role: r.role as MsgRole });
 
   const exact = await db
     .select(cols)
@@ -361,7 +365,7 @@ export async function searchUnified(
     .where(and(...scope, ilike(messages.content, `%${q}%`)))
     .orderBy(desc(messages.createdAt))
     .limit(limit);
-  if (exact.length >= limit) return exact;
+  if (exact.length >= limit) return exact.map(toHit);
 
   const seen = new Set(exact.map((r) => r.id));
   const sim = sql<number>`similarity(${messages.content}, ${q})`;
@@ -372,7 +376,7 @@ export async function searchUnified(
     .orderBy(desc(sim), desc(messages.createdAt))
     .limit(limit * 3);
   const extra = fuzzy.filter((r) => !seen.has(r.id)).slice(0, limit - exact.length);
-  return [...exact, ...extra];
+  return [...exact, ...extra].map(toHit);
 }
 
 /** 프롬프트용 — 최근 N턴(role/content만), 오래된→최신. */

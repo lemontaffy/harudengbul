@@ -29,6 +29,13 @@ interface Pin {
   content: string;
   createdAt?: string;
 }
+interface RoomHit {
+  id: number;
+  role: string;
+  pinned: boolean;
+  date: string | null;
+  snippet: string;
+}
 
 function displayName(p: ChatPersona): string {
   return p.name?.trim() || "이름 없는 캐릭터";
@@ -88,6 +95,12 @@ export default function ChatView({
   const [pins, setPins] = useState<Pin[]>([]);
   const [pinsOpen, setPinsOpen] = useState(false);
   const [highlightId, setHighlightId] = useState<number | null>(null);
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [searchQ, setSearchQ] = useState("");
+  const [searchHits, setSearchHits] = useState<RoomHit[]>([]);
+  const [searchTooShort, setSearchTooShort] = useState(false);
+  const [searchLoading, setSearchLoading] = useState(false);
+  const searchSeq = useRef(0);
   const photoRef = useRef<HTMLInputElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const searchParams = useSearchParams();
@@ -200,9 +213,42 @@ export default function ChatView({
   useEffect(() => {
     focusDoneRef.current = false;
     setPinsOpen(false);
+    setSearchOpen(false);
+    setSearchQ("");
+    setSearchHits([]);
     loadHistory(personaId);
     loadPins(personaId);
   }, [personaId, loadHistory, loadPins]);
+
+  // 대화방 내 검색 — 입력 디바운스(250ms). 현재 대화 상대의 메시지만(서버에서 스코프).
+  useEffect(() => {
+    if (!searchOpen) return;
+    const q = searchQ.trim();
+    const t = setTimeout(async () => {
+      const mine = ++searchSeq.current;
+      if (!q) {
+        setSearchHits([]);
+        setSearchTooShort(false);
+        setSearchLoading(false);
+        return;
+      }
+      setSearchLoading(true);
+      try {
+        const res = await fetch(
+          `/api/messages/search?personaId=${personaId}&q=${encodeURIComponent(q)}`,
+        );
+        const j = await res.json();
+        if (mine !== searchSeq.current) return;
+        setSearchHits(j.hits ?? []);
+        setSearchTooShort(!!j.tooShort);
+      } catch {
+        if (mine === searchSeq.current) setSearchHits([]);
+      } finally {
+        if (mine === searchSeq.current) setSearchLoading(false);
+      }
+    }, 250);
+    return () => clearTimeout(t);
+  }, [searchQ, searchOpen, personaId]);
 
   // 최신 messages/hasMore 를 비동기 루프(scrollToMessage)에서 안전히 읽기 위한 ref 미러.
   const messagesRef = useRef<Msg[]>([]);
@@ -446,42 +492,111 @@ export default function ChatView({
 
   return (
     <div className="flex h-full min-h-0 flex-col">
-      {/* 고정됨 — 접이식. 현재 대화 상대의 핀만. */}
-      {pins.length > 0 && (
-        <div className="shrink-0 border-b border-border pb-1.5">
-          <button
-            onClick={() => setPinsOpen((v) => !v)}
-            className="flex w-full items-center gap-1.5 py-1.5 text-[11px] opacity-70 hover:opacity-100"
-          >
-            <span>📌 고정됨 {pins.length}</span>
-            <span className="opacity-50">{pinsOpen ? "▲" : "▼"}</span>
-          </button>
-          {pinsOpen && (
-            <ul className="flex max-h-40 flex-col gap-1 overflow-y-auto pb-1">
-              {pins.map((p) => (
-                <li
-                  key={p.id}
-                  className="flex items-start gap-2 rounded-control bg-surface px-2 py-1.5 text-xs ring-1 ring-border"
-                >
-                  <button
-                    onClick={() => scrollToMessage(p.id)}
-                    className="line-clamp-2 flex-1 text-left opacity-90 hover:text-accent"
-                  >
-                    {p.content}
-                  </button>
-                  <button
-                    onClick={() => togglePin(p.id, false)}
-                    aria-label="핀 해제"
-                    className="shrink-0 opacity-40 hover:opacity-90"
-                  >
-                    ✕
-                  </button>
-                </li>
-              ))}
-            </ul>
+      {/* 상단 도구막대 — 고정됨 토글 + 이 대화 검색 */}
+      <div className="shrink-0 border-b border-border">
+        <div className="flex items-center gap-2 py-1.5 text-[11px]">
+          {pins.length > 0 ? (
+            <button
+              onClick={() => setPinsOpen((v) => !v)}
+              className="flex items-center gap-1 opacity-70 hover:opacity-100"
+            >
+              <span>📌 고정됨 {pins.length}</span>
+              <span className="opacity-50">{pinsOpen ? "▲" : "▼"}</span>
+            </button>
+          ) : (
+            <span className="opacity-30">이 대화</span>
           )}
+          <button
+            onClick={() => {
+              setSearchOpen((v) => !v);
+              setPinsOpen(false);
+            }}
+            aria-label="이 대화에서 검색"
+            className={`ml-auto flex items-center gap-1 rounded-control px-2 py-1 ring-1 ring-border ${
+              searchOpen ? "text-accent" : "opacity-70 hover:opacity-100"
+            }`}
+          >
+            🔎 <span>검색</span>
+          </button>
         </div>
-      )}
+
+        {/* 고정됨 목록 */}
+        {pins.length > 0 && pinsOpen && (
+          <ul className="flex max-h-40 flex-col gap-1 overflow-y-auto pb-1.5">
+            {pins.map((p) => (
+              <li
+                key={p.id}
+                className="flex items-start gap-2 rounded-control bg-surface px-2 py-1.5 text-xs ring-1 ring-border"
+              >
+                <button
+                  onClick={() => scrollToMessage(p.id)}
+                  className="line-clamp-2 flex-1 text-left opacity-90 hover:text-accent"
+                >
+                  {p.content}
+                </button>
+                <button
+                  onClick={() => togglePin(p.id, false)}
+                  aria-label="핀 해제"
+                  className="shrink-0 opacity-40 hover:opacity-90"
+                >
+                  ✕
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+
+        {/* 검색 패널 */}
+        {searchOpen && (
+          <div className="pb-1.5">
+            <div className="flex items-center gap-2 rounded-control bg-surface px-2.5 py-1.5 ring-1 ring-border">
+              <span className="opacity-50">🔎</span>
+              <input
+                autoFocus
+                value={searchQ}
+                onChange={(e) => setSearchQ(e.target.value)}
+                placeholder="이 대화에서 찾기"
+                className="w-full bg-transparent text-sm outline-none placeholder:opacity-40"
+              />
+              {searchQ && (
+                <button onClick={() => setSearchQ("")} aria-label="지우기" className="opacity-40 hover:opacity-80">
+                  ✕
+                </button>
+              )}
+            </div>
+            {searchTooShort && (
+              <p className="px-1 py-2 text-[11px] opacity-50">두 글자 이상 입력하면 찾아드려요.</p>
+            )}
+            {!searchTooShort && searchQ.trim() && !searchLoading && searchHits.length === 0 && (
+              <p className="px-1 py-2 text-[11px] opacity-50">‘{searchQ.trim()}’ 결과가 없어요.</p>
+            )}
+            {searchHits.length > 0 && (
+              <ul className="mt-1 flex max-h-56 flex-col gap-1 overflow-y-auto">
+                {searchHits.map((h) => (
+                  <li key={h.id}>
+                    <button
+                      onClick={() => {
+                        setSearchOpen(false);
+                        scrollToMessage(h.id);
+                      }}
+                      className={`flex w-full flex-col gap-0.5 rounded-control p-2 text-left ring-1 ${
+                        h.pinned ? "bg-accent/10 ring-accent/50" : "bg-surface ring-border"
+                      } hover:ring-accent`}
+                    >
+                      <div className="flex items-center gap-1 text-[10px] opacity-50">
+                        <span>{h.role === "user" ? "나" : "상대"}</span>
+                        {h.pinned && <span title="고정됨">📌</span>}
+                        <span className="ml-auto">{h.date ? dayLabel(h.date) : ""}</span>
+                      </div>
+                      <span className="line-clamp-2 text-xs opacity-90">{h.snippet}</span>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        )}
+      </div>
       {/* 메시지 */}
       <div ref={scrollRef} className="flex-1 space-y-2 overflow-y-auto py-2">
         {hasMore && (

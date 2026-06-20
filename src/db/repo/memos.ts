@@ -1,4 +1,4 @@
-import { and, desc, eq, gte, ilike, lte, sql } from "drizzle-orm";
+import { and, desc, eq, sql } from "drizzle-orm";
 import { db } from "../client";
 import { memos } from "../schema";
 
@@ -33,43 +33,6 @@ export async function getOne(userId: number, id: number) {
   return db.query.memos.findFirst({
     where: and(eq(memos.id, id), eq(memos.userId, userId)),
   });
-}
-
-/**
- * 통합 검색용 — 내용 ILIKE(부분일치) 우선, 부족하면 트라이그램 유사도 보조. userId 스코프.
- * 선택 필터: 기간(createdAt). 완료/미완료 모두 포함. 최신순.
- */
-export async function search(
-  userId: number,
-  query: string,
-  opts: { from?: Date; to?: Date; limit?: number } = {},
-): Promise<MemoRow[]> {
-  const q = query.trim();
-  const limit = opts.limit ?? 30;
-  if (!q || limit <= 0) return [];
-
-  const scope = [eq(memos.userId, userId)];
-  if (opts.from) scope.push(gte(memos.createdAt, opts.from));
-  if (opts.to) scope.push(lte(memos.createdAt, opts.to));
-
-  const exact = await db
-    .select()
-    .from(memos)
-    .where(and(...scope, ilike(memos.content, `%${q}%`)))
-    .orderBy(desc(memos.createdAt))
-    .limit(limit);
-  if (exact.length >= limit) return exact;
-
-  const seen = new Set(exact.map((r) => r.id));
-  const sim = sql<number>`similarity(${memos.content}, ${q})`;
-  const fuzzy = await db
-    .select()
-    .from(memos)
-    .where(and(...scope, sql`${sim} > 0.1`))
-    .orderBy(desc(sim), desc(memos.createdAt))
-    .limit(limit * 3);
-  const extra = fuzzy.filter((r) => !seen.has(r.id)).slice(0, limit - exact.length);
-  return [...exact, ...extra];
 }
 
 /** 체크/해제 — done_at 동기화. */

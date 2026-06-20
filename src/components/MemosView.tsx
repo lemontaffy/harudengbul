@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import { useDialog } from "@/components/ui/Dialog";
 
 export interface Memo {
@@ -14,13 +14,7 @@ export interface Memo {
 const input =
   "w-full rounded-control bg-bg px-3 py-2 text-sm outline-none ring-1 ring-border focus:ring-accent";
 
-export default function MemosView({
-  initialOpen,
-  focusId,
-}: {
-  initialOpen: Memo[];
-  focusId?: number | null;
-}) {
+export default function MemosView({ initialOpen }: { initialOpen: Memo[] }) {
   const dialog = useDialog();
   const [tab, setTab] = useState<"open" | "done">("open");
   const [open, setOpen] = useState<Memo[]>(initialOpen);
@@ -32,35 +26,7 @@ export default function MemosView({
   const [editText, setEditText] = useState("");
   const [menuFor, setMenuFor] = useState<number | null>(null);
   const [status, setStatus] = useState("");
-  const [highlightId, setHighlightId] = useState<number | null>(null);
   const captureRef = useRef<HTMLInputElement>(null);
-  const listRef = useRef<HTMLUListElement>(null);
-  const focusHandledRef = useRef(false);
-
-  // 검색 등에서 ?focus=<id> 로 들어오면: 미완료에 없으면 '해치운 것' 탭을 열어 찾는다.
-  useEffect(() => {
-    if (focusId == null) return;
-    if (initialOpen.some((m) => m.id === focusId)) {
-      setTab("open");
-    } else {
-      setTab("done");
-      if (!doneLoaded) loadDone();
-    }
-    // 마운트 시 1회 — focusId 기준.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [focusId]);
-
-  // 해당 메모가 화면에 그려지면 스크롤 + 잠깐 강조(1회).
-  useEffect(() => {
-    if (focusId == null || focusHandledRef.current) return;
-    const el = listRef.current?.querySelector<HTMLElement>(`[data-memo-id="${focusId}"]`);
-    if (!el) return;
-    focusHandledRef.current = true;
-    el.scrollIntoView({ block: "center", behavior: "smooth" });
-    setHighlightId(focusId);
-    const t = setTimeout(() => setHighlightId((v) => (v === focusId ? null : v)), 2500);
-    return () => clearTimeout(t);
-  }, [focusId, tab, open, done]);
 
   async function loadDone() {
     const res = await fetch("/api/memos?tab=done");
@@ -197,15 +163,9 @@ export default function MemosView({
           {tab === "open" ? "주머니가 비어 있어요. 떠오르면 던져넣으세요." : "아직 해치운 게 없어요."}
         </p>
       ) : (
-        <ul ref={listRef} className="flex flex-col gap-1.5">
+        <ul className="flex flex-col gap-1.5">
           {list.map((m) => (
-            <li
-              key={m.id}
-              data-memo-id={m.id}
-              className={`rounded-card bg-surface p-3 ring-1 transition-colors ${
-                highlightId === m.id ? "ring-accent" : "ring-border"
-              }`}
-            >
+            <li key={m.id} className="rounded-card bg-surface p-3 ring-1 ring-border">
               <div className="flex items-start gap-2.5">
                 <button
                   onClick={() => check(m, !m.done)}

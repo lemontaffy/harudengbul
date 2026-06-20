@@ -10,7 +10,6 @@ import * as personasRepo from "../src/db/repo/personas";
 import * as memoriesRepo from "../src/db/repo/memories";
 import * as diaryRepo from "../src/db/repo/diary";
 import * as messagesRepo from "../src/db/repo/messages";
-import * as memosRepo from "../src/db/repo/memos";
 import * as petRoomsRepo from "../src/db/repo/petRooms";
 import * as petItemsLibRepo from "../src/db/repo/items";
 import * as placementsRepo from "../src/db/repo/furniturePlacements";
@@ -244,19 +243,16 @@ async function main() {
   await preordersRepo.remove(B.id, aPre.id); // 타인 스코프 → no-op
   check("B의 remove로 A 예약 안 지워짐", (await preordersRepo.getOne(A.id, aPre.id)) !== undefined);
 
-  // ── 통합 검색(채팅·일기·메모) + 핀 교차 격리 ──
+  // ── 채팅방 내 검색 + 핀 교차 격리 ──
   const A_SRCH = "유니콘검색어ZZ";
+  const aCounselorP = await personaByRole(A.id, "counselor");
   await messagesRepo.add(A.id, aSecretary.id, "user", `채팅에 ${A_SRCH} 적음`);
-  await diaryRepo.upsertEntry(A.id, "2026-05-02", { body: `일기에 ${A_SRCH} 적음` });
-  await memosRepo.create(A.id, `메모에 ${A_SRCH} 적음`);
-  // B가 같은 키워드로 통합 검색 → A 데이터가 셋 다 0건이어야.
-  check("통합검색: B 채팅 결과에 A 없음", (await messagesRepo.searchUnified(B.id, A_SRCH)).length === 0);
-  check("통합검색: B 일기 결과에 A 없음", (await diaryRepo.search(B.id, { q: A_SRCH })).rows.length === 0);
-  check("통합검색: B 메모 결과에 A 없음", (await memosRepo.search(B.id, A_SRCH)).length === 0);
-  // A 본인은 세 출처 모두 매칭(양성 대조).
-  check("통합검색: A 채팅 본인 매칭", (await messagesRepo.searchUnified(A.id, A_SRCH)).length > 0);
-  check("통합검색: A 일기 본인 매칭", (await diaryRepo.search(A.id, { q: A_SRCH })).rows.length > 0);
-  check("통합검색: A 메모 본인 매칭", (await memosRepo.search(A.id, A_SRCH)).length > 0);
+  // 유저 격리 — B가 자기 방에서 같은 키워드 검색해도 A 메시지 안 나옴.
+  check("방검색: B 결과에 A 메시지 없음", (await messagesRepo.searchInRoom(B.id, bSecretary.id, A_SRCH)).length === 0);
+  // 양성 대조 — A 본인의 그 방에선 매칭.
+  check("방검색: A 본인 방 매칭", (await messagesRepo.searchInRoom(A.id, aSecretary.id, A_SRCH)).length > 0);
+  // persona(방) 스코프 — A의 다른 방(상담가)에선 안 나옴.
+  check("방검색: A 다른 방엔 안 나옴(persona 스코프)", (await messagesRepo.searchInRoom(A.id, aCounselorP.id, A_SRCH)).length === 0);
 
   // 핀 — 소유·페르소나(방) 스코프.
   const aPinMsg = await messagesRepo.add(A.id, aSecretary.id, "assistant", "고정할 통찰 메시지");
@@ -264,7 +260,6 @@ async function main() {
   check("핀: B 시도로 A 핀 안 생김", (await messagesRepo.listPinned(A.id, aSecretary.id)).length === 0);
   check("핀: A 본인 핀 성공", (await messagesRepo.setPinned(A.id, aPinMsg.id, true)) === true);
   check("핀: A 해당 방 핀 목록에 노출", (await messagesRepo.listPinned(A.id, aSecretary.id)).some((p) => p.id === aPinMsg.id));
-  const aCounselorP = await personaByRole(A.id, "counselor");
   check("핀: A 다른 페르소나 방엔 안 보임", !(await messagesRepo.listPinned(A.id, aCounselorP.id)).some((p) => p.id === aPinMsg.id));
   check("핀: B 핀 목록에 A 것 없음", !(await messagesRepo.listPinned(B.id, bSecretary.id)).some((p) => p.id === aPinMsg.id));
 
