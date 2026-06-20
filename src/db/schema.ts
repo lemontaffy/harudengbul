@@ -232,6 +232,8 @@ export const messages = pgTable(
     //   비전 미지원 연결로 전환해도 caption 으로 대화가 이어진다.
     attachmentPath: text("attachment_path"),
     attachmentCaption: text("attachment_caption"),
+    // 핀(고정) — 채팅방 상단 '고정됨' 섹션에 노출. persona_id별로 분리(현재 대화 상대의 핀만).
+    pinned: boolean("pinned").notNull().default(false),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
   },
   (t) => [

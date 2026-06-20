@@ -5,6 +5,7 @@ import * as personasRepo from "@/db/repo/personas";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
+// 현재 대화 상대(personaId)의 고정 메시지 목록. userId+personaId 스코프.
 export async function GET(req: Request) {
   const user = await getCurrentUser();
   if (!user) return Response.json({ error: "unauthorized" }, { status: 401 });
@@ -14,30 +15,16 @@ export async function GET(req: Request) {
   if (!raw || !Number.isInteger(personaId)) {
     return Response.json({ error: "personaId 필요" }, { status: 400 });
   }
-  // 본인 소유 캐릭터인지 확인(타인 스레드 열람 차단).
   const persona = await personasRepo.getOne(user.id, personaId);
-  if (!persona) {
-    return Response.json({ error: "없는 캐릭터" }, { status: 404 });
-  }
+  if (!persona) return Response.json({ error: "없는 캐릭터" }, { status: 404 });
 
-  const beforeRaw = Number(new URL(req.url).searchParams.get("before"));
-  const beforeId = Number.isInteger(beforeRaw) && beforeRaw > 0 ? beforeRaw : null;
-  const { messages: rows, hasMore } = await messagesRepo.listViewPage(
-    user.id,
-    personaId,
-    beforeId,
-    40,
-  );
+  const rows = await messagesRepo.listPinned(user.id, personaId);
   return Response.json({
-    messages: rows.map((m) => ({
+    pins: rows.map((m) => ({
       id: m.id,
       role: m.role,
       content: m.content,
-      hadToolCall: m.hadToolCall,
-      attachmentPath: m.attachmentPath,
-      pinned: m.pinned,
       createdAt: m.createdAt,
     })),
-    hasMore,
   });
 }

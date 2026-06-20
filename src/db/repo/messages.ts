@@ -1,4 +1,4 @@
-import { and, asc, count, desc, eq, gt, ilike, inArray, lt, lte, notInArray, sql } from "drizzle-orm";
+import { and, asc, count, desc, eq, gt, gte, ilike, inArray, lt, lte, notInArray, sql } from "drizzle-orm";
 import { db } from "../client";
 import { messages } from "../schema";
 
@@ -69,6 +69,36 @@ export async function updateContent(userId: number, id: number, content: string)
     .update(messages)
     .set({ content })
     .where(and(eq(messages.id, id), eq(messages.userId, userId)));
+}
+
+/** 핀 토글(고정/해제). 소유 스코프. 영향 행 0이면(없는/타인 메시지) 변화 없음. */
+export async function setPinned(userId: number, id: number, pinned: boolean): Promise<boolean> {
+  const res = await db
+    .update(messages)
+    .set({ pinned })
+    .where(and(eq(messages.id, id), eq(messages.userId, userId)))
+    .returning({ id: messages.id });
+  return res.length > 0;
+}
+
+/** 현재 대화 상대의 고정 메시지 — 오래된→최신(채팅 흐름과 같은 순서). userId+personaId 스코프. */
+export async function listPinned(userId: number, personaId: number) {
+  return db
+    .select({
+      id: messages.id,
+      role: messages.role,
+      content: messages.content,
+      createdAt: messages.createdAt,
+    })
+    .from(messages)
+    .where(
+      and(
+        eq(messages.userId, userId),
+        eq(messages.personaId, personaId),
+        eq(messages.pinned, true),
+      ),
+    )
+    .orderBy(asc(messages.createdAt), asc(messages.id));
 }
 
 /**
@@ -289,6 +319,60 @@ export async function searchMessages(
     .filter((r) => !seen.has(r.id))
     .slice(0, limit - exact.length);
   return [...exact, ...extra].map(toHit);
+}
+
+export interface UnifiedMsgHit {
+  id: number;
+  personaId: number;
+  content: string;
+  pinned: boolean;
+  createdAt: Date | null;
+}
+
+/**
+ * 통합 검색용 — 본문 ILIKE(부분일치) 우선, 부족하면 트라이그램 유사도 보조. userId 스코프.
+ * 전체 원문을 돌려준다(스니펫은 호출부에서 매칭 둘레만 잘라낸다). 선택 필터: personaId / 기간(createdAt).
+ */
+export async function searchUnified(
+  userId: number,
+  query: string,
+  opts: { personaId?: number; from?: Date; to?: Date; limit?: number } = {},
+): Promise<UnifiedMsgHit[]> {
+  const q = query.trim();
+  const limit = opts.limit ?? 30;
+  if (!q || limit <= 0) return [];
+
+  const scope = [eq(messages.userId, userId)];
+  if (opts.personaId != null) scope.push(eq(messages.personaId, opts.personaId));
+  if (opts.from) scope.push(gte(messages.createdAt, opts.from));
+  if (opts.to) scope.push(lte(messages.createdAt, opts.to));
+
+  const cols = {
+    id: messages.id,
+    personaId: messages.personaId,
+    content: messages.content,
+    pinned: messages.pinned,
+    createdAt: messages.createdAt,
+  };
+
+  const exact = await db
+    .select(cols)
+    .from(messages)
+    .where(and(...scope, ilike(messages.content, `%${q}%`)))
+    .orderBy(desc(messages.createdAt))
+    .limit(limit);
+  if (exact.length >= limit) return exact;
+
+  const seen = new Set(exact.map((r) => r.id));
+  const sim = sql<number>`similarity(${messages.content}, ${q})`;
+  const fuzzy = await db
+    .select(cols)
+    .from(messages)
+    .where(and(...scope, sql`${sim} > 0.1`))
+    .orderBy(desc(sim), desc(messages.createdAt))
+    .limit(limit * 3);
+  const extra = fuzzy.filter((r) => !seen.has(r.id)).slice(0, limit - exact.length);
+  return [...exact, ...extra];
 }
 
 /** 프롬프트용 — 최근 N턴(role/content만), 오래된→최신. */

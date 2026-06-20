@@ -1,6 +1,7 @@
 "use client";
 
 import { Fragment, useEffect, useRef, useState, useCallback } from "react";
+import { useSearchParams } from "next/navigation";
 import { useDialog } from "@/components/ui/Dialog";
 import { ImagePlus } from "lucide-react";
 import ConnectionSwitcher from "@/components/ConnectionSwitcher";
@@ -19,6 +20,13 @@ interface Msg {
   content: string;
   hadToolCall?: boolean;
   attachmentPath?: string | null;
+  pinned?: boolean;
+  createdAt?: string;
+}
+interface Pin {
+  id: number;
+  role: string;
+  content: string;
   createdAt?: string;
 }
 
@@ -77,8 +85,14 @@ export default function ChatView({
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
   const [toast, setToast] = useState("");
   const [lightbox, setLightbox] = useState<string | null>(null);
+  const [pins, setPins] = useState<Pin[]>([]);
+  const [pinsOpen, setPinsOpen] = useState(false);
+  const [highlightId, setHighlightId] = useState<number | null>(null);
   const photoRef = useRef<HTMLInputElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const searchParams = useSearchParams();
+  const focusParam = Number(searchParams.get("focus"));
+  const focusDoneRef = useRef(false);
 
   function showToast(msg: string) {
     setToast(msg);
@@ -174,9 +188,99 @@ export default function ChatView({
     }
   }
 
+  const loadPins = useCallback(async (id: number) => {
+    try {
+      const res = await fetch(`/api/pins?personaId=${id}`);
+      if (res.ok) setPins((await res.json()).pins ?? []);
+    } catch {
+      /* 핀 목록 실패는 조용히 — 채팅 본 흐름엔 영향 없음 */
+    }
+  }, []);
+
   useEffect(() => {
+    focusDoneRef.current = false;
+    setPinsOpen(false);
     loadHistory(personaId);
-  }, [personaId, loadHistory]);
+    loadPins(personaId);
+  }, [personaId, loadHistory, loadPins]);
+
+  // 최신 messages/hasMore 를 비동기 루프(scrollToMessage)에서 안전히 읽기 위한 ref 미러.
+  const messagesRef = useRef<Msg[]>([]);
+  const hasMoreRef = useRef(false);
+  useEffect(() => {
+    messagesRef.current = messages;
+  }, [messages]);
+  useEffect(() => {
+    hasMoreRef.current = hasMore;
+  }, [hasMore]);
+
+  const nextFrame = () => new Promise<void>((r) => requestAnimationFrame(() => r()));
+
+  // 과거 페이지 한 장을 위로 붙임(포커스 탐색 전용 — 스크롤 위치 보존). 더 불러왔으면 true.
+  const loadOlderForFocus = useCallback(async (): Promise<boolean> => {
+    if (!hasMoreRef.current) return false;
+    const oldestId = messagesRef.current.find((m) => m.id != null)?.id;
+    if (oldestId == null) return false;
+    const el = scrollRef.current;
+    const prevHeight = el?.scrollHeight ?? 0;
+    const res = await fetch(`/api/messages?personaId=${personaId}&before=${oldestId}`);
+    if (!res.ok) return false;
+    const d = await res.json();
+    setMessages((m) => [...d.messages, ...m]);
+    setHasMore(!!d.hasMore);
+    hasMoreRef.current = !!d.hasMore;
+    requestAnimationFrame(() => {
+      if (el) el.scrollTop += el.scrollHeight - prevHeight;
+    });
+    return (d.messages?.length ?? 0) > 0;
+  }, [personaId]);
+
+  // 특정 메시지로 스크롤 + 잠깐 강조. 화면에 없으면 과거 페이지를 당겨가며 찾는다.
+  const scrollToMessage = useCallback(
+    async (id: number) => {
+      for (let i = 0; i < 40; i++) {
+        const el = scrollRef.current?.querySelector<HTMLElement>(`[data-mid="${id}"]`);
+        if (el) {
+          el.scrollIntoView({ block: "center", behavior: "smooth" });
+          setHighlightId(id);
+          setTimeout(() => setHighlightId((v) => (v === id ? null : v)), 2500);
+          return true;
+        }
+        const more = await loadOlderForFocus();
+        if (!more) break;
+        await nextFrame(); // setMessages 커밋 후 DOM 반영 대기
+      }
+      return false;
+    },
+    [loadOlderForFocus],
+  );
+
+  // 핀 토글 — 낙관적 갱신 후 서버 반영, 핀 목록 새로고침.
+  async function togglePin(id: number, next: boolean) {
+    setMessages((m) => m.map((x) => (x.id === id ? { ...x, pinned: next } : x)));
+    setMenuFor(null);
+    try {
+      const res = await fetch(`/api/messages/${id}`, {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ pinned: next }),
+      });
+      if (!res.ok) throw new Error();
+      await loadPins(personaId);
+    } catch {
+      setMessages((m) => m.map((x) => (x.id === id ? { ...x, pinned: !next } : x)));
+      showToast("핀을 바꾸지 못했어요");
+    }
+  }
+
+  // 검색 결과 등에서 ?focus=<id> 로 들어오면 그 메시지로 이동(최초 1회).
+  useEffect(() => {
+    if (focusDoneRef.current) return;
+    if (!Number.isInteger(focusParam) || focusParam <= 0) return;
+    if (messages.length === 0) return;
+    focusDoneRef.current = true;
+    void scrollToMessage(focusParam);
+  }, [focusParam, messages.length, scrollToMessage]);
 
   // 백그라운드 진입 시 진행 중 스트림을 정리(모바일은 곧 JS가 멈춰 reader가 영영 안 끝남 →
   // streaming 플래그가 고착돼 입력이 막히는 멈춤 버그). abort → catch에서 중단 표시.
@@ -342,6 +446,42 @@ export default function ChatView({
 
   return (
     <div className="flex h-full min-h-0 flex-col">
+      {/* 고정됨 — 접이식. 현재 대화 상대의 핀만. */}
+      {pins.length > 0 && (
+        <div className="shrink-0 border-b border-border pb-1.5">
+          <button
+            onClick={() => setPinsOpen((v) => !v)}
+            className="flex w-full items-center gap-1.5 py-1.5 text-[11px] opacity-70 hover:opacity-100"
+          >
+            <span>📌 고정됨 {pins.length}</span>
+            <span className="opacity-50">{pinsOpen ? "▲" : "▼"}</span>
+          </button>
+          {pinsOpen && (
+            <ul className="flex max-h-40 flex-col gap-1 overflow-y-auto pb-1">
+              {pins.map((p) => (
+                <li
+                  key={p.id}
+                  className="flex items-start gap-2 rounded-control bg-surface px-2 py-1.5 text-xs ring-1 ring-border"
+                >
+                  <button
+                    onClick={() => scrollToMessage(p.id)}
+                    className="line-clamp-2 flex-1 text-left opacity-90 hover:text-accent"
+                  >
+                    {p.content}
+                  </button>
+                  <button
+                    onClick={() => togglePin(p.id, false)}
+                    aria-label="핀 해제"
+                    className="shrink-0 opacity-40 hover:opacity-90"
+                  >
+                    ✕
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      )}
       {/* 메시지 */}
       <div ref={scrollRef} className="flex-1 space-y-2 overflow-y-auto py-2">
         {hasMore && (
@@ -376,7 +516,12 @@ export default function ChatView({
                   <div className="h-px flex-1 bg-surface-2" />
                 </div>
               )}
-              <div className="group flex flex-col">
+              <div
+                data-mid={m.id ?? undefined}
+                className={`group flex flex-col rounded-card transition-colors ${
+                  highlightId === m.id ? "bg-accent/15 ring-1 ring-accent" : ""
+                }`}
+              >
                 <div className={`flex items-end gap-1.5 ${mine ? "justify-end" : "justify-start"}`}>
                   {!mine &&
                     (avatar ? (
@@ -428,6 +573,7 @@ export default function ChatView({
                 </div>
 
                 <div className={`mt-0.5 px-1 text-[10px] opacity-30 ${mine ? "text-right" : "pl-8"}`}>
+                  {m.pinned && <span className="mr-1 opacity-90">📌</span>}
                   {timeLabel(m.createdAt)}
                 </div>
 
@@ -453,6 +599,14 @@ export default function ChatView({
                         이어쓰기
                       </button>
                     )}
+                    <button
+                      onClick={() => togglePin(m.id!, !m.pinned)}
+                      className={`rounded-control bg-bg px-2 py-1 ring-1 ring-border hover:text-accent ${
+                        m.pinned ? "text-accent" : ""
+                      }`}
+                    >
+                      {m.pinned ? "핀 해제" : "핀"}
+                    </button>
                     <button
                       onClick={() => del(i)}
                       className="rounded-control bg-bg px-2 py-1 ring-1 ring-border hover:text-red-400"
